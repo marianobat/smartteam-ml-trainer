@@ -39,47 +39,55 @@ Abrí la URL que imprime Vite (por ejemplo http://localhost:5173).
 
 ⸻
 
-Cómo usar (flujo sugerido)
-	1.	Entrá a Hand Trainer (2 manos).
-	2.	Creá 2 clases (ej. OPEN y FIST).
-	3.	Seleccioná una clase y capturá ejemplos (tap o “press & hold”, según el modo actual).
-	4.	Repetí para la otra clase.
-	5.	Hacé click en Train.
-	6.	Probá la predicción en vivo mirando las barras por clase y el estado del threshold.
+## Cómo usar (flujo sugerido)
 
-Recomendación de muestras (pedagógico)
-	•	Punto de partida: 8–15 muestras por clase, bien distintas.
-	•	Si no supera el threshold de manera estable, sumar 2–4 muestras más por clase.
+1. Entrá a **Hand Trainer (2 manos)**.
+2. Creá 2 clases (ej. `OPEN` y `FIST`).
+3. Seleccioná una clase y capturá ejemplos (tap o “press & hold”, según el modo actual).
+4. Repetí para la otra clase.
+5. Hacé click en **Train**.
+6. Probá la predicción en vivo mirando las barras por clase y el estado del threshold.
 
-⸻
+### Recomendación de muestras (pedagógico)
 
-Documentación
-	•	📌 Avances y próximos pasos: docs/AVANCES_Y_PROXIMOS_PASOS.md
+- Punto de partida: **8–15 muestras por clase**, bien distintas.
+- Si no supera el threshold de manera estable, sumar **2–4** muestras más por clase.
 
-⸻
+---
 
-Estructura (alto nivel)
-	•	src/app/pages/HandTrainer.tsx
-UI del trainer + captura + entrenamiento + evaluación en vivo
-	•	src/core/dataset/
-Store/reducer de clases, samples y miniaturas
-	•	src/core/hand/
-HandLandmarker, featurización, dibujo, normalización
-	•	src/core/training/
-Preparación de tensores, modelo, entrenamiento, predicción
+## Documentación
 
-⸻
+- 📌 Avances y próximos pasos: `docs/AVANCES_Y_PROXIMOS_PASOS.md`
 
-Roadmap (resumen)
-	1.	Mejorar estabilidad de cámara/overlay al primer ingreso
-	2.	Afinar detección “coarse” (threshold, smoothing, decisión estable)
-	3.	Exportación de modelo (ZIP + manifest)
-	4.	Integración con Scratch (extensión/bloques)
-	5.	Ampliación a otros modelos: imagen, pose cuerpo, cara, texto
+---
 
-⸻
+## Estructura (alto nivel)
 
-Licencia / atribución
+- `src/app/pages/HandTrainer.tsx`  
+  UI del trainer + captura + entrenamiento + evaluación en vivo
 
-El proyecto está pensado para mantenerse abierto y reconocer el origen de las tecnologías utilizadas (MediaPipe / TFJS).
-La comercialización del proyecto SmartTEAM se apoya en libros para el aula + acompañamiento pedagógico.
+- `src/core/dataset/`  
+  Store/reducer de clases, samples y miniaturas
+
+- `src/core/hand/`  
+  HandLandmarker, featurización, dibujo, normalización
+
+- `src/core/training/`  
+  Preparación de tensores, modelo, entrenamiento, predicción
+
+---
+
+## Roadmap (resumen)
+
+1) Mejorar estabilidad de cámara/overlay al primer ingreso  
+2) Afinar detección “coarse” (threshold, smoothing, decisión estable)  
+3) Exportación de modelo (ZIP + manifest)  
+4) Integración con Scratch (extensión/bloques)  
+5) Ampliación a otros modelos: imagen, pose cuerpo, cara, texto
+
+---
+
+## Licencia / atribución
+
+El proyecto está pensado para mantenerse **abierto** y reconocer el origen de las tecnologías utilizadas (MediaPipe / TFJS).  
+La comercialización del proyecto SmartTEAM se apoya en **libros para el aula + acompañamiento pedagógico**.
