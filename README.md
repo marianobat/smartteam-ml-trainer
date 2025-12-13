@@ -1,73 +1,36 @@
-# React + TypeScript + Vite
+# SmartTEAM ML Trainer (Hands) — MVP
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Un MVP estilo **Teachable Machine** para **entrenar y probar en el navegador** un clasificador de gestos de manos (2 manos) usando **MediaPipe Hands + TensorFlow.js**.  
+Este trainer es el primer paso hacia una integración posterior con **Scratch** (extensión/bloques).
 
-Currently, two official plugins are available:
+> Objetivo pedagógico: que estudiantes creen clases (ej. “OPEN”, “FIST”), capturen ejemplos, entrenen y vean la predicción en vivo.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+---
 
-## React Compiler
+## Estado del proyecto
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+✅ MVP funcionando:
+- Gestión de clases (crear / renombrar / eliminar / seleccionar)
+- Captura de muestras desde features de 2 manos (vector 128)
+- Miniaturas por clase (thumbnails) para visualizar qué se está entrenando
+- Entrenamiento en navegador (TFJS) con feedback de progreso
+- Evaluación en vivo con barras horizontales por clase + threshold
+- Normalización obligatoria de features (train + predict)
 
-## Expanding the ESLint configuration
+⚠️ Pendiente de afinado:
+- Estabilidad de cámara/overlay en el primer ingreso en algunos casos
+- Ajustes “coarse detection” para que gestos simples funcionen mejor con pocos ejemplos
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+---
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Requisitos
+- Node.js recomendado: **20+**
+- npm
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+---
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+## Instalación y ejecución local
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+```bash
+npm install
+npm run dev
