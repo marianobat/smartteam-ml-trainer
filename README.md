@@ -34,6 +34,7 @@ Este trainer es el primer paso hacia una integración posterior con **Scratch** 
 ```bash
 npm install
 npm run dev
+```
 
 Abrí la URL que imprime Vite (por ejemplo http://localhost:5173).
 
