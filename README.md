@@ -1,6 +1,6 @@
 # SmartTEAM ML Trainer (Hands) - MediaPipe + TFJS + kNN
 
-Web app (Vite + React + TypeScript) to capture hand poses, train a classifier, and run live evaluation from the camera. The goal is educational and practical: create your own classes (open, fist, peace, etc.), capture a few samples, train, and see predictions in real time.
+Web app (Vite + React + TypeScript) to capture hand poses, train a classifier, and run live evaluation from the camera. It is an educational tool and a first step toward a future Scratch integration.
 
 ---
 
@@ -93,6 +93,23 @@ The app keeps a stable label to avoid flicker when a pose is ambiguous. This add
 
 ---
 
+## Project status
+
+MVP working:
+- Class management (create/rename/delete/select)
+- Sample capture from 2 hands features (10D vector)
+- Thumbnails per class
+- Training in browser (TFJS) with progress feedback
+- Live evaluation with per-class bars + threshold
+
+Pending or future ideas:
+- Improve camera/overlay stability on first load
+- Tuning for simple gestures with few examples
+- Model export (ZIP + manifest)
+- Scratch integration (extension/blocks)
+
+---
+
 ## Project map
 
 - `src/app/pages/HandTrainer.tsx` - main UI, capture, training, live evaluation.
@@ -100,6 +117,12 @@ The app keeps a stable label to avoid flicker when a pose is ambiguous. This add
 - `src/core/hand/featurize.ts` - feature extraction (10D).
 - `src/core/dataset/datasetStore.ts` - dataset state (classes, samples, thumbnails).
 - `src/core/training/*` - preparation, training, prediction, kNN.
+
+---
+
+## Documentation
+
+- `docs/AVANCES_Y_PROXIMOS_PASOS.md`
 
 ---
 
@@ -118,7 +141,7 @@ Open the URL printed by Vite.
 
 ## Troubleshooting
 
-- Slow or "gradual" predictions: adjust stability filters or smoothing.
+- Slow or gradual predictions: adjust stability filters or smoothing.
 - ML does not learn with few samples: add more samples per class.
 - kNN curve is slow: reduce max steps (default is 20).
 
