@@ -78,6 +78,7 @@ export default function HandTrainer({ onBack }: { onBack: () => void }) {
   const [status, setStatus] = useState("Inicializando...");
   const [mode, setMode] = useState<Mode>("examples");
   const modeRef = useRef<Mode>(mode);
+  const [isNarrow, setIsNarrow] = useState(false);
 
   const [dataset, dispatch] = useReducer(datasetReducer, undefined, createInitialDatasetState);
 
@@ -137,6 +138,18 @@ export default function HandTrainer({ onBack }: { onBack: () => void }) {
   useEffect(() => {
     modeRef.current = mode;
   }, [mode]);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 1100px)");
+    const update = () => setIsNarrow(mediaQuery.matches);
+    update();
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener("change", update);
+      return () => mediaQuery.removeEventListener("change", update);
+    }
+    mediaQuery.addListener(update);
+    return () => mediaQuery.removeListener(update);
+  }, []);
 
   const clearHoldTimers = () => {
     if (holdStartTimerRef.current) {
@@ -509,29 +522,57 @@ export default function HandTrainer({ onBack }: { onBack: () => void }) {
   }, [trainedClassNames, liveProbs, hasHands]);
 
   const hasTrainedModel = trainedModel?.kind === (mode === "examples" ? "knn" : "ml");
-  const progressLabel = mode === "examples" ? "Samples" : "Epoch";
+  const progressLabel = mode === "examples" ? "Muestras" : "Epoca";
   const hasValMetric = trainProgress.valAcc !== undefined;
   const progressTotal = trainProgress.total || (mode === "ml" ? TRAIN_EPOCHS : 0);
-  const valHint = mode === "ml" ? " (≥30 samples)" : "";
+  const valHint = mode === "ml" ? " (≥30 muestras)" : "";
 
   const trainStatusLabel = isTraining
-    ? "Training… ⏳"
+    ? "Entrenando... ⏳"
     : trainError
     ? "Error"
     : trainComplete
-    ? "Trained ✅"
-    : "Idle";
+    ? "Entrenado ✅"
+    : "Inactivo";
 
   return (
-    <div style={{ padding: 16, display: "grid", gap: 12, height: "100vh", boxSizing: "border-box", overflow: "hidden" }}>
+    <div
+      style={{
+        padding: 16,
+        display: "grid",
+        gap: 12,
+        height: isNarrow ? "auto" : "100vh",
+        boxSizing: "border-box",
+        overflow: isNarrow ? "auto" : "hidden",
+      }}
+    >
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <button onClick={onBack}>← Volver</button>
-        <h2 style={{ margin: 0 }}>Hand Trainer (2 manos)</h2>
+        <h2 style={{ margin: 0 }}>Entrenador de manos (2 manos)</h2>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "360px 1fr", gap: 16, alignItems: "start", minHeight: 0 }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: isNarrow ? "1fr" : "360px minmax(0, 1fr) 320px",
+          gap: 16,
+          alignItems: "start",
+          minHeight: isNarrow ? undefined : 0,
+        }}
+      >
         {/* Panel clases */}
-        <div style={{ border: "1px solid #ddd", borderRadius: 12, padding: 12, display: "grid", gap: 10, overflow: "auto", maxHeight: "100%", minHeight: 0 }}>
+        <div
+          style={{
+            border: "1px solid #ddd",
+            borderRadius: 12,
+            padding: 12,
+            display: "grid",
+            gap: 10,
+            overflow: isNarrow ? "visible" : "auto",
+            maxHeight: isNarrow ? undefined : "100%",
+            minHeight: isNarrow ? undefined : 0,
+          }}
+        >
           <div style={{ display: "grid", gap: 6 }}>
             <div style={{ fontSize: 12, fontWeight: 600 }}>Modo</div>
             <div style={{ display: "flex", gap: 8 }}>
@@ -581,14 +622,14 @@ export default function HandTrainer({ onBack }: { onBack: () => void }) {
               onClick={() => dispatch({ type: "ADD_CLASS" })}
               style={{ flex: 1 }}
             >
-              + Add class
+              + Agregar clase
             </button>
 
             <button
               onClick={() => dispatch({ type: "RESET_DATASET" })}
-              title="Resetea clases y samples"
+              title="Reinicia clases y muestras"
             >
-              Reset
+              Reiniciar
             </button>
           </div>
 
@@ -631,7 +672,7 @@ export default function HandTrainer({ onBack }: { onBack: () => void }) {
                   </div>
 
                   <div style={{ fontSize: 12, opacity: 0.8 }}>
-                    Samples: <b>{counts[c.id] ?? 0}</b>
+                    Muestras: <b>{counts[c.id] ?? 0}</b>
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                       {thumbs.map((src, idx) => (
                         <img
@@ -665,11 +706,11 @@ export default function HandTrainer({ onBack }: { onBack: () => void }) {
               disabled={!dataset.activeClassId}
               style={{ padding: "10px 12px", borderRadius: 10, border: "1px solid #111", fontWeight: 600 }}
             >
-              Capture sample
+              Capturar muestra
             </button>
 
             <div style={{ fontSize: 12, opacity: 0.7 }}>
-              Tap: 1 muestra. Hold: después de 1s toma 1 muestra cada 0.5s.
+              Toque: 1 muestra. Mantener: después de 1s toma 1 muestra cada 0.5s.
             </div>
           </div>
 
@@ -679,14 +720,14 @@ export default function HandTrainer({ onBack }: { onBack: () => void }) {
               disabled={!canTrain || isTraining}
               style={{ padding: "10px 12px", borderRadius: 10, border: "1px solid #111", fontWeight: 600 }}
             >
-              {isTraining ? `Training... (${progressLabel.toLowerCase()} ${trainProgress.epoch}/${progressTotal})` : "Train"}
+              {isTraining ? `Entrenando... (${progressLabel.toLowerCase()} ${trainProgress.epoch}/${progressTotal})` : "Entrenar"}
             </button>
             <div style={{ fontSize: 12, opacity: 0.85, display: "grid", gap: 4 }}>
               <div>
-                Status: <b>{trainStatusLabel}</b> — {progressLabel} <b>{trainProgress.epoch}</b> / {progressTotal}
+                Estado: <b>{trainStatusLabel}</b> — {progressLabel} <b>{trainProgress.epoch}</b> / {progressTotal}
               </div>
               <div>
-                Acc <b>{(trainProgress.acc ?? 0).toFixed(2)}</b> / Val{" "}
+                Precision <b>{(trainProgress.acc ?? 0).toFixed(2)}</b> / Validacion{" "}
                 <b>
                   {hasValMetric
                     ? (trainProgress.valAcc ?? 0).toFixed(2)
@@ -700,7 +741,7 @@ export default function HandTrainer({ onBack }: { onBack: () => void }) {
                 </b>
               </div>
               <div>
-                Requiere ≥2 clases, sin clases vacías y ~2 samples por clase (total ≥{" "}
+                Requiere ≥2 clases, sin clases vacías y ~2 muestras por clase (total ≥{" "}
                 {dataset.classes.length * 2}).
               </div>
               {trainNotice && (
@@ -729,14 +770,14 @@ export default function HandTrainer({ onBack }: { onBack: () => void }) {
                       typeof value === "number" ? value.toFixed(2) : value
                     }
                     labelFormatter={(label) =>
-                      mode === "examples" ? `Samples ${label}` : `Epoch ${label}`
+                      mode === "examples" ? `Muestras ${label}` : `Epoca ${label}`
                     }
                   />
                   <Legend />
                   <Line
                     type="monotone"
                     dataKey="acc"
-                    name="Train acc"
+                    name="Precision entrenamiento"
                     stroke="#111"
                     dot={false}
                     isAnimationActive={false}
@@ -745,7 +786,7 @@ export default function HandTrainer({ onBack }: { onBack: () => void }) {
                     <Line
                       type="monotone"
                       dataKey="valAcc"
-                      name="Val acc"
+                      name="Precision validacion"
                       stroke="#5b8def"
                       dot={false}
                       isAnimationActive={false}
@@ -758,8 +799,24 @@ export default function HandTrainer({ onBack }: { onBack: () => void }) {
         </div>
 
         {/* Cámara + overlay */}
-        <div style={{ display: "grid", gap: 8, overflow: "auto", maxHeight: "100%", minHeight: 0 }}>
-          <div style={{ position: "sticky", top: 0, zIndex: 1, background: "#fff", paddingBottom: 8 }}>
+        <div
+          style={{
+            display: "grid",
+            gap: 8,
+            overflow: isNarrow ? "visible" : "auto",
+            maxHeight: isNarrow ? undefined : "100%",
+            minHeight: isNarrow ? undefined : 0,
+          }}
+        >
+          <div
+            style={{
+              position: isNarrow ? "relative" : "sticky",
+              top: isNarrow ? undefined : 0,
+              zIndex: 1,
+              background: "#fff",
+              paddingBottom: 8,
+            }}
+          >
             <div style={{ position: "relative", width: 720, maxWidth: "100%" }}>
               <video
                 ref={videoRef}
@@ -782,9 +839,20 @@ export default function HandTrainer({ onBack }: { onBack: () => void }) {
           </div>
 
           <div style={{ fontSize: 12, opacity: 0.7 }}>
-            Total samples: <b>{dataset.samples.length}</b>
+            Muestras totales: <b>{dataset.samples.length}</b>
           </div>
+        </div>
 
+        {/* Evaluacion en vivo */}
+        <div
+          style={{
+            display: "grid",
+            gap: 8,
+            overflow: isNarrow ? "visible" : "auto",
+            maxHeight: isNarrow ? undefined : "100%",
+            minHeight: isNarrow ? undefined : 0,
+          }}
+        >
           <div
             style={{
               border: "1px solid #eee",
@@ -796,8 +864,8 @@ export default function HandTrainer({ onBack }: { onBack: () => void }) {
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ fontWeight: 600 }}>Live evaluation</div>
-              <div style={{ fontSize: 12, opacity: 0.8 }}>Threshold {ACCEPT_THRESHOLD.toFixed(2)}</div>
+              <div style={{ fontWeight: 600 }}>Evaluacion en vivo</div>
+              <div style={{ fontSize: 12, opacity: 0.8 }}>Umbral {ACCEPT_THRESHOLD.toFixed(2)}</div>
             </div>
             <div style={{ display: "grid", gap: 4, fontSize: 12, opacity: 0.9 }}>
               <div>
@@ -806,7 +874,7 @@ export default function HandTrainer({ onBack }: { onBack: () => void }) {
                   {hasTrainedModel
                     ? hasHands
                       ? `${liveLabel} (${liveConfidence.toFixed(2)})`
-                      : "No hands"
+                      : "Sin manos"
                     : "—"}
                 </b>
               </div>
@@ -873,7 +941,7 @@ export default function HandTrainer({ onBack }: { onBack: () => void }) {
               </div>
             ) : (
               <div style={{ fontSize: 12, opacity: 0.75 }}>
-                Entrená un modelo para ver las probabilidades en vivo.
+                Entrena un modelo para ver las probabilidades en vivo.
               </div>
             )}
           </div>
