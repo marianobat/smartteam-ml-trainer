@@ -1,84 +1,100 @@
 import type { HandLandmarkerResult } from "@mediapipe/tasks-vision";
 
-function fillZeros(arr: number[], n: number) {
-  for (let i = 0; i < n; i++) arr.push(0);
+type Landmark = { x: number; y: number; z: number };
+
+// Finger flex (10) + thumb direction (2) + index/middle direction (4)
+const SINGLE_HAND_FEATURE_DIM = 16;
+export const FEATURE_DIM = SINGLE_HAND_FEATURE_DIM * 2;
+
+function dist2D(a: Landmark, b: Landmark) {
+  const dx = a.x - b.x;
+  const dy = a.y - b.y;
+  return Math.hypot(dx, dy);
 }
 
-function flattenLandmarks(landmarks: { x: number; y: number; z: number }[]) {
-  const out: number[] = [];
-  for (const p of landmarks) {
-    out.push(p.x, p.y, p.z);
+// Finger-curl style features (10 dims) + dirección pulgar/índice/medio (6 dims) — invariant to posición/escala en frame.
+export function fingerCurlFeatures(lm: Landmark[]): Float32Array {
+  const wrist = lm[0];
+  const palm = dist2D(lm[5], lm[17]) + 1e-6;
+
+  const fingers: Array<[number, number]> = [
+    [1, 4], // thumb
+    [5, 8], // index
+    [9, 12], // middle
+    [13, 16], // ring
+    [17, 20], // pinky
+  ];
+
+  const feats = new Float32Array(SINGLE_HAND_FEATURE_DIM);
+  let k = 0;
+  for (const [mcp, tip] of fingers) {
+    feats[k++] = dist2D(lm[tip], lm[mcp]) / palm;
+    feats[k++] = dist2D(lm[tip], wrist) / palm;
   }
-  return out; // length 63
+  // Directional cues to disambiguate pointing (index, middle, thumb vs wrist)
+  const idxTip = lm[8];
+  const midTip = lm[12];
+  const thumbTip = lm[4];
+  feats[k++] = (idxTip.x - wrist.x) / palm;
+  feats[k++] = (idxTip.y - wrist.y) / palm;
+  feats[k++] = (midTip.x - wrist.x) / palm;
+  feats[k++] = (midTip.y - wrist.y) / palm;
+  feats[k++] = (thumbTip.x - wrist.x) / palm;
+  feats[k++] = (thumbTip.y - wrist.y) / palm;
+  return feats;
 }
 
-// Normalización por mano (per-sample):
-// - centra por muñeca (landmark 0)
-// - escala por distancia muñeca->base dedo medio (landmark 9) (si es 0, no escala)
-function normalizeHand63(hand63: number[]) {
-  // hand63 = [x0,y0,z0,x1,y1,z1,...]
-  const x0 = hand63[0],
-    y0 = hand63[1],
-    z0 = hand63[2];
-
-  // center
-  for (let i = 0; i < hand63.length; i += 3) {
-    hand63[i] -= x0;
-    hand63[i + 1] -= y0;
-    hand63[i + 2] -= z0;
-  }
-
-  // scale by distance to landmark 9 (index 9 -> position 27..29)
-  const ix = 9 * 3;
-  const dx = hand63[ix],
-    dy = hand63[ix + 1],
-    dz = hand63[ix + 2];
-  const scale = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1;
-
-  for (let i = 0; i < hand63.length; i++) {
-    hand63[i] /= scale;
-  }
-}
-
-export function featurizeTwoHands(result: HandLandmarkerResult, mirrorView = true): Float32Array {
-  // MediaPipe puede devolver múltiples manos; usamos handedness para mapear a LEFT/RIGHT
-  let left: number[] | null = null;
-  let right: number[] | null = null;
-
+export function featurizeTwoHands(result: HandLandmarkerResult): Float32Array | null {
   const landmarksList = result.landmarks ?? [];
-  const handednessList = result.handedness ?? [];
+  if (!landmarksList.length) return null;
+
+  const handedness = result.handedness ?? [];
+  const handsWithArea = landmarksList.map((lm) => {
+    let minX = Number.POSITIVE_INFINITY;
+    let minY = Number.POSITIVE_INFINITY;
+    let maxX = Number.NEGATIVE_INFINITY;
+    let maxY = Number.NEGATIVE_INFINITY;
+    for (const p of lm) {
+      if (p.x < minX) minX = p.x;
+      if (p.y < minY) minY = p.y;
+      if (p.x > maxX) maxX = p.x;
+      if (p.y > maxY) maxY = p.y;
+    }
+    return { lm, area: (maxX - minX) * (maxY - minY) };
+  });
+
+  let leftLm: Landmark[] | null = null;
+  let rightLm: Landmark[] | null = null;
 
   for (let i = 0; i < landmarksList.length; i++) {
-    const landmarks = landmarksList[i];
-    let handed = handednessList[i]?.[0]?.categoryName; // "Left" / "Right"
-    if (mirrorView) {
-        if (handed === "Left") handed = "Right";
-        else if (handed === "Right") handed = "Left";
-    }
-    const flat = flattenLandmarks(landmarks);
+    const side = handedness[i]?.[0]?.categoryName;
+    if (side === "Left" && !leftLm) leftLm = landmarksList[i];
+    else if (side === "Right" && !rightLm) rightLm = landmarksList[i];
+  }
 
-    // normalizamos por mano
-    normalizeHand63(flat);
-
-    if (handed === "Left") left = flat;
-    else if (handed === "Right") right = flat;
-    else {
-      // si no viene handedness confiable, ocupamos el primer slot libre
-      if (!left) left = flat;
-      else if (!right) right = flat;
+  // Si falta alguna mano, usamos las de mayor área no asignadas para completar slots vacíos
+  if (!leftLm || !rightLm) {
+    const sorted = handsWithArea
+      .filter(({ lm }) => lm !== leftLm && lm !== rightLm)
+      .sort((a, b) => b.area - a.area);
+    for (const { lm } of sorted) {
+      if (!leftLm) {
+        leftLm = lm;
+        continue;
+      }
+      if (!rightLm) {
+        rightLm = lm;
+        break;
+      }
     }
   }
 
-  const vec: number[] = [];
-  if (left) vec.push(...left);
-  else fillZeros(vec, 63);
+  const feats = new Float32Array(FEATURE_DIM);
+  const leftFeats = leftLm ? fingerCurlFeatures(leftLm) : new Float32Array(SINGLE_HAND_FEATURE_DIM);
+  const rightFeats = rightLm ? fingerCurlFeatures(rightLm) : new Float32Array(SINGLE_HAND_FEATURE_DIM);
 
-  if (right) vec.push(...right);
-  else fillZeros(vec, 63);
+  feats.set(leftFeats, 0);
+  feats.set(rightFeats, SINGLE_HAND_FEATURE_DIM);
 
-  // flags: leftPresent, rightPresent
-  vec.push(left ? 1 : 0, right ? 1 : 0);
-
-  // 63 + 63 + 2 = 128
-  return new Float32Array(vec);
+  return feats;
 }

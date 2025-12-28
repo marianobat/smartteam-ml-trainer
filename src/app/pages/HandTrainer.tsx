@@ -13,12 +13,14 @@ import {
   Legend,
 } from "recharts";
 import { initHandLandmarker, startCamera, detectHands } from "../../core/hand/handLandmarker";
-import { featurizeTwoHands } from "../../core/hand/featurize";
+import { featurizeTwoHands, FEATURE_DIM } from "../../core/hand/featurize";
 import { drawHands } from "../../core/hand/draw";
 import { prepareTensors, type PreparedTensors } from "../../core/training/prepare";
 import { createClassifier } from "../../core/training/model";
 import { trainClassifier } from "../../core/training/train";
 import { predict } from "../../core/training/predict";
+import { createKnnModel, predictKnn, type KnnModel } from "../../core/training/knn";
+import { computeKnnLearningCurve } from "../../core/training/knnCurve";
 
 import {
   createInitialDatasetState,
@@ -52,6 +54,7 @@ type TrainHistory = {
   valAcc: number[];
   loss: number[];
   valLoss: number[];
+  steps?: number[];
 };
 
 type TrainProgress = {
@@ -61,9 +64,11 @@ type TrainProgress = {
   valAcc?: number;
 };
 
-const TRAIN_EPOCHS = 20;
-const TRAIN_BATCH_SIZE = 32;
-const PREDICT_INTERVAL_MS = 200;
+type Mode = "examples" | "ml";
+type Trained = { kind: "knn"; model: KnnModel } | { kind: "ml"; model: tf.LayersModel };
+
+const TRAIN_EPOCHS = 40;
+const PREDICT_INTERVAL_MS = 80; // faster stable response
 const ACCEPT_THRESHOLD = 0.7;
 
 export default function HandTrainer({ onBack }: { onBack: () => void }) {
@@ -71,10 +76,12 @@ export default function HandTrainer({ onBack }: { onBack: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const [status, setStatus] = useState("Inicializando...");
+  const [mode, setMode] = useState<Mode>("examples");
+  const modeRef = useRef<Mode>(mode);
 
   const [dataset, dispatch] = useReducer(datasetReducer, undefined, createInitialDatasetState);
 
-  // acá guardamos el último vector disponible (128 dims)
+  // acá guardamos el último vector disponible (finger-curl + dirección, FEATURE_DIM)
   const latestVecRef = useRef<Float32Array | null>(null);
 
   // Timers para captura por hold
@@ -95,20 +102,22 @@ export default function HandTrainer({ onBack }: { onBack: () => void }) {
   const [isTraining, setIsTraining] = useState(false);
   const [trainProgress, setTrainProgress] = useState<TrainProgress>({
     epoch: 0,
-    total: TRAIN_EPOCHS,
+    total: 0,
     acc: 0,
-    valAcc: 0,
+    valAcc: undefined,
   });
   const [trainHistory, setTrainHistory] = useState<TrainHistory>({
     acc: [],
     valAcc: [],
     loss: [],
     valLoss: [],
+    steps: [],
   });
   const [trainError, setTrainError] = useState<string | null>(null);
+  const [trainNotice, setTrainNotice] = useState<string | null>(null);
   const [trainComplete, setTrainComplete] = useState(false);
-  const [trainedModel, setTrainedModel] = useState<tf.LayersModel | null>(null);
-  const trainedModelRef = useRef<tf.LayersModel | null>(null);
+  const [trainedModel, setTrainedModel] = useState<Trained | null>(null);
+  const trainedRef = useRef<Trained | null>(null);
   const [trainedClassNames, setTrainedClassNames] = useState<string[]>([]);
   const trainedClassNamesRef = useRef<string[]>([]);
   const [liveProbs, setLiveProbs] = useState<number[]>([]);
@@ -119,10 +128,15 @@ export default function HandTrainer({ onBack }: { onBack: () => void }) {
   const [hasHands, setHasHands] = useState<boolean>(false);
 
   const counts = useMemo(() => countSamplesByClass(dataset), [dataset]);
+
   const totalSamples = dataset.samples.length;
   const hasEmptyClass = dataset.classes.some((c) => (counts[c.id] ?? 0) === 0);
   const canTrain =
     dataset.classes.length >= 2 && !hasEmptyClass && totalSamples >= dataset.classes.length * 2;
+
+  useEffect(() => {
+    modeRef.current = mode;
+  }, [mode]);
 
   const clearHoldTimers = () => {
     if (holdStartTimerRef.current) {
@@ -140,11 +154,7 @@ export default function HandTrainer({ onBack }: { onBack: () => void }) {
     if (!activeClassId) return;
 
     const vec = latestVecRef.current;
-    if (!vec) return;
-
-    const leftPresent = vec[126];
-    const rightPresent = vec[127];
-    if (leftPresent === 0 && rightPresent === 0) return;
+    if (!vec || vec.length !== FEATURE_DIM) return; // solo guardamos el vector de FEATURES
 
     dispatch({
       type: "ADD_SAMPLE",
@@ -194,48 +204,107 @@ export default function HandTrainer({ onBack }: { onBack: () => void }) {
     hasHandsRef.current = false;
     setHasHands(false);
     setTrainError(null);
+    setTrainNotice(null);
     setTrainComplete(false);
-    setTrainProgress({ epoch: 0, total: TRAIN_EPOCHS, acc: 0, valAcc: 0 });
-    setTrainHistory({ acc: [], valAcc: [], loss: [], valLoss: [] });
+    setTrainProgress({
+      epoch: 0,
+      total: mode === "ml" ? TRAIN_EPOCHS : 0,
+      acc: 0,
+      valAcc: undefined,
+    });
+    setTrainHistory({ acc: [], valAcc: [], loss: [], valLoss: [], steps: [] });
     setIsTraining(true);
 
     let prepared: PreparedTensors | null = null;
     try {
-      prepared = prepareTensors(dataset.classes, dataset.samples);
-      const model = createClassifier(prepared.classNames.length);
+      if (mode === "examples") {
+        // examples mode
+        const classNames = dataset.classes.map((c) => c.name);
+        const classIdToIndex = new Map(dataset.classes.map((c, idx) => [c.id, idx]));
+        const samplesArr: number[][] = [];
+        const labelsArr: number[] = [];
 
-      const result = await trainClassifier(model, prepared.xs, prepared.ys, {
-        epochs: TRAIN_EPOCHS,
-        batchSize: TRAIN_BATCH_SIZE,
-        onEpoch: ({ epoch, trainAcc, valAcc, loss, valLoss }) => {
-          setTrainProgress({ epoch, total: TRAIN_EPOCHS, acc: trainAcc, valAcc });
-          setTrainHistory((prev) => ({
-            acc: trainAcc !== undefined ? [...prev.acc, trainAcc] : prev.acc,
-            valAcc: valAcc !== undefined ? [...prev.valAcc, valAcc] : prev.valAcc,
-            loss: loss !== undefined ? [...prev.loss, loss] : prev.loss,
-            valLoss: valLoss !== undefined ? [...prev.valLoss, valLoss] : prev.valLoss,
-          }));
-        },
-      });
+        for (const sample of dataset.samples) {
+          const labelIdx = classIdToIndex.get(sample.classId);
+          if (labelIdx === undefined) continue;
+          if (sample.x.length !== FEATURE_DIM) continue;
+          samplesArr.push(sample.x);
+          labelsArr.push(labelIdx);
+        }
 
-      if (trainedModelRef.current) {
-        trainedModelRef.current.dispose();
+        const knn = createKnnModel(classNames, samplesArr, labelsArr, 3);
+        const curve = computeKnnLearningCurve(samplesArr, labelsArr, classNames.length, {
+          k: knn.k,
+        });
+        if (trainedRef.current?.kind === "ml") {
+          trainedRef.current.model.dispose();
+        }
+        trainedRef.current = { kind: "knn", model: knn };
+        setTrainedModel(trainedRef.current);
+        trainedClassNamesRef.current = classNames;
+        setTrainedClassNames(classNames);
+        prevProbsRef.current = null;
+        setTrainHistory({ acc: curve.acc, valAcc: curve.valAcc, loss: [], valLoss: [], steps: curve.steps });
+        const lastIdx = curve.steps.length ? curve.steps.length - 1 : 0;
+        setTrainProgress({
+          epoch: curve.steps[lastIdx] ?? 0,
+          total: curve.steps[curve.steps.length - 1] ?? 0,
+          acc: curve.acc[lastIdx],
+          valAcc: curve.valAcc[lastIdx],
+        });
+        setTrainComplete(true);
+        setTrainError(null);
+        setTrainNotice(null);
+      } else {
+        // ml mode
+        prepared = prepareTensors(dataset.classes, dataset.samples);
+        const model = createClassifier(prepared.classNames.length);
+        const expectedEpochs =
+          prepared.xs.shape[0] <= 20 ? 120 : prepared.xs.shape[0] <= 60 ? 80 : 50;
+        setTrainProgress((prev) => ({ ...prev, total: expectedEpochs }));
+
+        const result = await trainClassifier(model, prepared.xs, prepared.ys, {
+          onEpoch: ({ epoch, trainAcc, valAcc, loss, valLoss }) => {
+            setTrainProgress({ epoch, total: expectedEpochs, acc: trainAcc, valAcc });
+            setTrainHistory((prev) => ({
+              acc: trainAcc !== undefined ? [...prev.acc, trainAcc] : prev.acc,
+              valAcc: valAcc !== undefined ? [...prev.valAcc, valAcc] : prev.valAcc,
+              loss: loss !== undefined ? [...prev.loss, loss] : prev.loss,
+              valLoss: valLoss !== undefined ? [...prev.valLoss, valLoss] : prev.valLoss,
+              steps: prev.steps,
+            }));
+          },
+        });
+
+        if (trainedRef.current?.kind === "ml") {
+          trainedRef.current.model.dispose();
+        }
+        trainedRef.current = { kind: "ml", model: result.model };
+        setTrainedModel(trainedRef.current);
+        trainedClassNamesRef.current = prepared.classNames;
+        setTrainedClassNames(prepared.classNames);
+        prevProbsRef.current = null;
+
+        setTrainProgress((prev) => ({
+          epoch: result.history.acc.length || prev.epoch,
+          total: expectedEpochs,
+          acc: result.final.trainAcc ?? prev.acc,
+          valAcc: result.final.valAcc ?? prev.valAcc,
+        }));
+        setTrainHistory({ ...result.history, steps: [] });
+        setTrainComplete(true);
+        setTrainError(null);
+        const sampleCount = prepared.xs.shape[0];
+        if (sampleCount < 30) {
+          setTrainNotice("Hay pocas muestras para validar. Sumá más ejemplos para mejorar el modelo.");
+        } else if (result.meta.stoppedEarly) {
+          setTrainNotice(
+            "Entrenamiento detenido por falta de mejora en validación. Sumá más muestras o balanceá clases."
+          );
+        } else {
+          setTrainNotice(null);
+        }
       }
-      trainedModelRef.current = result.model;
-      setTrainedModel(result.model);
-      trainedClassNamesRef.current = prepared.classNames;
-      setTrainedClassNames(prepared.classNames);
-      prevProbsRef.current = null;
-
-      setTrainProgress((prev) => ({
-        epoch: TRAIN_EPOCHS,
-        total: TRAIN_EPOCHS,
-        acc: result.final.trainAcc ?? prev.acc,
-        valAcc: result.final.valAcc ?? prev.valAcc,
-      }));
-      setTrainHistory(result.history);
-      setTrainComplete(true);
-      setTrainError(null);
     } catch (err) {
       setTrainError((err as Error).message ?? String(err));
       setTrainComplete(false);
@@ -283,30 +352,45 @@ export default function HandTrainer({ onBack }: { onBack: () => void }) {
         // Dibujo con colores + conexiones (asumiendo mirrorView)
         drawHands(ctx, result, { mirrorView: false });
 
-        // Features 2 manos (128)
-        // Si tu featurize no tiene el 2do parámetro, dejalo en featurizeTwoHands(result)
-        const vec = featurizeTwoHands(result, false);
-
-        // Guardamos último vector
+        // Features finger-curl (FEATURE_DIM) — invariante a posición/escala
+        const vec = featurizeTwoHands(result);
         latestVecRef.current = vec;
 
-        const leftPresent = vec[126];
-        const rightPresent = vec[127];
-        const hasHandsNow = leftPresent !== 0 || rightPresent !== 0;
+        const hasHandsNow = Boolean(vec);
         const prevHasHands = hasHandsRef.current;
         if (prevHasHands !== hasHandsNow) {
           hasHandsRef.current = hasHandsNow;
           setHasHands(hasHandsNow);
         }
 
-        const model = trainedModelRef.current;
-        const classNames = trainedClassNamesRef.current;
-        if (model && classNames.length) {
+        const trained = trainedRef.current;
+        const currentMode = modeRef.current;
+        const activeTrained =
+          currentMode === "examples"
+            ? trained?.kind === "knn"
+              ? trained
+              : null
+            : trained?.kind === "ml"
+            ? trained
+            : null;
+        const classNames =
+          activeTrained?.kind === "knn"
+            ? activeTrained.model.classNames
+            : trainedClassNamesRef.current;
+        if (activeTrained && classNames.length) {
           const shouldPredict = now - lastPredictRef.current >= PREDICT_INTERVAL_MS;
 
-          if (shouldPredict && hasHandsNow) {
+          if (shouldPredict && hasHandsNow && vec) {
             lastPredictRef.current = now;
-            const res = predict(model, vec, classNames, prevProbsRef.current ?? undefined);
+            const res =
+              activeTrained.kind === "knn"
+                ? predictKnn(activeTrained.model, vec, prevProbsRef.current ?? undefined)
+                : predict(
+                    activeTrained.model,
+                    vec,
+                    classNames,
+                    prevProbsRef.current ?? undefined
+                  );
             prevProbsRef.current = res.probs;
             liveProbsStateRef.current = res.probs;
             liveLabelRef.current = res.label;
@@ -327,7 +411,7 @@ export default function HandTrainer({ onBack }: { onBack: () => void }) {
                   pendingStartRef.current = now;
                 }
                 const elapsed = now - pendingStartRef.current;
-                if (pendingHitsRef.current >= 2 || elapsed >= 300) {
+                if (pendingHitsRef.current >= 2 || elapsed >= 150) { // faster stable response
                   stableLabelRef.current = res.label;
                   stableConfidenceRef.current = res.confidence;
                   pendingLabelRef.current = null;
@@ -390,34 +474,45 @@ export default function HandTrainer({ onBack }: { onBack: () => void }) {
       running = false;
       cancelAnimationFrame(raf);
       clearHoldTimers();
-      if (trainedModelRef.current) {
-        trainedModelRef.current.dispose();
-        trainedModelRef.current = null;
+      const stream = (videoRef.current?.srcObject as MediaStream | null) ?? null;
+      stream?.getTracks().forEach((track) => track.stop());
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
       }
+      if (trainedRef.current?.kind === "ml") {
+        trainedRef.current.model.dispose();
+      }
+      trainedRef.current = null;
     };
   }, []);
 
-  const activeClass = dataset.classes.find(c => c.id === dataset.activeClassId) || null;
+  const activeClass = dataset.classes.find((c) => c.id === dataset.activeClassId) || null;
   const predictionAccepted = hasHands && stableConfidence >= ACCEPT_THRESHOLD;
 
-  const lineData = useMemo(
-    () =>
-      Array.from(
-        { length: Math.max(trainHistory.acc.length, trainHistory.valAcc.length) || 0 },
-        (_, i) => ({
-          epoch: i + 1,
-          acc: trainHistory.acc[i],
-          valAcc: trainHistory.valAcc[i],
-        })
-      ),
-    [trainHistory]
-  );
+  const lineData = useMemo(() => {
+    const length = Math.max(
+      trainHistory.acc.length,
+      trainHistory.valAcc.length,
+      trainHistory.steps?.length ?? 0
+    );
+    return Array.from({ length }, (_, i) => ({
+      step: trainHistory.steps?.[i] ?? i + 1,
+      acc: trainHistory.acc[i],
+      valAcc: trainHistory.valAcc[i],
+    }));
+  }, [trainHistory]);
 
   const barData = useMemo(() => {
     if (!trainedClassNames.length) return [];
     const probs = hasHands ? liveProbs : trainedClassNames.map(() => 0);
     return trainedClassNames.map((name, idx) => ({ name, value: probs[idx] ?? 0 }));
   }, [trainedClassNames, liveProbs, hasHands]);
+
+  const hasTrainedModel = trainedModel?.kind === (mode === "examples" ? "knn" : "ml");
+  const progressLabel = mode === "examples" ? "Samples" : "Epoch";
+  const hasValMetric = trainProgress.valAcc !== undefined;
+  const progressTotal = trainProgress.total || (mode === "ml" ? TRAIN_EPOCHS : 0);
+  const valHint = mode === "ml" ? " (≥30 samples)" : "";
 
   const trainStatusLabel = isTraining
     ? "Training… ⏳"
@@ -426,18 +521,59 @@ export default function HandTrainer({ onBack }: { onBack: () => void }) {
     : trainComplete
     ? "Trained ✅"
     : "Idle";
-  const enoughValSamples = totalSamples >= 60;
 
   return (
-    <div style={{ padding: 16, display: "grid", gap: 12 }}>
+    <div style={{ padding: 16, display: "grid", gap: 12, height: "100vh", boxSizing: "border-box", overflow: "hidden" }}>
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <button onClick={onBack}>← Volver</button>
         <h2 style={{ margin: 0 }}>Hand Trainer (2 manos)</h2>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "360px 1fr", gap: 16, alignItems: "start" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "360px 1fr", gap: 16, alignItems: "start", minHeight: 0 }}>
         {/* Panel clases */}
-        <div style={{ border: "1px solid #ddd", borderRadius: 12, padding: 12, display: "grid", gap: 10 }}>
+        <div style={{ border: "1px solid #ddd", borderRadius: 12, padding: 12, display: "grid", gap: 10, overflow: "auto", maxHeight: "100%", minHeight: 0 }}>
+          <div style={{ display: "grid", gap: 6 }}>
+            <div style={{ fontSize: 12, fontWeight: 600 }}>Modo</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => setMode("examples")}
+                disabled={isTraining}
+                style={{
+                  flex: 1,
+                  padding: "8px 10px",
+                  borderRadius: 8,
+                  border: mode === "examples" ? "2px solid #111" : "1px solid #ddd",
+                  background: mode === "examples" ? "#111" : "#fff",
+                  color: mode === "examples" ? "#fff" : "#111",
+                  fontWeight: 600,
+                }}
+              >
+                Por ejemplos (rápido)
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("ml")}
+                disabled={isTraining}
+                style={{
+                  flex: 1,
+                  padding: "8px 10px",
+                  borderRadius: 8,
+                  border: mode === "ml" ? "2px solid #111" : "1px solid #ddd",
+                  background: mode === "ml" ? "#111" : "#fff",
+                  color: mode === "ml" ? "#fff" : "#111",
+                  fontWeight: 600,
+                }}
+              >
+                Entrenar un modelo (ML)
+              </button>
+            </div>
+            <div style={{ fontSize: 12, opacity: 0.75 }}>
+              {mode === "examples"
+                ? "Aprende comparando con tus ejemplos (ideal con pocas muestras)."
+                : "Entrena un modelo con tus muestras (funciona mejor con más datos)."}
+            </div>
+          </div>
           <div style={{ fontFamily: "monospace" }}>Estado: {status}</div>
 
           <div style={{ display: "flex", gap: 8 }}>
@@ -543,30 +679,35 @@ export default function HandTrainer({ onBack }: { onBack: () => void }) {
               disabled={!canTrain || isTraining}
               style={{ padding: "10px 12px", borderRadius: 10, border: "1px solid #111", fontWeight: 600 }}
             >
-              {isTraining ? `Training... (epoch ${trainProgress.epoch}/${TRAIN_EPOCHS})` : "Train"}
+              {isTraining ? `Training... (${progressLabel.toLowerCase()} ${trainProgress.epoch}/${progressTotal})` : "Train"}
             </button>
             <div style={{ fontSize: 12, opacity: 0.85, display: "grid", gap: 4 }}>
               <div>
-                Status: <b>{trainStatusLabel}</b> — Epoch <b>{trainProgress.epoch}</b> / {TRAIN_EPOCHS}
+                Status: <b>{trainStatusLabel}</b> — {progressLabel} <b>{trainProgress.epoch}</b> / {progressTotal}
               </div>
               <div>
                 Acc <b>{(trainProgress.acc ?? 0).toFixed(2)}</b> / Val{" "}
                 <b>
-                  {enoughValSamples
+                  {hasValMetric
                     ? (trainProgress.valAcc ?? 0).toFixed(2)
-                    : "— (≥60 samples)"}
+                    : `—${valHint}`}
                 </b>
               </div>
               <div>
                 Modelo:{" "}
                 <b>
-                  {trainedModel ? `Entrenado (${trainedClassNames.length} clases)` : "No entrenado"}
+                  {hasTrainedModel ? `Entrenado (${trainedClassNames.length} clases)` : "No entrenado"}
                 </b>
               </div>
               <div>
                 Requiere ≥2 clases, sin clases vacías y ~2 samples por clase (total ≥{" "}
                 {dataset.classes.length * 2}).
               </div>
+              {trainNotice && (
+                <div style={{ fontSize: 12, color: "#7c2d12", background: "#fff7ed", border: "1px solid #fed7aa", padding: "6px 8px", borderRadius: 8 }}>
+                  {trainNotice}
+                </div>
+              )}
               {trainError && <div style={{ color: "red" }}>Error: {trainError}</div>}
             </div>
             <div
@@ -581,9 +722,16 @@ export default function HandTrainer({ onBack }: { onBack: () => void }) {
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={lineData}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="epoch" tickLine={false} />
+                  <XAxis dataKey="step" tickLine={false} />
                   <YAxis domain={[0, 1]} tickCount={6} />
-                  <Tooltip formatter={(value: number | string) => (typeof value === "number" ? value.toFixed(2) : value)} />
+                  <Tooltip
+                    formatter={(value: number | string) =>
+                      typeof value === "number" ? value.toFixed(2) : value
+                    }
+                    labelFormatter={(label) =>
+                      mode === "examples" ? `Samples ${label}` : `Epoch ${label}`
+                    }
+                  />
                   <Legend />
                   <Line
                     type="monotone"
@@ -610,25 +758,27 @@ export default function HandTrainer({ onBack }: { onBack: () => void }) {
         </div>
 
         {/* Cámara + overlay */}
-        <div style={{ display: "grid", gap: 8 }}>
-          <div style={{ position: "relative", width: 720, maxWidth: "100%" }}>
-            <video
-              ref={videoRef}
-              style={{ width: "100%", transform: "scaleX(-1)" }}
-              playsInline
-              muted
-            />
-            <canvas
-              ref={canvasRef}
-              style={{
-                position: "absolute",
-                inset: 0,
-                width: "100%",
-                height: "100%",
-                pointerEvents: "none",
-                transform: "scaleX(-1)",
-              }}
-            />
+        <div style={{ display: "grid", gap: 8, overflow: "auto", maxHeight: "100%", minHeight: 0 }}>
+          <div style={{ position: "sticky", top: 0, zIndex: 1, background: "#fff", paddingBottom: 8 }}>
+            <div style={{ position: "relative", width: 720, maxWidth: "100%" }}>
+              <video
+                ref={videoRef}
+                style={{ width: "100%", transform: "scaleX(-1)" }}
+                playsInline
+                muted
+              />
+              <canvas
+                ref={canvasRef}
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  width: "100%",
+                  height: "100%",
+                  pointerEvents: "none",
+                  transform: "scaleX(-1)",
+                }}
+              />
+            </div>
           </div>
 
           <div style={{ fontSize: 12, opacity: 0.7 }}>
@@ -653,7 +803,7 @@ export default function HandTrainer({ onBack }: { onBack: () => void }) {
               <div>
                 Instantáneo:{" "}
                 <b>
-                  {trainedModel
+                  {hasTrainedModel
                     ? hasHands
                       ? `${liveLabel} (${liveConfidence.toFixed(2)})`
                       : "No hands"
@@ -671,7 +821,7 @@ export default function HandTrainer({ onBack }: { onBack: () => void }) {
                 </b>{" "}
                 — estado{" "}
                 <b>
-                  {trainedModel
+                  {hasTrainedModel
                     ? hasHands
                       ? predictionAccepted
                         ? "aceptado"
@@ -681,7 +831,7 @@ export default function HandTrainer({ onBack }: { onBack: () => void }) {
                 </b>
               </div>
             </div>
-            {trainedModel ? (
+            {hasTrainedModel ? (
               <div style={{ display: "grid", gap: 8 }}>
                 {trainedClassNames.map((name, idx) => {
                   const value = barData[idx]?.value ?? 0;

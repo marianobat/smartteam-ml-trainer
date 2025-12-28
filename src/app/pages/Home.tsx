@@ -1,10 +1,17 @@
-import { useState } from "react";
-import HandTrainer from "./HandTrainer";
+import { Suspense, lazy, useState } from "react";
+
+const HandTrainer = lazy(() => import("./HandTrainer"));
 
 export default function Home() {
   const [mode, setMode] = useState<"home" | "hand">("home");
 
-  if (mode === "hand") return <HandTrainer onBack={() => setMode("home")} />;
+  if (mode === "hand") {
+    return (
+      <Suspense fallback={<div style={{ padding: 16 }}>Cargando entrenador…</div>}>
+        <HandTrainer onBack={() => setMode("home")} />
+      </Suspense>
+    );
+  }
 
   return (
     <div style={{ padding: 16 }}>

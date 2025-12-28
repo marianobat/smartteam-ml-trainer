@@ -1,4 +1,5 @@
 // src/core/dataset/datasetStore.ts
+import { FEATURE_DIM } from "../hand/featurize";
 
 const MAX_THUMBNAILS_PER_CLASS = 20;
 
@@ -88,6 +89,10 @@ export function datasetReducer(state: DatasetState, action: DatasetAction): Data
       return { ...state, activeClassId: action.id };
 
     case "ADD_SAMPLE": {
+      if (!action.x || action.x.length !== FEATURE_DIM) {
+        console.warn("Ignoring sample with invalid feature length", action.x?.length);
+        return state;
+      }
       const t = action.t ?? Date.now();
       return {
         ...state,

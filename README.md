@@ -1,73 +1,129 @@
-# React + TypeScript + Vite
+# SmartTEAM ML Trainer (Hands) - MediaPipe + TFJS + kNN
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Web app (Vite + React + TypeScript) to capture hand poses, train a classifier, and run live evaluation from the camera. The goal is educational and practical: create your own classes (open, fist, peace, etc.), capture a few samples, train, and see predictions in real time.
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## What it does (flow)
 
-## React Compiler
+1) Detects hands with MediaPipe Hands (Tasks Vision) over the camera feed.
+2) Converts landmarks into a 10D feature vector that is invariant to position/scale.
+3) Lets you capture labeled samples per class (tap/hold).
+4) Offers two modes:
+   - Por ejemplos (rapido): kNN based on nearest examples.
+   - Entrenar un modelo (ML): MLP (TF.js) trained by epochs.
+5) Shows live evaluation:
+   - Instantaneo (current prediction)
+   - Estable (filtered prediction to reduce flicker)
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+---
 
-## Expanding the ESLint configuration
+## Feature vector (10D)
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+Instead of raw coordinates, we use finger-curl features for stability:
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+For each finger (thumb, index, middle, ring, pinky):
+1) dist(tip, mcp) / palm size
+2) dist(tip, wrist) / palm size
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+This yields 10 values that describe the pose.
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+Main file:
+- `src/core/hand/featurize.ts`
+
+---
+
+## Classification modes
+
+### 1) Por ejemplos (rapido) - kNN
+- No epoch training.
+- Train = store examples and classify by euclidean distance (weighted vote).
+- Works well with few samples if features are well separated.
+- Includes a learning curve by number of samples.
+
+Files:
+- `src/core/training/knn.ts`
+- `src/core/training/knnCurve.ts`
+
+### 2) Entrenar un modelo (ML) - MLP (TF.js)
+- Small neural net with softmax classification.
+- Trains by epochs and shows accuracy/loss curves.
+- Needs more data, but generalizes better with more variation.
+
+Files:
+- `src/core/training/model.ts`
+- `src/core/training/train.ts`
+- `src/core/training/predict.ts`
+- `src/core/training/prepare.ts`
+
+---
+
+## UI layout
+
+Two independent panels with scroll:
+- Left: classes, capture, training, learning curve.
+- Right: camera + live evaluation (camera stays sticky).
+
+This prevents losing the camera view when there are many classes.
+
+---
+
+## How to use
+
+1) Open the app and accept camera permissions.
+2) Create classes (open, fist, index, peace, etc.).
+3) Select a class (checkmark button).
+4) Capture samples:
+   - Tap: 1 sample
+   - Hold: after 1s, captures every 0.5s
+5) Repeat for all classes (5-30 samples total is ok for quick tests).
+6) Choose mode:
+   - Por ejemplos (rapido) for instant results with few samples.
+   - Entrenar un modelo (ML) if you will collect more data.
+7) Click Train.
+8) Try live predictions:
+   - Instantaneo: direct output
+   - Estable: threshold + short confirmation window
+
+---
+
+## Stability notes
+
+The app keeps a stable label to avoid flicker when a pose is ambiguous. This adds a short confirmation window before switching classes. "No hands" resets the internal state so a new pose can appear faster after re-entering the frame.
+
+---
+
+## Project map
+
+- `src/app/pages/HandTrainer.tsx` - main UI, capture, training, live evaluation.
+- `src/core/hand/handLandmarker.ts` - MediaPipe setup + detect loop.
+- `src/core/hand/featurize.ts` - feature extraction (10D).
+- `src/core/dataset/datasetStore.ts` - dataset state (classes, samples, thumbnails).
+- `src/core/training/*` - preparation, training, prediction, kNN.
+
+---
+
+## Local development
+
+Requires Node 20.19+ or 22.12+ (see `.nvmrc`).
+
+```bash
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Open the URL printed by Vite.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+---
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+## Troubleshooting
+
+- Slow or "gradual" predictions: adjust stability filters or smoothing.
+- ML does not learn with few samples: add more samples per class.
+- kNN curve is slow: reduce max steps (default is 20).
+
+---
+
+## License
+
+TBD

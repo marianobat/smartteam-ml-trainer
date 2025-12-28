@@ -1,10 +1,10 @@
 // src/core/training/prepare.ts
 import * as tf from "@tensorflow/tfjs";
 import type { ClassDef, Sample } from "../dataset/datasetStore";
-import { normalize128 } from "../hand/normalize";
+import { FEATURE_DIM } from "../hand/featurize";
 
 export type PreparedTensors = {
-  xs: tf.Tensor2D; // [N, 128]
+  xs: tf.Tensor2D; // [N, FEATURE_DIM]
   ys: tf.Tensor2D; // [N, numClasses]
   classNames: string[]; // en orden de índice
   classIdToIndex: Record<string, number>;
@@ -30,10 +30,9 @@ export function prepareTensors(classes: ClassDef[], samples: Sample[]): Prepared
     const idx = indexById.get(s.classId);
     if (idx === undefined) continue; // clase ya no existe
     if (!Array.isArray(s.x)) continue;
-    if (s.x.length !== 128) continue; // seguridad
+    if (s.x.length !== FEATURE_DIM) continue; // seguridad
 
-    const norm = normalize128(s.x);
-    xsArr.push(Array.from(norm));
+    xsArr.push(s.x.map((v) => Number(v)));
     labelIdxArr.push(idx);
   }
 
@@ -41,8 +40,9 @@ export function prepareTensors(classes: ClassDef[], samples: Sample[]): Prepared
     throw new Error("No hay samples válidos para entrenar (N=0).");
   }
 
-  // xs: [N,128]
-  const xs = tf.tensor2d(xsArr, [xsArr.length, 128], "float32");
+  const featureLength = xsArr[0]?.length ?? FEATURE_DIM;
+  // xs: [N,featureLength]
+  const xs = tf.tensor2d(xsArr, [xsArr.length, featureLength], "float32");
 
   // labels: [N] (plano) -> oneHot: [N,numClasses]
   const labels = tf.tensor1d(labelIdxArr, "int32");

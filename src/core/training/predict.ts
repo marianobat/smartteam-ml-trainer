@@ -1,9 +1,10 @@
 import * as tf from "@tensorflow/tfjs";
-import { normalize128 } from "../hand/normalize";
+import { FEATURE_DIM, featurizeTwoHands } from "../hand/featurize";
+import type { HandLandmarkerResult } from "@mediapipe/tasks-vision";
 
 type PredictResult = { label: string; confidence: number; probs: number[] };
 
-const SMOOTHING_ALPHA = 0.15;
+const SMOOTHING_ALPHA = 0.7;
 
 export function predict(
   model: tf.LayersModel,
@@ -15,9 +16,12 @@ export function predict(
     return { label: "", confidence: 0, probs: [] };
   }
 
-  const norm = normalize128(x128);
+  if (x128.length !== FEATURE_DIM) {
+    return { label: "", confidence: 0, probs: [] };
+  }
+
   const probs = tf.tidy(() => {
-    const input = tf.tensor2d(norm, [1, 128]);
+    const input = tf.tensor2d(x128, [1, FEATURE_DIM]);
     const logits = model.predict(input) as tf.Tensor;
     const raw = logits.dataSync();
     return Array.from(raw);
@@ -25,7 +29,7 @@ export function predict(
 
   const smoothed =
     prevProbs && prevProbs.length === probs.length
-      ? probs.map((p, i) => SMOOTHING_ALPHA * p + (1 - SMOOTHING_ALPHA) * prevProbs[i])
+      ? probs.map((p, i) => SMOOTHING_ALPHA * (prevProbs[i] ?? 0) + (1 - SMOOTHING_ALPHA) * p)
       : probs;
 
   let maxIdx = 0;
@@ -38,4 +42,15 @@ export function predict(
     confidence: smoothed[maxIdx] ?? 0,
     probs: smoothed,
   };
+}
+
+export function predictFromLandmarks(
+  model: tf.LayersModel,
+  result: HandLandmarkerResult,
+  classNames: string[],
+  prevProbs?: number[]
+): PredictResult | null {
+  const feats = featurizeTwoHands(result);
+  if (!feats || feats.length !== FEATURE_DIM) return null;
+  return predict(model, feats, classNames, prevProbs);
 }
