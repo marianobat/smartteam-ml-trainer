@@ -149,4 +149,4 @@ Open the URL printed by Vite.
 
 ## License
 
-TBD
+MIT
