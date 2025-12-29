@@ -21,6 +21,8 @@ import { trainClassifier } from "../../core/training/train";
 import { predict } from "../../core/training/predict";
 import { createKnnModel, predictKnn, type KnnModel } from "../../core/training/knn";
 import { computeKnnLearningCurve } from "../../core/training/knnCurve";
+import { connectGestureWs, disconnectGestureWs, sendStableLabel } from "../../core/bridge/gestureWs";
+import { getWsUrl } from "../../core/bridge/getWsUrl";
 
 import {
   createInitialDatasetState,
@@ -127,8 +129,10 @@ export default function HandTrainer({ onBack }: { onBack: () => void }) {
   const [stableLabel, setStableLabel] = useState<string>("");
   const [stableConfidence, setStableConfidence] = useState<number>(0);
   const [hasHands, setHasHands] = useState<boolean>(false);
+  const [isBroadcastEnabled, setIsBroadcastEnabled] = useState(false);
 
   const counts = useMemo(() => countSamplesByClass(dataset), [dataset]);
+  const wsUrl = useMemo(() => getWsUrl(), []);
 
   const totalSamples = dataset.samples.length;
   const hasEmptyClass = dataset.classes.some((c) => (counts[c.id] ?? 0) === 0);
@@ -138,6 +142,24 @@ export default function HandTrainer({ onBack }: { onBack: () => void }) {
   useEffect(() => {
     modeRef.current = mode;
   }, [mode]);
+
+  useEffect(() => {
+    if (!isBroadcastEnabled) {
+      disconnectGestureWs();
+      return;
+    }
+    connectGestureWs(wsUrl);
+    return () => {
+      disconnectGestureWs();
+    };
+  }, [isBroadcastEnabled, wsUrl]);
+
+  useEffect(() => {
+    if (!isBroadcastEnabled) return;
+    const labelToSend =
+      !hasHands || !stableLabel || stableLabel === "No hands" ? "none" : stableLabel;
+    sendStableLabel(labelToSend);
+  }, [isBroadcastEnabled, hasHands, stableLabel]);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(max-width: 1100px)");
@@ -795,6 +817,31 @@ export default function HandTrainer({ onBack }: { onBack: () => void }) {
                 </LineChart>
               </ResponsiveContainer>
             </div>
+          </div>
+
+          <div style={{ borderTop: "1px solid #eee", paddingTop: 10, display: "grid", gap: 8 }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
+              <input
+                type="checkbox"
+                checked={isBroadcastEnabled}
+                onChange={(e) => setIsBroadcastEnabled(e.target.checked)}
+              />
+              Broadcast to game (WebSocket)
+            </label>
+            <div style={{ fontSize: 11, opacity: 0.75 }}>WS URL resuelta</div>
+            <input
+              value={wsUrl}
+              readOnly
+              onFocus={(e) => e.currentTarget.select()}
+              style={{
+                fontSize: 11,
+                padding: "6px 8px",
+                borderRadius: 8,
+                border: "1px solid #ddd",
+                fontFamily: "monospace",
+                background: "#fff",
+              }}
+            />
           </div>
         </div>
 
