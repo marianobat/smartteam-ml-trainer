@@ -21,8 +21,14 @@ import { trainClassifier } from "../../core/training/train";
 import { predict } from "../../core/training/predict";
 import { createKnnModel, predictKnn, type KnnModel } from "../../core/training/knn";
 import { computeKnnLearningCurve } from "../../core/training/knnCurve";
-import { connectGestureWs, disconnectGestureWs, sendStableLabel } from "../../core/bridge/gestureWs";
-import { getWsUrl } from "../../core/bridge/getWsUrl";
+import {
+  connectGestureWs,
+  disconnectGestureWs,
+  sendGesture,
+  type WsRole,
+  type WsStatus,
+} from "../../core/bridge/gestureWs";
+import { WS_BASE } from "../../core/bridge/config";
 
 import {
   createInitialDatasetState,
@@ -73,7 +79,13 @@ const TRAIN_EPOCHS = 40;
 const PREDICT_INTERVAL_MS = 80; // faster stable response
 const ACCEPT_THRESHOLD = 0.7;
 
-export default function HandTrainer({ onBack }: { onBack: () => void }) {
+type HandTrainerProps = {
+  onBack: () => void;
+  room?: string;
+  publishToken?: string;
+};
+
+export default function HandTrainer({ onBack, room, publishToken }: HandTrainerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -129,10 +141,23 @@ export default function HandTrainer({ onBack }: { onBack: () => void }) {
   const [stableLabel, setStableLabel] = useState<string>("");
   const [stableConfidence, setStableConfidence] = useState<number>(0);
   const [hasHands, setHasHands] = useState<boolean>(false);
-  const [isBroadcastEnabled, setIsBroadcastEnabled] = useState(false);
+  const [wsStatus, setWsStatus] = useState<WsStatus>("idle");
+  const [wsRole, setWsRole] = useState<WsRole | null>(null);
+  const [wsError, setWsError] = useState<string | null>(null);
+  const [subscriberCount, setSubscriberCount] = useState<number | null>(null);
+  const [lastSentGesture, setLastSentGesture] = useState<{ label: string; confidence: number } | null>(null);
+  const lastSentLabelRef = useRef<string>("");
+  const lastSentAtRef = useRef<number>(0);
+  const seqRef = useRef<number>(0);
 
   const counts = useMemo(() => countSamplesByClass(dataset), [dataset]);
-  const wsUrl = useMemo(() => getWsUrl(), []);
+  const wsUrl = useMemo(() => {
+    if (!room || !publishToken) return "";
+    const params = new URLSearchParams();
+    params.set("room", room);
+    params.set("token", publishToken);
+    return `${WS_BASE}?${params.toString()}`;
+  }, [room, publishToken]);
 
   const totalSamples = dataset.samples.length;
   const hasEmptyClass = dataset.classes.some((c) => (counts[c.id] ?? 0) === 0);
@@ -144,22 +169,72 @@ export default function HandTrainer({ onBack }: { onBack: () => void }) {
   }, [mode]);
 
   useEffect(() => {
-    if (!isBroadcastEnabled) {
-      disconnectGestureWs();
+    setWsRole(null);
+    setSubscriberCount(null);
+    setWsError(null);
+    setLastSentGesture(null);
+    lastSentLabelRef.current = "";
+    lastSentAtRef.current = 0;
+    seqRef.current = 0;
+
+    if (!room) {
+      setWsStatus("error");
+      setWsError("Falta room para publicar.");
       return;
     }
-    connectGestureWs(wsUrl);
+    if (!publishToken) {
+      setWsStatus("error");
+      setWsError("Falta token para publicar.");
+      return;
+    }
+
+    connectGestureWs(wsUrl, {
+      onStatus: (status) => {
+        setWsStatus(status);
+        if (status === "open") {
+          setWsError(null);
+        }
+      },
+      onHello: (message) => {
+        setWsRole(message.role);
+      },
+      onPresence: (count) => setSubscriberCount(count),
+      onError: (message) => {
+        setWsError(message);
+        setWsStatus("error");
+      },
+    });
+
     return () => {
       disconnectGestureWs();
     };
-  }, [isBroadcastEnabled, wsUrl]);
+  }, [wsUrl, room, publishToken]);
 
   useEffect(() => {
-    if (!isBroadcastEnabled) return;
+    if (wsStatus !== "open") return;
+    if (!room || !publishToken) return;
+
     const labelToSend =
       !hasHands || !stableLabel || stableLabel === "No hands" ? "none" : stableLabel;
-    sendStableLabel(labelToSend);
-  }, [isBroadcastEnabled, hasHands, stableLabel]);
+    const now = Date.now();
+    const labelChanged = labelToSend !== lastSentLabelRef.current;
+    const elapsed = now - lastSentAtRef.current;
+
+    if (!labelChanged && elapsed < 150) return;
+
+    const confidence = labelToSend === "none" ? 0 : stableConfidence;
+    seqRef.current += 1;
+    sendGesture({
+      type: "gesture",
+      label: labelToSend,
+      confidence,
+      seq: seqRef.current,
+      ts: now,
+    });
+    lastSentLabelRef.current = labelToSend;
+    lastSentAtRef.current = now;
+    setLastSentGesture({ label: labelToSend, confidence });
+  }, [stableLabel, stableConfidence, hasHands, wsStatus, room, publishToken]);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(max-width: 1100px)");
@@ -355,33 +430,40 @@ export default function HandTrainer({ onBack }: { onBack: () => void }) {
   useEffect(() => {
     let raf = 0;
     let running = true;
+    const videoEl = videoRef.current;
+    const canvasEl = canvasRef.current;
 
     async function setup() {
+      if (!videoEl || !canvasEl) {
+        setStatus("No se encontró el video.");
+        return;
+      }
       setStatus("Cargando modelo de manos...");
       await initHandLandmarker();
 
       setStatus("Activando cámara...");
-      const video = videoRef.current!;
-      await startCamera(video);
+      await startCamera(videoEl);
 
       // Ajustar canvas al tamaño del video
-      const canvas = canvasRef.current!;
-      canvas.width = video.videoWidth || 640;
-      canvas.height = video.videoHeight || 480;
+      canvasEl.width = videoEl.videoWidth || 640;
+      canvasEl.height = videoEl.videoHeight || 480;
 
       setStatus("Detectando...");
-      const ctx = canvas.getContext("2d")!;
+      const ctx = canvasEl.getContext("2d");
+      if (!ctx) {
+        setStatus("No se pudo iniciar el canvas.");
+        return;
+      }
 
       const loop = () => {
         if (!running) return;
 
         const now = performance.now();
-        const result = detectHands(video, now);
+        const result = detectHands(videoEl, now);
 
-        const canvas = canvasRef.current!;
-        if (video.videoWidth > 0 && canvas.width !== video.videoWidth) {
-          canvas.width = video.videoWidth;
-          canvas.height = video.videoHeight;
+        if (videoEl.videoWidth > 0 && canvasEl.width !== videoEl.videoWidth) {
+          canvasEl.width = videoEl.videoWidth;
+          canvasEl.height = videoEl.videoHeight;
         }
 
         // Dibujo con colores + conexiones (asumiendo mirrorView)
@@ -500,19 +582,20 @@ export default function HandTrainer({ onBack }: { onBack: () => void }) {
       raf = requestAnimationFrame(loop);
     }
 
-    setup().catch((e) => {
-      console.error(e);
-      setStatus(`Error: ${String((e as any)?.message || e)}`);
+    setup().catch((err) => {
+      console.error(err);
+      const message = err instanceof Error ? err.message : String(err);
+      setStatus(`Error: ${message}`);
     });
 
     return () => {
       running = false;
       cancelAnimationFrame(raf);
       clearHoldTimers();
-      const stream = (videoRef.current?.srcObject as MediaStream | null) ?? null;
-      stream?.getTracks().forEach((track) => track.stop());
-      if (videoRef.current) {
-        videoRef.current.srcObject = null;
+      if (videoEl) {
+        const stream = (videoEl.srcObject as MediaStream | null) ?? null;
+        stream?.getTracks().forEach((track) => track.stop());
+        videoEl.srcObject = null;
       }
       if (trainedRef.current?.kind === "ml") {
         trainedRef.current.model.dispose();
@@ -556,6 +639,19 @@ export default function HandTrainer({ onBack }: { onBack: () => void }) {
     : trainComplete
     ? "Entrenado ✅"
     : "Inactivo";
+  const wsStatusLabel =
+    wsStatus === "open"
+      ? "conectado"
+      : wsStatus === "reconnecting"
+      ? "reconectando"
+      : wsStatus === "connecting"
+      ? "conectando"
+      : wsStatus === "error"
+      ? "error"
+      : "inactivo";
+  const lastGestureLabel = lastSentGesture
+    ? `${lastSentGesture.label} (${lastSentGesture.confidence.toFixed(2)})`
+    : "—";
 
   return (
     <div
@@ -820,28 +916,27 @@ export default function HandTrainer({ onBack }: { onBack: () => void }) {
           </div>
 
           <div style={{ borderTop: "1px solid #eee", paddingTop: 10, display: "grid", gap: 8 }}>
-            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
-              <input
-                type="checkbox"
-                checked={isBroadcastEnabled}
-                onChange={(e) => setIsBroadcastEnabled(e.target.checked)}
-              />
-              Broadcast to game (WebSocket)
-            </label>
-            <div style={{ fontSize: 11, opacity: 0.75 }}>WS URL resuelta</div>
-            <input
-              value={wsUrl}
-              readOnly
-              onFocus={(e) => e.currentTarget.select()}
-              style={{
-                fontSize: 11,
-                padding: "6px 8px",
-                borderRadius: 8,
-                border: "1px solid #ddd",
-                fontFamily: "monospace",
-                background: "#fff",
-              }}
-            />
+            <div style={{ fontSize: 12, fontWeight: 600 }}>Publicador WebSocket</div>
+            <div style={{ fontSize: 12 }}>
+              Room: <b>{room || "—"}</b>
+            </div>
+            <div style={{ fontSize: 12 }}>
+              Estado: <b>{wsStatusLabel}</b>
+            </div>
+            {wsRole && (
+              <div style={{ fontSize: 12 }}>
+                Rol: <b>{wsRole}</b>
+              </div>
+            )}
+            {subscriberCount !== null && (
+              <div style={{ fontSize: 12 }}>
+                Subscribers: <b>{subscriberCount}</b>
+              </div>
+            )}
+            <div style={{ fontSize: 12 }}>
+              Ultimo gesto: <b>{lastGestureLabel}</b>
+            </div>
+            {wsError && <div style={{ fontSize: 12, color: "#b91c1c" }}>WS: {wsError}</div>}
           </div>
         </div>
 

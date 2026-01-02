@@ -139,6 +139,28 @@ Open the URL printed by Vite.
 
 ---
 
+## Lobby + TurboWarp flow (MVP)
+
+1) Abre `/` y crea sesión (guarda room + token en sessionStorage).
+2) Entra a `/trainer?room=ROOM` desde el botón "Entrenador" y publica gestos.
+3) Abre `/program?room=ROOM` para redirigir a TurboWarp con la extensión.
+
+Config (Vite env):
+- `VITE_API_BASE` (default `https://smartteam-gesture-bridge.marianobat.workers.dev`)
+- `VITE_WS_BASE` (default `wss://smartteam-gesture-bridge.marianobat.workers.dev/ws`)
+- `VITE_TW_EDITOR` (default `https://turbowarp.org/editor`)
+- `VITE_EXT_URL` (default vacío)
+- `VITE_TEMPLATE_SB3` (default vacío)
+
+---
+
+## Deploy (SPA routes)
+
+- Recomendado: Vercel, con SPA fallback para evitar 404 en `/trainer` y `/program`.
+- GitHub Pages: requiere fallback de SPA (404.html) o usar hash routing.
+
+---
+
 ## Troubleshooting
 
 - Slow or gradual predictions: adjust stability filters or smoothing.

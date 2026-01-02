@@ -74,7 +74,8 @@ export function datasetReducer(state: DatasetState, action: DatasetAction): Data
         activeClassId = classes.length ? classes[0].id : null;
       }
 
-      const { [action.id]: _removed, ...restThumbs } = state.thumbnailsByClass;
+      const { [action.id]: removed, ...restThumbs } = state.thumbnailsByClass;
+      void removed;
 
       return {
         ...state,
