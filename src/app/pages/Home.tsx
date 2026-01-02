@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { API_BASE } from "../../core/bridge/config";
+import { API_BASE, EXT_URL, TEMPLATE_SB3, TW_EDITOR } from "../../core/bridge/config";
 import { getRoom, getToken, setRoom as setSessionRoom, setToken } from "../../core/bridge/session";
 
 type SessionResponse = {
@@ -18,6 +18,8 @@ export default function Home() {
 
   const baseUrl = useMemo(() => import.meta.env.BASE_URL ?? "/", []);
   const canEnter = Boolean(room);
+  const extensionUrl = EXT_URL.trim();
+  const templateUrl = TEMPLATE_SB3.trim();
 
   useEffect(() => {
     const storedRoom = getRoom();
@@ -111,7 +113,18 @@ export default function Home() {
           Entrenador
         </button>
         <button
-          onClick={() => window.location.assign(`${baseUrl}program?room=${encodeURIComponent(room)}`)}
+          onClick={() => {
+            if (!room) return;
+            const params = new URLSearchParams();
+            params.set("room", room);
+            if (templateUrl) {
+              params.set("project_url", templateUrl);
+            }
+            if (extensionUrl) {
+              params.set("extension", extensionUrl);
+            }
+            window.location.assign(`${TW_EDITOR}?${params.toString()}`);
+          }}
           disabled={!canEnter}
         >
           Programador
