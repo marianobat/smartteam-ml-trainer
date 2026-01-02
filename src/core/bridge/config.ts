@@ -1,7 +1,7 @@
 const DEFAULT_API_BASE = "https://smartteam-gesture-bridge.marianobat.workers.dev";
 const DEFAULT_WS_BASE = "wss://smartteam-gesture-bridge.marianobat.workers.dev/ws";
 const DEFAULT_TW_EDITOR = "https://turbowarp.org/editor";
-const DEFAULT_EXT_URL = "";
+const DEFAULT_EXT_URL = "https://marianobat.github.io/smartteam-live-extension/live.js";
 const DEFAULT_TEMPLATE_SB3 = "";
 
 const getEnv = (key: string, fallback: string) => {

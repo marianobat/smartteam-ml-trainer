@@ -149,7 +149,7 @@ Config (Vite env):
 - `VITE_API_BASE` (default `https://smartteam-gesture-bridge.marianobat.workers.dev`)
 - `VITE_WS_BASE` (default `wss://smartteam-gesture-bridge.marianobat.workers.dev/ws`)
 - `VITE_TW_EDITOR` (default `https://turbowarp.org/editor`)
-- `VITE_EXT_URL` (default vacío)
+- `VITE_EXT_URL` (default `https://marianobat.github.io/smartteam-live-extension/live.js`)
 - `VITE_TEMPLATE_SB3` (default vacío)
 
 ---
