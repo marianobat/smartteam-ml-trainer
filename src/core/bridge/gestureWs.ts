@@ -9,6 +9,16 @@ export type GestureMessage = {
   ts?: number;
 };
 
+export type ClassesMessage = {
+  type: "classes";
+  classes: Array<{ id: string; name: string }>;
+};
+
+type PingMessage = {
+  type: "ping";
+  ts: number;
+};
+
 type HelloMessage = {
   type: "hello";
   room: string;
@@ -25,6 +35,8 @@ type ErrorMessage = {
   message: string;
 };
 
+type OutgoingMessage = GestureMessage | ClassesMessage | PingMessage;
+
 type GestureWsHandlers = {
   onStatus?: (status: WsStatus) => void;
   onHello?: (message: HelloMessage) => void;
@@ -37,7 +49,10 @@ let reconnectTimer: number | null = null;
 let reconnectAttempt = 0;
 let currentUrl = "";
 let allowReconnect = false;
+let heartbeatTimer: number | null = null;
 let handlers: GestureWsHandlers = {};
+
+const HEARTBEAT_INTERVAL_MS = 25000;
 
 const clearReconnectTimer = () => {
   if (reconnectTimer !== null) {
@@ -60,6 +75,29 @@ const BACKOFF_STEPS = [1000, 2000, 3000, 5000];
 const getBackoffDelay = (attempt: number) => {
   const index = Math.min(Math.max(attempt - 1, 0), BACKOFF_STEPS.length - 1);
   return BACKOFF_STEPS[index];
+};
+
+const clearHeartbeat = () => {
+  if (heartbeatTimer !== null) {
+    window.clearInterval(heartbeatTimer);
+    heartbeatTimer = null;
+  }
+};
+
+const sendMessage = (message: OutgoingMessage) => {
+  if (!socket || socket.readyState !== WebSocket.OPEN) return;
+  try {
+    socket.send(JSON.stringify(message));
+  } catch {
+    reportError("No se pudo enviar el mensaje.");
+  }
+};
+
+const startHeartbeat = () => {
+  clearHeartbeat();
+  heartbeatTimer = window.setInterval(() => {
+    sendMessage({ type: "ping", ts: Date.now() });
+  }, HEARTBEAT_INTERVAL_MS);
 };
 
 const scheduleReconnect = () => {
@@ -88,6 +126,7 @@ const openSocket = () => {
   socket.onopen = () => {
     reconnectAttempt = 0;
     notifyStatus("open");
+    startHeartbeat();
   };
 
   socket.onmessage = (event) => {
@@ -107,6 +146,7 @@ const openSocket = () => {
   };
 
   socket.onclose = () => {
+    clearHeartbeat();
     socket = null;
     if (allowReconnect) {
       reconnectAttempt += 1;
@@ -139,18 +179,19 @@ export function connectGestureWs(url: string, nextHandlers: GestureWsHandlers = 
 }
 
 export function sendGesture(message: GestureMessage): void {
-  if (!socket || socket.readyState !== WebSocket.OPEN) return;
-  try {
-    socket.send(JSON.stringify(message));
-  } catch {
-    reportError("No se pudo enviar el gesto.");
-  }
+  sendMessage(message);
+}
+
+export function sendClasses(classes: Array<{ id: string; name: string }>): void {
+  if (!classes.length) return;
+  sendMessage({ type: "classes", classes });
 }
 
 export function disconnectGestureWs(): void {
   allowReconnect = false;
   currentUrl = "";
   clearReconnectTimer();
+  clearHeartbeat();
   reconnectAttempt = 0;
   handlers = {};
 

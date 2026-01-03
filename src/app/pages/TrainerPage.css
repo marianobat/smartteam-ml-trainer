@@ -1,0 +1,216 @@
+.trainer-select {
+  min-height: 100vh;
+  padding: 40px clamp(16px, 4vw, 56px) 56px;
+  display: grid;
+  gap: 26px;
+}
+
+.trainer-select-header {
+  display: flex;
+  gap: 20px;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.trainer-select-kicker {
+  font-size: 0.75rem;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.trainer-select-title {
+  margin: 6px 0 0;
+  font-size: clamp(2.2rem, 4.5vw, 3.4rem);
+  line-height: 1.05;
+}
+
+.trainer-select-subtitle {
+  margin: 8px 0 0;
+  color: var(--muted);
+  max-width: 520px;
+}
+
+.trainer-select-room {
+  border: 1px solid var(--outline);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 0.85rem;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  font-family: "Space Mono", "Courier New", monospace;
+}
+
+.trainer-select-warning {
+  font-size: 0.85rem;
+  color: #b9381b;
+}
+
+.trainer-select-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.model-card {
+  position: relative;
+  display: grid;
+  grid-template-rows: 160px 1fr;
+  padding: 0;
+  border-radius: 20px;
+  border: 1px solid var(--outline);
+  background: var(--panel);
+  overflow: hidden;
+  text-align: left;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.model-card::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: 22px;
+  background: linear-gradient(120deg, rgba(255, 122, 26, 0.4), rgba(31, 138, 112, 0.55), rgba(255, 122, 26, 0.35));
+  opacity: 0;
+  filter: blur(12px);
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+
+.model-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow);
+}
+
+.model-card:hover::before {
+  opacity: 1;
+  animation: card-glow 1.8s ease-in-out infinite;
+}
+
+.model-card.is-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.model-card.is-disabled:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.model-card.is-disabled::before {
+  opacity: 0;
+  animation: none;
+}
+
+.model-card-media {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  padding: 14px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transition: transform 0.3s ease;
+}
+
+.model-card:hover .model-card-media {
+  transform: scale(1.05);
+}
+
+.model-card-media::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(13, 11, 10, 0) 40%, rgba(13, 11, 10, 0.55) 100%);
+  pointer-events: none;
+}
+
+.model-card-media span {
+  position: relative;
+  z-index: 1;
+}
+
+.model-card-media--hands {
+  background: radial-gradient(circle at 20% 20%, rgba(255, 210, 166, 0.9), rgba(255, 140, 76, 0.35)),
+    linear-gradient(120deg, #1e1512 0%, #4a3328 70%);
+}
+
+.model-card-media--face {
+  background: radial-gradient(circle at 20% 20%, rgba(255, 233, 194, 0.9), rgba(255, 197, 120, 0.35)),
+    linear-gradient(120deg, #2b251f 0%, #5d4b3c 70%);
+}
+
+.model-card-media--images {
+  background: radial-gradient(circle at 25% 20%, rgba(198, 228, 255, 0.9), rgba(120, 160, 255, 0.35)),
+    linear-gradient(120deg, #14213d 0%, #293d73 70%);
+}
+
+.model-card-media--pose {
+  background: radial-gradient(circle at 20% 20%, rgba(200, 247, 226, 0.9), rgba(76, 191, 136, 0.3)),
+    linear-gradient(120deg, #0f2a22 0%, #1e4a3a 70%);
+}
+
+.model-card-media--text {
+  background: radial-gradient(circle at 25% 20%, rgba(230, 230, 230, 0.9), rgba(160, 160, 160, 0.35)),
+    linear-gradient(120deg, #1b1d25 0%, #2b2f3d 70%);
+}
+
+.model-card-body {
+  padding: 16px;
+  display: grid;
+  gap: 8px;
+}
+
+.model-card-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.model-card-meta {
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.model-card-status {
+  font-size: 0.8rem;
+  color: var(--accent-2);
+  font-weight: 600;
+}
+
+.model-card.is-disabled .model-card-status {
+  color: var(--muted);
+}
+
+.trainer-select-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+@keyframes card-glow {
+  0% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.95;
+  }
+  100% {
+    opacity: 0.4;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .model-card,
+  .model-card:hover,
+  .model-card:hover .model-card-media {
+    transition: none;
+    transform: none;
+  }
+
+  .model-card:hover::before {
+    animation: none;
+  }
+}

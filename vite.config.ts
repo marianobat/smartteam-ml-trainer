@@ -1,8 +1,8 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: '/smartteam-ml-trainer/',
+  base: process.env.VITE_BASE_PATH ?? (process.env.VERCEL ? "/" : "/smartteam-ml-trainer/"),
   plugins: [react()],
-})
+});

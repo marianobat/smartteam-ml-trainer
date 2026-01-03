@@ -159,6 +159,18 @@ Config (Vite env):
 - Recomendado: Vercel, con SPA fallback para evitar 404 en `/trainer` y `/program`.
 - GitHub Pages: requiere fallback de SPA (404.html) o usar hash routing.
 
+### Vercel + GitHub
+
+1) Importa el repo desde GitHub en Vercel.
+2) Build command: `npm run build`
+3) Output directory: `dist`
+4) Env vars (si aplica): `VITE_API_BASE`, `VITE_WS_BASE`, `VITE_EXT_URL`, `VITE_TEMPLATE_SB3`
+5) En Vercel no necesitas `VITE_BASE_PATH` (usa `/`).
+
+### GitHub Pages
+
+- Define `VITE_BASE_PATH=/smartteam-ml-trainer/` al build si cambia el repo/base.
+
 ---
 
 ## Troubleshooting

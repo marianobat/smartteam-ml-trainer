@@ -24,6 +24,7 @@ import { computeKnnLearningCurve } from "../../core/training/knnCurve";
 import {
   connectGestureWs,
   disconnectGestureWs,
+  sendClasses,
   sendGesture,
   type WsRole,
   type WsStatus,
@@ -235,6 +236,11 @@ export default function HandTrainer({ onBack, room, publishToken }: HandTrainerP
     lastSentAtRef.current = now;
     setLastSentGesture({ label: labelToSend, confidence });
   }, [stableLabel, stableConfidence, hasHands, wsStatus, room, publishToken]);
+
+  useEffect(() => {
+    if (wsStatus !== "open") return;
+    sendClasses(dataset.classes.map((item) => ({ id: item.id, name: item.name })));
+  }, [wsStatus, dataset.classes]);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(max-width: 1100px)");
