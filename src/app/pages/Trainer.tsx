@@ -40,6 +40,7 @@ import {
   datasetReducer,
   countSamplesByClass,
 } from "../../core/dataset/datasetStore";
+import MicrobitPanel from "../components/MicrobitPanel";
 
 export type TrainerConfig = {
   /** Título del entrenador, p. ej. "Entrenador de manos (2 manos)". */
@@ -684,6 +685,10 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
     ? `${lastSentGesture.label} (${lastSentGesture.confidence.toFixed(2)})`
     : "—";
 
+  const microbitLabel =
+    !hasSubject || !stableLabel || stableLabel === missingLabel ? "none" : stableLabel;
+  const microbitConfidence = microbitLabel === "none" ? 0 : stableConfidence;
+
   return (
     <div
       style={{
@@ -969,6 +974,8 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
             </div>
             {wsError && <div style={{ fontSize: 12, color: "#b91c1c" }}>WS: {wsError}</div>}
           </div>
+
+          <MicrobitPanel label={microbitLabel} confidence={microbitConfidence} />
         </div>
 
         {/* Cámara + overlay */}

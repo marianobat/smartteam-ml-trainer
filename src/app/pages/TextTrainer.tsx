@@ -37,6 +37,7 @@ import {
   datasetReducer,
   countSamplesByClass,
 } from "../../core/dataset/datasetStore";
+import MicrobitPanel from "../components/MicrobitPanel";
 
 type TrainHistory = {
   acc: number[];
@@ -782,6 +783,7 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
               Ultimo gesto: <b>{lastGestureLabel}</b>
             </div>
             {wsError && <div style={{ fontSize: 12, color: "#b91c1c" }}>WS: {wsError}</div>}
+            <MicrobitPanel label={liveLabel || "none"} confidence={liveConfidence} />
           </div>
         </div>
       </div>

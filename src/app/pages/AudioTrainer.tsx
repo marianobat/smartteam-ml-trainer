@@ -20,6 +20,7 @@ import {
   type WsStatus,
 } from "../../core/bridge/gestureWs";
 import { WS_BASE } from "../../core/bridge/config";
+import MicrobitPanel from "../components/MicrobitPanel";
 
 const BACKGROUND_LABEL = "_background_noise_";
 const BACKGROUND_NAME = "Ruido de fondo";
@@ -565,6 +566,10 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
               Ultimo gesto: <b>{lastGestureLabel}</b>
             </div>
             {wsError && <div style={{ fontSize: 12, color: "#b91c1c" }}>WS: {wsError}</div>}
+            <MicrobitPanel
+              label={!liveRawLabel || liveRawLabel === BACKGROUND_LABEL ? "none" : liveLabel}
+              confidence={!liveRawLabel || liveRawLabel === BACKGROUND_LABEL ? 0 : liveConfidence}
+            />
           </div>
         </div>
       </div>
