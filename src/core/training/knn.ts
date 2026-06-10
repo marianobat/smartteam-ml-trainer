@@ -1,10 +1,15 @@
-import { FEATURE_DIM } from "../hand/featurize";
-
 export type KnnModel = {
   classNames: string[];
   samples: number[][];
   labels: number[];
   k: number;
+  featureDim: number;
+};
+
+export type KnnOptions = {
+  k?: number;
+  /** Largo esperado de cada vector; por defecto, el de la primera muestra. */
+  featureDim?: number;
 };
 
 const DEFAULT_K = 3;
@@ -18,11 +23,14 @@ export function createKnnModel(
   classNames: string[],
   samples: number[][],
   labels: number[],
-  k: number = DEFAULT_K
+  opts: KnnOptions = {}
 ): KnnModel {
   if (samples.length !== labels.length) {
     throw new Error("Samples y labels deben tener el mismo largo.");
   }
+
+  const k = opts.k ?? DEFAULT_K;
+  const featureDim = opts.featureDim ?? samples[0]?.length ?? 0;
 
   const filteredSamples: number[][] = [];
   const filteredLabels: number[] = [];
@@ -31,7 +39,7 @@ export function createKnnModel(
   for (let i = 0; i < samples.length; i += 1) {
     const sample = samples[i];
     const label = labels[i];
-    if (sample.length !== FEATURE_DIM) {
+    if (sample.length !== featureDim) {
       invalidCount += 1;
       continue;
     }
@@ -58,6 +66,7 @@ export function createKnnModel(
     samples: filteredSamples,
     labels: filteredLabels,
     k: effectiveK,
+    featureDim,
   };
 }
 
@@ -70,7 +79,7 @@ export function predictKnn(
     return { label: "", confidence: 0, probs: [] };
   }
 
-  if (x.length !== FEATURE_DIM) {
+  if (x.length !== model.featureDim) {
     return { label: "", confidence: 0, probs: [] };
   }
 

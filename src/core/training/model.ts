@@ -1,7 +1,6 @@
 import * as tf from "@tensorflow/tfjs";
-import { FEATURE_DIM } from "../hand/featurize";
 
-export function createClassifier(numClasses: number): tf.LayersModel {
+export function createClassifier(numClasses: number, featureDim: number): tf.LayersModel {
   const model = tf.sequential();
   const regularizer = tf.regularizers.l2({ l2: 1e-4 });
 
@@ -9,7 +8,7 @@ export function createClassifier(numClasses: number): tf.LayersModel {
     tf.layers.dense({
       units: 32,
       activation: "relu",
-      inputShape: [FEATURE_DIM],
+      inputShape: [featureDim],
       kernelRegularizer: regularizer,
     })
   );

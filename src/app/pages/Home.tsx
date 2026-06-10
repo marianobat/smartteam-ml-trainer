@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import type { KeyboardEvent } from "react";
 import { API_BASE, EXT_URL, TEMPLATE_SB3, TW_EDITOR } from "../../core/bridge/config";
 import { getRoom, getToken, setRoom as setSessionRoom, setToken } from "../../core/bridge/session";
 import "./Home.css";
@@ -21,6 +22,32 @@ export default function Home() {
   const canEnter = Boolean(room);
   const extensionUrl = EXT_URL.trim();
   const templateUrl = TEMPLATE_SB3.trim();
+
+  const handleOpenTrainer = () => {
+    if (!room) return;
+    window.location.assign(`${baseUrl}trainer?room=${encodeURIComponent(room)}`);
+  };
+
+  const handleOpenProgram = () => {
+    if (!room) return;
+    const params = new URLSearchParams();
+    params.set("room", room);
+    if (templateUrl) {
+      params.set("project_url", templateUrl);
+    }
+    if (extensionUrl) {
+      params.set("extension", extensionUrl);
+    }
+    window.location.assign(`${TW_EDITOR}?${params.toString()}`);
+  };
+
+  const handlePanelKeyDown = (event: KeyboardEvent<HTMLDivElement>, action: () => void) => {
+    if (!canEnter) return;
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      action();
+    }
+  };
 
   useEffect(() => {
     const storedRoom = getRoom();
@@ -103,7 +130,14 @@ export default function Home() {
 
       <section className="home-panels">
         <article className="home-panel home-panel--trainer">
-          <div className="home-panel-media">
+          <div
+            className="home-panel-media"
+            role="button"
+            tabIndex={canEnter ? 0 : -1}
+            aria-disabled={!canEnter}
+            onClick={canEnter ? handleOpenTrainer : undefined}
+            onKeyDown={(event) => handlePanelKeyDown(event, handleOpenTrainer)}
+          >
             <span>Imagen</span>
           </div>
           <div className="home-panel-body">
@@ -113,7 +147,7 @@ export default function Home() {
             </p>
             <div className="home-panel-actions">
               <button
-                onClick={() => window.location.assign(`${baseUrl}trainer?room=${encodeURIComponent(room)}`)}
+                onClick={handleOpenTrainer}
                 disabled={!canEnter}
               >
                 Abrir entrenador
@@ -123,7 +157,14 @@ export default function Home() {
         </article>
 
         <article className="home-panel home-panel--program">
-          <div className="home-panel-media">
+          <div
+            className="home-panel-media"
+            role="button"
+            tabIndex={canEnter ? 0 : -1}
+            aria-disabled={!canEnter}
+            onClick={canEnter ? handleOpenProgram : undefined}
+            onKeyDown={(event) => handlePanelKeyDown(event, handleOpenProgram)}
+          >
             <span>Imagen</span>
           </div>
           <div className="home-panel-body">
@@ -133,18 +174,7 @@ export default function Home() {
             </p>
             <div className="home-panel-actions">
               <button
-                onClick={() => {
-                  if (!room) return;
-                  const params = new URLSearchParams();
-                  params.set("room", room);
-                  if (templateUrl) {
-                    params.set("project_url", templateUrl);
-                  }
-                  if (extensionUrl) {
-                    params.set("extension", extensionUrl);
-                  }
-                  window.location.assign(`${TW_EDITOR}?${params.toString()}`);
-                }}
+                onClick={handleOpenProgram}
                 disabled={!canEnter}
               >
                 Abrir TurboWarp

@@ -1,4 +1,9 @@
-// src/app/pages/HandTrainer.tsx
+// src/app/pages/Trainer.tsx
+//
+// Entrenador genérico: funciona con cualquier modalidad de video (manos,
+// cuerpo, rostro) a través del contrato VideoExtractor. La lógica de captura,
+// entrenamiento (kNN / MLP), predicción en vivo y publicación WebSocket es
+// común a todas las modalidades.
 
 import { useEffect, useMemo, useReducer, useRef, useState, type MouseEvent, type TouchEvent } from "react";
 import * as tf from "@tensorflow/tfjs";
@@ -12,9 +17,8 @@ import {
   Tooltip,
   Legend,
 } from "recharts";
-import { initHandLandmarker, startCamera, detectHands } from "../../core/hand/handLandmarker";
-import { featurizeTwoHands, FEATURE_DIM } from "../../core/hand/featurize";
-import { drawHands } from "../../core/hand/draw";
+import { startCamera } from "../../core/extractors/camera";
+import type { VideoExtractor } from "../../core/extractors/types";
 import { prepareTensors, type PreparedTensors } from "../../core/training/prepare";
 import { createClassifier } from "../../core/training/model";
 import { trainClassifier } from "../../core/training/train";
@@ -36,6 +40,16 @@ import {
   datasetReducer,
   countSamplesByClass,
 } from "../../core/dataset/datasetStore";
+
+export type TrainerConfig = {
+  /** Título del entrenador, p. ej. "Entrenador de manos (2 manos)". */
+  title: string;
+  /** Texto de estado mientras descarga el modelo base. */
+  loadingText: string;
+  /** Etiqueta cuando no se detecta el sujeto, p. ej. "Sin manos". */
+  missingLabel: string;
+  createExtractor: () => VideoExtractor;
+};
 
 function captureThumbnail(video: HTMLVideoElement, size = 96, mirror = true): string {
   const c = document.createElement("canvas");
@@ -80,32 +94,40 @@ const TRAIN_EPOCHS = 40;
 const PREDICT_INTERVAL_MS = 80; // faster stable response
 const ACCEPT_THRESHOLD = 0.7;
 
-type HandTrainerProps = {
+type TrainerProps = {
+  config: TrainerConfig;
   onBack: () => void;
   room?: string;
   publishToken?: string;
 };
 
-export default function HandTrainer({ onBack, room, publishToken }: HandTrainerProps) {
+export default function Trainer({ config, onBack, room, publishToken }: TrainerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  const extractorRef = useRef<VideoExtractor | null>(null);
+  if (!extractorRef.current) extractorRef.current = config.createExtractor();
+  const extractor = extractorRef.current;
+  const featureDim = extractor.featureDim;
+  const missingLabel = config.missingLabel;
 
   const [status, setStatus] = useState("Inicializando...");
   const [mode, setMode] = useState<Mode>("examples");
   const modeRef = useRef<Mode>(mode);
   const [isNarrow, setIsNarrow] = useState(false);
 
-  const [dataset, dispatch] = useReducer(datasetReducer, undefined, createInitialDatasetState);
+  const [dataset, dispatch] = useReducer(datasetReducer, featureDim, createInitialDatasetState);
 
-  // acá guardamos el último vector disponible (finger-curl + dirección, FEATURE_DIM)
+  // acá guardamos el último vector de features disponible (featureDim)
   const latestVecRef = useRef<Float32Array | null>(null);
 
   // Timers para captura por hold
   const holdStartTimerRef = useRef<number | null>(null);
   const holdRepeatTimerRef = useRef<number | null>(null);
   const lastPredictRef = useRef(0);
+  const lastFrameAtRef = useRef(0);
   const prevProbsRef = useRef<number[] | null>(null);
-  const hasHandsRef = useRef(false);
+  const hasSubjectRef = useRef(false);
   const liveLabelRef = useRef("");
   const liveProbsStateRef = useRef<number[]>([]);
   const liveConfidenceRef = useRef(0);
@@ -141,7 +163,7 @@ export default function HandTrainer({ onBack, room, publishToken }: HandTrainerP
   const [liveConfidence, setLiveConfidence] = useState<number>(0);
   const [stableLabel, setStableLabel] = useState<string>("");
   const [stableConfidence, setStableConfidence] = useState<number>(0);
-  const [hasHands, setHasHands] = useState<boolean>(false);
+  const [hasSubject, setHasSubject] = useState<boolean>(false);
   const [wsStatus, setWsStatus] = useState<WsStatus>("idle");
   const [wsRole, setWsRole] = useState<WsRole | null>(null);
   const [wsError, setWsError] = useState<string | null>(null);
@@ -216,7 +238,7 @@ export default function HandTrainer({ onBack, room, publishToken }: HandTrainerP
     if (!room || !publishToken) return;
 
     const labelToSend =
-      !hasHands || !stableLabel || stableLabel === "No hands" ? "none" : stableLabel;
+      !hasSubject || !stableLabel || stableLabel === missingLabel ? "none" : stableLabel;
     const now = Date.now();
     const labelChanged = labelToSend !== lastSentLabelRef.current;
     const elapsed = now - lastSentAtRef.current;
@@ -235,7 +257,7 @@ export default function HandTrainer({ onBack, room, publishToken }: HandTrainerP
     lastSentLabelRef.current = labelToSend;
     lastSentAtRef.current = now;
     setLastSentGesture({ label: labelToSend, confidence });
-  }, [stableLabel, stableConfidence, hasHands, wsStatus, room, publishToken]);
+  }, [stableLabel, stableConfidence, hasSubject, wsStatus, room, publishToken, missingLabel]);
 
   useEffect(() => {
     if (wsStatus !== "open") return;
@@ -270,7 +292,7 @@ export default function HandTrainer({ onBack, room, publishToken }: HandTrainerP
     if (!activeClassId) return;
 
     const vec = latestVecRef.current;
-    if (!vec || vec.length !== FEATURE_DIM) return; // solo guardamos el vector de FEATURES
+    if (!vec || vec.length !== featureDim) return; // solo guardamos el vector de FEATURES
 
     dispatch({
       type: "ADD_SAMPLE",
@@ -317,8 +339,8 @@ export default function HandTrainer({ onBack, room, publishToken }: HandTrainerP
     stableConfidenceRef.current = 0;
     setStableLabel("");
     setStableConfidence(0);
-    hasHandsRef.current = false;
-    setHasHands(false);
+    hasSubjectRef.current = false;
+    setHasSubject(false);
     setTrainError(null);
     setTrainNotice(null);
     setTrainComplete(false);
@@ -343,12 +365,12 @@ export default function HandTrainer({ onBack, room, publishToken }: HandTrainerP
         for (const sample of dataset.samples) {
           const labelIdx = classIdToIndex.get(sample.classId);
           if (labelIdx === undefined) continue;
-          if (sample.x.length !== FEATURE_DIM) continue;
+          if (sample.x.length !== featureDim) continue;
           samplesArr.push(sample.x);
           labelsArr.push(labelIdx);
         }
 
-        const knn = createKnnModel(classNames, samplesArr, labelsArr, 3);
+        const knn = createKnnModel(classNames, samplesArr, labelsArr, { k: 3, featureDim });
         const curve = computeKnnLearningCurve(samplesArr, labelsArr, classNames.length, {
           k: knn.k,
         });
@@ -373,8 +395,8 @@ export default function HandTrainer({ onBack, room, publishToken }: HandTrainerP
         setTrainNotice(null);
       } else {
         // ml mode
-        prepared = prepareTensors(dataset.classes, dataset.samples);
-        const model = createClassifier(prepared.classNames.length);
+        prepared = prepareTensors(dataset.classes, dataset.samples, featureDim);
+        const model = createClassifier(prepared.classNames.length, featureDim);
         const expectedEpochs =
           prepared.xs.shape[0] <= 20 ? 120 : prepared.xs.shape[0] <= 60 ? 80 : 50;
         setTrainProgress((prev) => ({ ...prev, total: expectedEpochs }));
@@ -444,8 +466,8 @@ export default function HandTrainer({ onBack, room, publishToken }: HandTrainerP
         setStatus("No se encontró el video.");
         return;
       }
-      setStatus("Cargando modelo de manos...");
-      await initHandLandmarker();
+      setStatus(config.loadingText);
+      await extractor.load();
 
       setStatus("Activando cámara...");
       await startCamera(videoEl);
@@ -465,26 +487,28 @@ export default function HandTrainer({ onBack, room, publishToken }: HandTrainerP
         if (!running) return;
 
         const now = performance.now();
-        const result = detectHands(videoEl, now);
 
         if (videoEl.videoWidth > 0 && canvasEl.width !== videoEl.videoWidth) {
           canvasEl.width = videoEl.videoWidth;
           canvasEl.height = videoEl.videoHeight;
         }
 
-        // Dibujo con colores + conexiones (asumiendo mirrorView)
-        drawHands(ctx, result, { mirrorView: false });
+        // Detección + overlay + features. Extractores pesados (frameIntervalMs)
+        // procesan a menor frecuencia; entre frames se reusa el último vector.
+        const frameInterval = extractor.frameIntervalMs ?? 0;
+        if (!frameInterval || now - lastFrameAtRef.current >= frameInterval) {
+          lastFrameAtRef.current = now;
+          const processed = extractor.processFrame(videoEl, ctx, now);
+          latestVecRef.current = processed;
 
-        // Features finger-curl (FEATURE_DIM) — invariante a posición/escala
-        const vec = featurizeTwoHands(result);
-        latestVecRef.current = vec;
-
-        const hasHandsNow = Boolean(vec);
-        const prevHasHands = hasHandsRef.current;
-        if (prevHasHands !== hasHandsNow) {
-          hasHandsRef.current = hasHandsNow;
-          setHasHands(hasHandsNow);
+          const hasSubjectNow = Boolean(processed);
+          if (hasSubjectRef.current !== hasSubjectNow) {
+            hasSubjectRef.current = hasSubjectNow;
+            setHasSubject(hasSubjectNow);
+          }
         }
+        const vec = latestVecRef.current;
+        const hasSubjectNow = hasSubjectRef.current;
 
         const trained = trainedRef.current;
         const currentMode = modeRef.current;
@@ -503,7 +527,7 @@ export default function HandTrainer({ onBack, room, publishToken }: HandTrainerP
         if (activeTrained && classNames.length) {
           const shouldPredict = now - lastPredictRef.current >= PREDICT_INTERVAL_MS;
 
-          if (shouldPredict && hasHandsNow && vec) {
+          if (shouldPredict && hasSubjectNow && vec) {
             lastPredictRef.current = now;
             const res =
               activeTrained.kind === "knn"
@@ -547,20 +571,20 @@ export default function HandTrainer({ onBack, room, publishToken }: HandTrainerP
             }
             setStableLabel(stableLabelRef.current);
             setStableConfidence(stableConfidenceRef.current);
-          } else if (!hasHandsNow && (prevHasHands || liveLabelRef.current !== "No hands")) {
+          } else if (!hasSubjectNow && liveLabelRef.current !== missingLabel) {
             prevProbsRef.current = null;
             const zeroProbs = classNames.map(() => 0);
             liveProbsStateRef.current = zeroProbs;
-            liveLabelRef.current = "No hands";
+            liveLabelRef.current = missingLabel;
             liveConfidenceRef.current = 0;
             setLiveProbs(zeroProbs);
-            setLiveLabel("No hands");
+            setLiveLabel(missingLabel);
             setLiveConfidence(0);
-            stableLabelRef.current = "No hands";
+            stableLabelRef.current = missingLabel;
             stableConfidenceRef.current = 0;
             pendingLabelRef.current = null;
             pendingHitsRef.current = 0;
-            setStableLabel("No hands");
+            setStableLabel(missingLabel);
             setStableConfidence(0);
           }
         } else if (
@@ -608,10 +632,11 @@ export default function HandTrainer({ onBack, room, publishToken }: HandTrainerP
       }
       trainedRef.current = null;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const activeClass = dataset.classes.find((c) => c.id === dataset.activeClassId) || null;
-  const predictionAccepted = hasHands && stableConfidence >= ACCEPT_THRESHOLD;
+  const predictionAccepted = hasSubject && stableConfidence >= ACCEPT_THRESHOLD;
 
   const lineData = useMemo(() => {
     const length = Math.max(
@@ -628,9 +653,9 @@ export default function HandTrainer({ onBack, room, publishToken }: HandTrainerP
 
   const barData = useMemo(() => {
     if (!trainedClassNames.length) return [];
-    const probs = hasHands ? liveProbs : trainedClassNames.map(() => 0);
+    const probs = hasSubject ? liveProbs : trainedClassNames.map(() => 0);
     return trainedClassNames.map((name, idx) => ({ name, value: probs[idx] ?? 0 }));
-  }, [trainedClassNames, liveProbs, hasHands]);
+  }, [trainedClassNames, liveProbs, hasSubject]);
 
   const hasTrainedModel = trainedModel?.kind === (mode === "examples" ? "knn" : "ml");
   const progressLabel = mode === "examples" ? "Muestras" : "Epoca";
@@ -672,7 +697,7 @@ export default function HandTrainer({ onBack, room, publishToken }: HandTrainerP
     >
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         <button onClick={onBack}>← Volver</button>
-        <h2 style={{ margin: 0 }}>Entrenador de manos (2 manos)</h2>
+        <h2 style={{ margin: 0 }}>{config.title}</h2>
       </div>
 
       <div
@@ -1020,9 +1045,9 @@ export default function HandTrainer({ onBack, room, publishToken }: HandTrainerP
                 Instantáneo:{" "}
                 <b>
                   {hasTrainedModel
-                    ? hasHands
+                    ? hasSubject
                       ? `${liveLabel} (${liveConfidence.toFixed(2)})`
-                      : "Sin manos"
+                      : missingLabel
                     : "—"}
                 </b>
               </div>
@@ -1031,18 +1056,18 @@ export default function HandTrainer({ onBack, room, publishToken }: HandTrainerP
                 <b>
                   {stableLabel
                     ? `${stableLabel} (${stableConfidence.toFixed(2)})`
-                    : hasHands
+                    : hasSubject
                     ? "—"
-                    : "Sin manos"}
+                    : missingLabel}
                 </b>{" "}
                 — estado{" "}
                 <b>
                   {hasTrainedModel
-                    ? hasHands
+                    ? hasSubject
                       ? predictionAccepted
                         ? "aceptado"
                         : "pendiente"
-                      : "sin manos"
+                      : missingLabel.toLowerCase()
                     : "sin modelo"}
                 </b>
               </div>

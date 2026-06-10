@@ -1,5 +1,11 @@
 import { useState } from "react";
-import HandTrainer from "./HandTrainer";
+import Trainer, { type TrainerConfig } from "./Trainer";
+import TextTrainer from "./TextTrainer";
+import AudioTrainer from "./AudioTrainer";
+import { createHandExtractor } from "../../core/extractors/handExtractor";
+import { createPoseExtractor } from "../../core/extractors/poseExtractor";
+import { createFaceExtractor } from "../../core/extractors/faceExtractor";
+import { createImageExtractor } from "../../core/extractors/imageExtractor";
 import { getToken, getRoom } from "../../core/bridge/session";
 import "./TrainerPage.css";
 
@@ -9,11 +15,40 @@ const getRoomFromQuery = () => {
   return params.get("room") ?? "";
 };
 
+type ModelId = "hands" | "face" | "images" | "pose" | "text" | "audio";
+
+const trainerConfigs: Partial<Record<ModelId, TrainerConfig>> = {
+  hands: {
+    title: "Entrenador de manos (2 manos)",
+    loadingText: "Cargando modelo de manos...",
+    missingLabel: "Sin manos",
+    createExtractor: createHandExtractor,
+  },
+  pose: {
+    title: "Entrenador de postura corporal",
+    loadingText: "Cargando modelo de cuerpo...",
+    missingLabel: "Sin cuerpo",
+    createExtractor: createPoseExtractor,
+  },
+  face: {
+    title: "Entrenador de gestos de la cara",
+    loadingText: "Cargando modelo de rostro...",
+    missingLabel: "Sin cara",
+    createExtractor: createFaceExtractor,
+  },
+  images: {
+    title: "Entrenador de imagenes",
+    loadingText: "Cargando MobileNet...",
+    missingLabel: "Sin imagen",
+    createExtractor: createImageExtractor,
+  },
+};
+
 export default function TrainerPage() {
   const baseUrl = import.meta.env.BASE_URL ?? "/";
   const room = getRoomFromQuery() || getRoom() || "";
   const publishToken = getToken() || "";
-  const [selectedModel, setSelectedModel] = useState<"hands" | null>(null);
+  const [selectedModel, setSelectedModel] = useState<ModelId | null>(null);
 
   const models = [
     {
@@ -27,33 +62,49 @@ export default function TrainerPage() {
       id: "face",
       title: "Gesto de la cara",
       description: "Expresiones y movimiento facial.",
-      enabled: false,
+      enabled: true,
       imageLabel: "Cara",
     },
     {
       id: "images",
       title: "Imagenes",
       description: "Reconocer objetos o escenas.",
-      enabled: false,
+      enabled: true,
       imageLabel: "Imagen",
     },
     {
       id: "pose",
       title: "Postura del cuerpo",
       description: "Pose completa con articulaciones.",
-      enabled: false,
+      enabled: true,
       imageLabel: "Cuerpo",
     },
     {
       id: "text",
       title: "Textos",
       description: "Clasificacion y comandos por texto.",
-      enabled: false,
+      enabled: true,
       imageLabel: "Texto",
+    },
+    {
+      id: "audio",
+      title: "Sonidos",
+      description: "Palabras y sonidos por microfono.",
+      enabled: true,
+      imageLabel: "Audio",
     },
   ] as const;
 
-  if (selectedModel !== "hands") {
+  if (selectedModel === "text") {
+    return <TextTrainer onBack={() => setSelectedModel(null)} room={room} publishToken={publishToken} />;
+  }
+  if (selectedModel === "audio") {
+    return <AudioTrainer onBack={() => setSelectedModel(null)} room={room} publishToken={publishToken} />;
+  }
+
+  const activeConfig = selectedModel ? trainerConfigs[selectedModel] : undefined;
+
+  if (!activeConfig) {
     return (
       <div className="trainer-select">
         <header className="trainer-select-header">
@@ -61,7 +112,7 @@ export default function TrainerPage() {
             <div className="trainer-select-kicker">SmartTEAM IA</div>
             <h1 className="trainer-select-title">Selecciona un modelo</h1>
             <p className="trainer-select-subtitle">
-              Por ahora solo esta habilitado el modelo de gesto de las manos.
+              Elegi que queres entrenar: manos, cara, cuerpo, imagenes, textos o sonidos.
             </p>
           </div>
           <div className="trainer-select-room">Room: {room || "—"}</div>
@@ -81,7 +132,7 @@ export default function TrainerPage() {
                 className={`model-card ${disabled ? "is-disabled" : ""}`}
                 onClick={() => {
                   if (!disabled) {
-                    setSelectedModel("hands");
+                    setSelectedModel(model.id);
                   }
                 }}
                 disabled={disabled}
@@ -108,8 +159,10 @@ export default function TrainerPage() {
   }
 
   return (
-    <HandTrainer
-      onBack={() => window.location.assign(baseUrl)}
+    <Trainer
+      key={selectedModel}
+      config={activeConfig}
+      onBack={() => setSelectedModel(null)}
       room={room}
       publishToken={publishToken}
     />

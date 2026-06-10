@@ -1,5 +1,4 @@
 // src/core/dataset/datasetStore.ts
-import { FEATURE_DIM } from "../hand/featurize";
 
 const MAX_THUMBNAILS_PER_CLASS = 20;
 
@@ -15,6 +14,8 @@ export type Sample = {
 };
 
 export type DatasetState = {
+  /** Largo esperado del vector de features según la modalidad activa. */
+  featureDim: number;
   classes: ClassDef[];
   samples: Sample[];
   activeClassId: string | null;
@@ -34,9 +35,10 @@ function uid(prefix = "c") {
   return `${prefix}_${Math.random().toString(16).slice(2)}_${Date.now().toString(16)}`;
 }
 
-export function createInitialDatasetState(): DatasetState {
+export function createInitialDatasetState(featureDim: number): DatasetState {
   const firstId = uid("c");
   return {
+    featureDim,
     classes: [{ id: firstId, name: "Clase 1" }],
     samples: [],
     activeClassId: firstId,
@@ -90,7 +92,7 @@ export function datasetReducer(state: DatasetState, action: DatasetAction): Data
       return { ...state, activeClassId: action.id };
 
     case "ADD_SAMPLE": {
-      if (!action.x || action.x.length !== FEATURE_DIM) {
+      if (!action.x || action.x.length !== state.featureDim) {
         console.warn("Ignoring sample with invalid feature length", action.x?.length);
         return state;
       }
@@ -114,7 +116,7 @@ export function datasetReducer(state: DatasetState, action: DatasetAction): Data
     }
 
     case "RESET_DATASET":
-      return createInitialDatasetState();
+      return createInitialDatasetState(state.featureDim);
 
     default:
       return state;

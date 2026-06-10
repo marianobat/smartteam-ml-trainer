@@ -158,6 +158,11 @@
     linear-gradient(120deg, #1b1d25 0%, #2b2f3d 70%);
 }
 
+.model-card-media--audio {
+  background: radial-gradient(circle at 25% 20%, rgba(255, 214, 244, 0.9), rgba(217, 122, 255, 0.35)),
+    linear-gradient(120deg, #2a1430 0%, #4a2363 70%);
+}
+
 .model-card-body {
   padding: 16px;
   display: grid;

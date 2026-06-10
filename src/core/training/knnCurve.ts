@@ -86,7 +86,7 @@ export function computeKnnLearningCurve(
   for (const step of steps) {
     const subsetX = trainX.slice(0, step);
     const subsetY = trainY.slice(0, step);
-    const knn = createKnnModel(classNames, subsetX, subsetY, opts.k);
+    const knn = createKnnModel(classNames, subsetX, subsetY, { k: opts.k });
     acc.push(accuracyFor(knn, subsetX, subsetY));
     valAcc.push(valCount ? accuracyFor(knn, valX, valY) : 0);
   }
