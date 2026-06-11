@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { EXT_URL, TEMPLATE_SB3, TW_EDITOR } from "../../core/bridge/config";
+import { TURBOWARP_ENABLED } from "../../core/bridge/features";
 import { getRoom } from "../../core/bridge/session";
 
 const getRoomFromQuery = () => {
@@ -34,9 +35,13 @@ export default function Program() {
   const primaryUrl = shouldAutoRedirect ? urlWithExtension : urlWithoutExtension;
 
   useEffect(() => {
+    if (!TURBOWARP_ENABLED) {
+      window.location.replace(`${baseUrl}trainer`);
+      return;
+    }
     if (!shouldAutoRedirect) return;
     window.location.replace(urlWithExtension);
-  }, [shouldAutoRedirect, urlWithExtension]);
+  }, [shouldAutoRedirect, urlWithExtension, baseUrl]);
 
   if (!room) {
     return (

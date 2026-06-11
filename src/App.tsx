@@ -1,6 +1,7 @@
 import Home from "./app/pages/Home";
 import Program from "./app/pages/Program";
 import TrainerPage from "./app/pages/TrainerPage";
+import { TURBOWARP_ENABLED } from "./core/bridge/features";
 
 const getRoute = () => {
   const baseUrl = import.meta.env.BASE_URL ?? "/";
@@ -12,6 +13,7 @@ const getRoute = () => {
   const normalized = path.replace(/\/+$/, "") || "/";
   if (normalized.endsWith("/trainer")) return "trainer";
   if (normalized.endsWith("/program")) return "program";
+  if (!TURBOWARP_ENABLED) return "trainer";
   return "home";
 };
 

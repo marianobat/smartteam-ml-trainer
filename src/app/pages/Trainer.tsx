@@ -1,9 +1,10 @@
 // src/app/pages/Trainer.tsx
 //
 // Entrenador genérico: funciona con cualquier modalidad de video (manos,
-// cuerpo, rostro) a través del contrato VideoExtractor. La lógica de captura,
-// entrenamiento (kNN / MLP), predicción en vivo y publicación WebSocket es
-// común a todas las modalidades.
+// cuerpo, rostro, imágenes) a través del contrato VideoExtractor. La lógica
+// de captura, entrenamiento (kNN / MLP), predicción en vivo y publicación
+// WebSocket es común a todas las modalidades. La vista es "modo chico" por
+// defecto; los paneles técnicos viven en el cajón de modo avanzado.
 
 import { useEffect, useMemo, useReducer, useRef, useState, type MouseEvent, type TouchEvent } from "react";
 import * as tf from "@tensorflow/tfjs";
@@ -34,17 +35,19 @@ import {
   type WsStatus,
 } from "../../core/bridge/gestureWs";
 import { WS_BASE } from "../../core/bridge/config";
-
+import { TURBOWARP_ENABLED } from "../../core/bridge/features";
 import {
   createInitialDatasetState,
   datasetReducer,
   countSamplesByClass,
+  MIN_SAMPLES_PER_CLASS,
   type DatasetState,
 } from "../../core/dataset/datasetStore";
 import {
   clearProject,
   deserializeMlModel,
   loadProject,
+  PROJECT_VERSION,
   saveProject,
   serializeMlModel,
   type SavedModality,
@@ -52,42 +55,40 @@ import {
   type SavedProject,
 } from "../../core/storage/projectStore";
 import { exportProjectZip, importProjectZip } from "../../core/export/projectZip";
+import { COPY } from "../copy";
+import { useAdvancedMode } from "../hooks/useAdvancedMode";
 import MicrobitPanel from "../components/MicrobitPanel";
 import ProjectPanel, { type SaveStatus } from "../components/ProjectPanel";
 import { isPipSupported, openPipMonitor } from "../components/pipMonitor";
+import StepsBar from "../components/trainer/StepsBar";
+import ClassCardStrip from "../components/trainer/ClassCardStrip";
+import SampleGrid from "../components/trainer/SampleGrid";
+import CameraStage from "../components/trainer/CameraStage";
+import CaptureControls from "../components/trainer/CaptureControls";
+import TrainPanel from "../components/trainer/TrainPanel";
+import LivePredictionBars from "../components/trainer/LivePredictionBars";
+import StatusChips, { type StatusChip } from "../components/trainer/StatusChips";
+import AdvancedDrawer from "../components/trainer/AdvancedDrawer";
+import { captureSkeletonThumbnail, captureVideoThumbnail } from "../components/trainer/thumbnails";
+import "./Trainer.css";
 
 export type TrainerConfig = {
   /** Título del entrenador, p. ej. "Entrenador de manos (2 manos)". */
   title: string;
   /** Texto de estado mientras descarga el modelo base. */
   loadingText: string;
-  /** Etiqueta cuando no se detecta el sujeto, p. ej. "Sin manos". */
+  /** Etiqueta cuando no se detecta el sujeto (viaja por WS/micro:bit — no renombrar). */
   missingLabel: string;
+  /** Mensaje amigable cuando no hay detección, p. ej. "No veo tus manos 👀". */
+  missingHint: string;
+  /** Ícono para placeholders de muestras/clases (✋ 🧍 😀 🖼️). */
+  placeholderIcon: string;
+  /** Fuente de la miniatura: esqueleto del overlay o recorte del video (imágenes). */
+  thumbnailSource: "overlay" | "video";
   /** Clave de persistencia en IndexedDB (una por modalidad). */
   storageKey: SavedModality;
   createExtractor: () => VideoExtractor;
 };
-
-function captureThumbnail(video: HTMLVideoElement, size = 96, mirror = true): string {
-  const c = document.createElement("canvas");
-  c.width = size;
-  c.height = size;
-  const ctx = c.getContext("2d")!;
-
-  const vw = video.videoWidth || 640;
-  const vh = video.videoHeight || 480;
-  const side = Math.min(vw, vh);
-  const sx = (vw - side) / 2;
-  const sy = (vh - side) / 2;
-
-  if (mirror) {
-    ctx.translate(size, 0);
-    ctx.scale(-1, 1);
-  }
-
-  ctx.drawImage(video, sx, sy, side, side, 0, 0, size, size);
-  return c.toDataURL("image/jpeg", 0.7);
-}
 
 type TrainHistory = {
   acc: number[];
@@ -131,7 +132,8 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
   const [status, setStatus] = useState("Inicializando...");
   const [mode, setMode] = useState<Mode>("examples");
   const modeRef = useRef<Mode>(mode);
-  const [isNarrow, setIsNarrow] = useState(false);
+  const [advanced, toggleAdvanced] = useAdvancedMode();
+  const [burstMode, setBurstMode] = useState(true);
 
   const [dataset, dispatch] = useReducer(datasetReducer, featureDim, createInitialDatasetState);
 
@@ -181,6 +183,7 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
   const [stableLabel, setStableLabel] = useState<string>("");
   const [stableConfidence, setStableConfidence] = useState<number>(0);
   const [hasSubject, setHasSubject] = useState<boolean>(false);
+  const [triedIt, setTriedIt] = useState(false);
   const [wsStatus, setWsStatus] = useState<WsStatus>("idle");
   const [wsRole, setWsRole] = useState<WsRole | null>(null);
   const [wsError, setWsError] = useState<string | null>(null);
@@ -211,10 +214,10 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
     return `${WS_BASE}?${params.toString()}`;
   }, [room, publishToken]);
 
-  const totalSamples = dataset.samples.length;
-  const hasEmptyClass = dataset.classes.some((c) => (counts[c.id] ?? 0) === 0);
-  const canTrain =
-    dataset.classes.length >= 2 && !hasEmptyClass && totalSamples >= dataset.classes.length * 2;
+  const everyClassReady = dataset.classes.every(
+    (c) => (counts[c.id] ?? 0) >= MIN_SAMPLES_PER_CLASS
+  );
+  const canTrain = dataset.classes.length >= 2 && everyClassReady;
 
   useEffect(() => {
     modeRef.current = mode;
@@ -229,8 +232,7 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
     lastSentAtRef.current = 0;
     seqRef.current = 0;
 
-    if (!room || !publishToken) {
-      // Sin sesión de TurboWarp: flujo válido (el micro:bit no la necesita)
+    if (!TURBOWARP_ENABLED || !room || !publishToken) {
       setWsStatus("idle");
       return;
     }
@@ -258,6 +260,7 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
   }, [wsUrl, room, publishToken]);
 
   useEffect(() => {
+    if (!TURBOWARP_ENABLED) return;
     if (wsStatus !== "open") return;
     if (!room || !publishToken) return;
 
@@ -288,22 +291,10 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
     sendClasses(dataset.classes.map((item) => ({ id: item.id, name: item.name })));
   }, [wsStatus, dataset.classes]);
 
-  useEffect(() => {
-    const mediaQuery = window.matchMedia("(max-width: 1100px)");
-    const update = () => setIsNarrow(mediaQuery.matches);
-    update();
-    if (mediaQuery.addEventListener) {
-      mediaQuery.addEventListener("change", update);
-      return () => mediaQuery.removeEventListener("change", update);
-    }
-    mediaQuery.addListener(update);
-    return () => mediaQuery.removeListener(update);
-  }, []);
-
   const persistProject = async (datasetToSave: DatasetState) => {
     try {
       const project: SavedProject = {
-        version: 1,
+        version: PROJECT_VERSION,
         modality: config.storageKey,
         savedAt: Date.now(),
         dataset: datasetToSave,
@@ -393,7 +384,7 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
   const handleExportProject = async () => {
     try {
       await exportProjectZip({
-        version: 1,
+        version: PROJECT_VERSION,
         modality: config.storageKey,
         savedAt: Date.now(),
         dataset,
@@ -428,6 +419,7 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
     trainedClassNamesRef.current = [];
     setTrainedClassNames([]);
     setTrainComplete(false);
+    setTriedIt(false);
     prevProbsRef.current = null;
     setLiveProbs([]);
     setLiveLabel("");
@@ -497,23 +489,34 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
     const vec = latestVecRef.current;
     if (!vec || vec.length !== featureDim) return; // solo guardamos el vector de FEATURES
 
+    // Miniatura: esqueleto del overlay (privacidad) o recorte del video (imágenes)
+    let thumb: string | undefined;
+    if (config.thumbnailSource === "video") {
+      const video = videoRef.current;
+      if (video && video.videoWidth > 0) {
+        thumb = captureVideoThumbnail(video, 96, true);
+      }
+    } else {
+      const overlay = canvasRef.current;
+      if (overlay && overlay.width > 0) {
+        thumb = captureSkeletonThumbnail(overlay, 96, true);
+      }
+    }
+
     dispatch({
       type: "ADD_SAMPLE",
       classId: activeClassId,
       x: Array.from(vec),
+      thumb,
     });
-
-    const video = videoRef.current;
-    if (video && video.videoWidth > 0) {
-      const thumb = captureThumbnail(video, 96, true);
-      dispatch({ type: "ADD_THUMBNAIL", classId: activeClassId, dataUrl: thumb });
-    }
   };
 
   const startHold = (event: MouseEvent<HTMLButtonElement> | TouchEvent<HTMLButtonElement>) => {
     event.preventDefault();
     clearHoldTimers();
     captureSample();
+
+    if (!burstMode) return;
 
     holdStartTimerRef.current = window.setTimeout(() => {
       captureSample();
@@ -844,6 +847,14 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
 
   const activeClass = dataset.classes.find((c) => c.id === dataset.activeClassId) || null;
   const predictionAccepted = hasSubject && stableConfidence >= ACCEPT_THRESHOLD;
+  const hasTrainedModel = trainedModel?.kind === (mode === "examples" ? "knn" : "ml");
+
+  // Paso ③: se latchea con la primera predicción aceptada tras entrenar
+  useEffect(() => {
+    if (trainComplete && predictionAccepted && !triedIt) {
+      setTriedIt(true);
+    }
+  }, [trainComplete, predictionAccepted, triedIt]);
 
   const lineData = useMemo(() => {
     const length = Math.max(
@@ -858,25 +869,71 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
     }));
   }, [trainHistory]);
 
-  const barData = useMemo(() => {
-    if (!trainedClassNames.length) return [];
-    const probs = hasSubject ? liveProbs : trainedClassNames.map(() => 0);
-    return trainedClassNames.map((name, idx) => ({ name, value: probs[idx] ?? 0 }));
-  }, [trainedClassNames, liveProbs, hasSubject]);
+  // Última miniatura por clase (para la tarjeta de la clase)
+  const lastThumbByClass = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const sample of dataset.samples) {
+      if (sample.thumb) map[sample.classId] = sample.thumb;
+    }
+    return map;
+  }, [dataset.samples]);
 
-  const hasTrainedModel = trainedModel?.kind === (mode === "examples" ? "knn" : "ml");
-  const progressLabel = mode === "examples" ? "Muestras" : "Epoca";
-  const hasValMetric = trainProgress.valAcc !== undefined;
-  const progressTotal = trainProgress.total || (mode === "ml" ? TRAIN_EPOCHS : 0);
-  const valHint = mode === "ml" ? " (≥30 muestras)" : "";
+  const activeSamples = useMemo(
+    () =>
+      dataset.samples
+        .filter((s) => s.classId === dataset.activeClassId)
+        .map((s) => ({ id: s.id, thumb: s.thumb, content: s.note })),
+    [dataset.samples, dataset.activeClassId]
+  );
 
-  const trainStatusLabel = isTraining
-    ? "Entrenando... ⏳"
-    : trainError
-    ? "Error"
-    : trainComplete
-    ? "Entrenado ✅"
-    : "Inactivo";
+  const cameraLoading = status !== "Detectando...";
+  const cameraHint = !cameraLoading && !hasSubject ? config.missingHint : null;
+
+  const steps = [
+    { label: COPY.steps[0], done: canTrain, active: !canTrain },
+    { label: COPY.steps[1], done: trainComplete, active: canTrain && !trainComplete },
+    { label: COPY.steps[2], done: triedIt, active: trainComplete && !triedIt },
+  ];
+
+  const trainHint = !canTrain
+    ? dataset.classes.length < 2
+      ? COPY.needTwoClasses
+      : COPY.needSamples(MIN_SAMPLES_PER_CLASS)
+    : null;
+  const trainProgressPct =
+    mode === "ml" && trainProgress.total > 0
+      ? Math.round((trainProgress.epoch / trainProgress.total) * 100)
+      : null;
+
+  const liveRows = trainedClassNames.map((name, idx) => {
+    const value = hasSubject ? liveProbs[idx] ?? 0 : 0;
+    return { name, value, pass: value >= ACCEPT_THRESHOLD };
+  });
+  const seeing =
+    hasTrainedModel && predictionAccepted && stableLabel && stableLabel !== missingLabel
+      ? { label: stableLabel, confidence: stableConfidence }
+      : null;
+
+  const chips: StatusChip[] = [
+    {
+      id: "save",
+      icon: saveStatus === "saving" ? "⏳" : "💾",
+      label: saveStatus === "saving" ? COPY.chipSaving : COPY.chipSaved,
+      tone: saveStatus === "saved" ? "ok" : saveStatus === "error" ? "warn" : "off",
+    },
+    ...(TURBOWARP_ENABLED
+      ? [
+          {
+            id: "tw",
+            icon: "🛰️",
+            label: COPY.chipTurboWarp,
+            tone:
+              wsStatus === "open" ? ("ok" as const) : wsStatus === "error" ? ("warn" as const) : ("off" as const),
+          },
+        ]
+      : []),
+  ];
+
   const wsStatusLabel =
     wsStatus === "open"
       ? "conectado"
@@ -896,293 +953,239 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
   const microbitConfidence = microbitLabel === "none" ? 0 : stableConfidence;
 
   return (
-    <div
-      style={{
-        padding: 16,
-        display: "grid",
-        gap: 12,
-        height: isNarrow ? "auto" : "100vh",
-        boxSizing: "border-box",
-        overflow: isNarrow ? "auto" : "hidden",
-      }}
-    >
-      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-        <button onClick={onBack}>← Volver</button>
-        <h2 style={{ margin: 0 }}>{config.title}</h2>
+    <div className="trainer-page">
+      <header className="trainer-header">
+        <button type="button" className="trainer-back" onClick={onBack}>
+          {COPY.back}
+        </button>
+        <h2 className="trainer-title">{config.title}</h2>
+        <div className="trainer-header-right">
+          <StatusChips chips={chips} />
+        </div>
+      </header>
+
+      <StepsBar steps={steps} />
+
+      <div className="trainer-main">
+        <section className="trainer-stage">
+          <CameraStage
+            videoRef={videoRef}
+            canvasRef={canvasRef}
+            dimmed={config.thumbnailSource !== "video"}
+            loading={cameraLoading}
+            loadingText={status}
+            hint={cameraHint}
+          >
+            <CaptureControls
+              disabled={!dataset.activeClassId || cameraLoading}
+              burstMode={burstMode}
+              onToggleBurst={() => setBurstMode((prev) => !prev)}
+              onPressStart={startHold}
+              onPressEnd={endHold}
+            />
+          </CameraStage>
+          <div className="trainer-capture-hint">{COPY.captureHint}</div>
+        </section>
+
+        <aside className="trainer-side">
+          <ClassCardStrip
+            items={dataset.classes.map((c) => ({
+              id: c.id,
+              name: c.name,
+              count: counts[c.id] ?? 0,
+              thumb: lastThumbByClass[c.id],
+            }))}
+            activeId={dataset.activeClassId}
+            min={MIN_SAMPLES_PER_CLASS}
+            placeholderIcon={config.placeholderIcon}
+            onSelect={(id) => dispatch({ type: "SET_ACTIVE_CLASS", id })}
+            onAdd={() => dispatch({ type: "ADD_CLASS" })}
+          />
+
+          {activeClass && (
+            <div className="class-detail">
+              <div className="class-detail-header">
+                <input
+                  className="class-detail-name"
+                  value={activeClass.name}
+                  aria-label={COPY.className}
+                  onChange={(e) =>
+                    dispatch({ type: "RENAME_CLASS", id: activeClass.id, name: e.target.value })
+                  }
+                />
+                <button
+                  type="button"
+                  className="class-detail-delete"
+                  title={COPY.deleteClass}
+                  aria-label={COPY.deleteClass}
+                  disabled={dataset.classes.length <= 1}
+                  onClick={() => dispatch({ type: "DELETE_CLASS", id: activeClass.id })}
+                >
+                  🗑
+                </button>
+              </div>
+              <SampleGrid
+                items={activeSamples}
+                min={MIN_SAMPLES_PER_CLASS}
+                placeholderIcon={config.placeholderIcon}
+                onDelete={(id) => dispatch({ type: "REMOVE_SAMPLE", id })}
+              />
+            </div>
+          )}
+
+          <TrainPanel
+            canTrain={canTrain}
+            isTraining={isTraining}
+            trainComplete={trainComplete && hasTrainedModel}
+            progressPct={trainProgressPct}
+            hint={trainHint}
+            error={trainError}
+            onTrain={() => void handleTrain()}
+          />
+
+          <div className="try-panel">
+            <div className="try-panel-header">
+              <h3>{COPY.tryTitle}</h3>
+              {isPipSupported() && (
+                <button type="button" className="try-pip" onClick={() => void handleTogglePip()}>
+                  {pipOpen ? COPY.pipClose : COPY.pipOpen}
+                </button>
+              )}
+            </div>
+            <LivePredictionBars rows={liveRows} seeing={seeing} hasModel={hasTrainedModel} />
+          </div>
+
+          <div className="trainer-microbit">
+            <MicrobitPanel
+              label={microbitLabel}
+              confidence={microbitConfidence}
+              advanced={advanced}
+            />
+          </div>
+        </aside>
       </div>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: isNarrow ? "1fr" : "360px minmax(0, 1fr) 320px",
-          gap: 16,
-          alignItems: "start",
-          minHeight: isNarrow ? undefined : 0,
-        }}
-      >
-        {/* Panel clases */}
-        <div
-          style={{
-            border: "1px solid #ddd",
-            borderRadius: 12,
-            padding: 12,
-            display: "grid",
-            gap: 10,
-            overflow: isNarrow ? "visible" : "auto",
-            maxHeight: isNarrow ? undefined : "100%",
-            minHeight: isNarrow ? undefined : 0,
-          }}
-        >
-          <div style={{ display: "grid", gap: 6 }}>
-            <div style={{ fontSize: 12, fontWeight: 600 }}>Modo</div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button
-                type="button"
-                onClick={() => setMode("examples")}
-                disabled={isTraining}
-                style={{
-                  flex: 1,
-                  padding: "8px 10px",
-                  borderRadius: 8,
-                  border: mode === "examples" ? "2px solid #111" : "1px solid #ddd",
-                  background: mode === "examples" ? "#111" : "#fff",
-                  color: mode === "examples" ? "#fff" : "#111",
-                  fontWeight: 600,
-                }}
-              >
-                Por ejemplos (rápido)
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode("ml")}
-                disabled={isTraining}
-                style={{
-                  flex: 1,
-                  padding: "8px 10px",
-                  borderRadius: 8,
-                  border: mode === "ml" ? "2px solid #111" : "1px solid #ddd",
-                  background: mode === "ml" ? "#111" : "#fff",
-                  color: mode === "ml" ? "#fff" : "#111",
-                  fontWeight: 600,
-                }}
-              >
-                Entrenar un modelo (ML)
-              </button>
-            </div>
-            <div style={{ fontSize: 12, opacity: 0.75 }}>
-              {mode === "examples"
-                ? "Aprende comparando con tus ejemplos (ideal con pocas muestras)."
-                : "Entrena un modelo con tus muestras (funciona mejor con más datos)."}
-            </div>
-          </div>
-          <div style={{ fontFamily: "monospace" }}>Estado: {status}</div>
-
-          <div style={{ display: "flex", gap: 8 }}>
+      <AdvancedDrawer open={advanced} onToggle={toggleAdvanced}>
+        <div className="advanced-block">
+          <div className="advanced-block-title">Clasificador</div>
+          <div className="advanced-mode-toggle">
             <button
-              onClick={() => dispatch({ type: "ADD_CLASS" })}
-              style={{ flex: 1 }}
+              type="button"
+              className={`advanced-mode-btn ${mode === "examples" ? "is-on" : ""}`}
+              aria-pressed={mode === "examples"}
+              onClick={() => setMode("examples")}
+              disabled={isTraining}
             >
-              + Agregar clase
+              Comparar ejemplos (kNN)
             </button>
-
             <button
-              onClick={() => dispatch({ type: "RESET_DATASET" })}
-              title="Reinicia clases y muestras"
+              type="button"
+              className={`advanced-mode-btn ${mode === "ml" ? "is-on" : ""}`}
+              aria-pressed={mode === "ml"}
+              onClick={() => setMode("ml")}
+              disabled={isTraining}
             >
-              Reiniciar
+              Red neuronal (ML)
             </button>
           </div>
-
-          <div style={{ display: "grid", gap: 8 }}>
-            {dataset.classes.map((c) => {
-              const selected = c.id === dataset.activeClassId;
-              const thumbs = dataset.thumbnailsByClass?.[c.id] ?? [];
-              return (
-                <div
-                  key={c.id}
-                  style={{
-                    border: selected ? "2px solid #111" : "1px solid #ddd",
-                    borderRadius: 10,
-                    padding: 8,
-                    display: "grid",
-                    gap: 6,
-                  }}
-                >
-                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <input
-                      value={c.name}
-                      onChange={(e) =>
-                        dispatch({ type: "RENAME_CLASS", id: c.id, name: e.target.value })
-                      }
-                      style={{ flex: 1 }}
-                    />
-                    <button
-                      onClick={() => dispatch({ type: "SET_ACTIVE_CLASS", id: c.id })}
-                      title="Seleccionar"
-                    >
-                      ✓
-                    </button>
-                    <button
-                      onClick={() => dispatch({ type: "DELETE_CLASS", id: c.id })}
-                      title="Eliminar clase"
-                      disabled={dataset.classes.length <= 1}
-                    >
-                      🗑
-                    </button>
-                  </div>
-
-                  <div style={{ fontSize: 12, opacity: 0.8 }}>
-                    Muestras: <b>{counts[c.id] ?? 0}</b>
-                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                      {thumbs.map((src, idx) => (
-                        <img
-                          key={idx}
-                          src={src}
-                          width={44}
-                          height={44}
-                          style={{ borderRadius: 8, objectFit: "cover", border: "1px solid #ddd" }}
-                          alt=""
-                        />
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+          <div>
+            {mode === "examples" ? "Muestras" : "Época"}: <b>{trainProgress.epoch}</b> /{" "}
+            {trainProgress.total || (mode === "ml" ? TRAIN_EPOCHS : 0)} — Precisión{" "}
+            <b>{(trainProgress.acc ?? 0).toFixed(2)}</b> / Validación{" "}
+            <b>
+              {trainProgress.valAcc !== undefined ? trainProgress.valAcc.toFixed(2) : "—"}
+            </b>
           </div>
-
-          <div style={{ borderTop: "1px solid #eee", paddingTop: 10, display: "grid", gap: 8 }}>
-            <div>
-              Clase activa: <b>{activeClass ? activeClass.name : "—"}</b>
-            </div>
-
-            <button
-              onMouseDown={startHold}
-              onMouseUp={endHold}
-              onMouseLeave={endHold}
-              onTouchStart={startHold}
-              onTouchEnd={endHold}
-              onTouchCancel={endHold}
-              disabled={!dataset.activeClassId}
-              style={{ padding: "10px 12px", borderRadius: 10, border: "1px solid #111", fontWeight: 600 }}
-            >
-              Capturar muestra
-            </button>
-
-            <div style={{ fontSize: 12, opacity: 0.7 }}>
-              Toque: 1 muestra. Mantener: después de 1s toma 1 muestra cada 0.5s.
-            </div>
-          </div>
-
-          <div style={{ borderTop: "1px solid #eee", paddingTop: 10, display: "grid", gap: 8 }}>
-            <button
-              onClick={handleTrain}
-              disabled={!canTrain || isTraining}
-              style={{ padding: "10px 12px", borderRadius: 10, border: "1px solid #111", fontWeight: 600 }}
-            >
-              {isTraining ? `Entrenando... (${progressLabel.toLowerCase()} ${trainProgress.epoch}/${progressTotal})` : "Entrenar"}
-            </button>
-            <div style={{ fontSize: 12, opacity: 0.85, display: "grid", gap: 4 }}>
-              <div>
-                Estado: <b>{trainStatusLabel}</b> — {progressLabel} <b>{trainProgress.epoch}</b> / {progressTotal}
-              </div>
-              <div>
-                Precision <b>{(trainProgress.acc ?? 0).toFixed(2)}</b> / Validacion{" "}
-                <b>
-                  {hasValMetric
-                    ? (trainProgress.valAcc ?? 0).toFixed(2)
-                    : `—${valHint}`}
-                </b>
-              </div>
-              <div>
-                Modelo:{" "}
-                <b>
-                  {hasTrainedModel ? `Entrenado (${trainedClassNames.length} clases)` : "No entrenado"}
-                </b>
-              </div>
-              <div>
-                Requiere ≥2 clases, sin clases vacías y ~2 muestras por clase (total ≥{" "}
-                {dataset.classes.length * 2}).
-              </div>
-              {trainNotice && (
-                <div style={{ fontSize: 12, color: "#7c2d12", background: "#fff7ed", border: "1px solid #fed7aa", padding: "6px 8px", borderRadius: 8 }}>
-                  {trainNotice}
-                </div>
-              )}
-              {trainError && <div style={{ color: "red" }}>Error: {trainError}</div>}
-            </div>
-            <div
-              style={{
-                height: 180,
-                border: "1px solid #eee",
-                borderRadius: 10,
-                padding: 8,
-                background: "#fafafa",
-              }}
-            >
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={lineData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="step" tickLine={false} />
-                  <YAxis domain={[0, 1]} tickCount={6} />
-                  <Tooltip
-                    formatter={(value: number | string) =>
-                      typeof value === "number" ? value.toFixed(2) : value
-                    }
-                    labelFormatter={(label) =>
-                      mode === "examples" ? `Muestras ${label}` : `Epoca ${label}`
-                    }
-                  />
-                  <Legend />
+          {trainNotice && <div className="advanced-notice">{trainNotice}</div>}
+          <div className="advanced-chart">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={lineData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="step" tickLine={false} />
+                <YAxis domain={[0, 1]} tickCount={6} />
+                <Tooltip
+                  formatter={(value: number | string) =>
+                    typeof value === "number" ? value.toFixed(2) : value
+                  }
+                  labelFormatter={(label) =>
+                    mode === "examples" ? `Muestras ${label}` : `Época ${label}`
+                  }
+                />
+                <Legend />
+                <Line
+                  type="monotone"
+                  dataKey="acc"
+                  name="Precisión entrenamiento"
+                  stroke="#7C4DFF"
+                  dot={false}
+                  isAnimationActive={false}
+                />
+                {trainHistory.valAcc.length > 0 && (
                   <Line
                     type="monotone"
-                    dataKey="acc"
-                    name="Precision entrenamiento"
-                    stroke="#111"
+                    dataKey="valAcc"
+                    name="Precisión validación"
+                    stroke="#00BCD9"
                     dot={false}
                     isAnimationActive={false}
                   />
-                  {trainHistory.valAcc.length > 0 && (
-                    <Line
-                      type="monotone"
-                      dataKey="valAcc"
-                      name="Precision validacion"
-                      stroke="#5b8def"
-                      dot={false}
-                      isAnimationActive={false}
-                    />
-                  )}
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
+                )}
+              </LineChart>
+            </ResponsiveContainer>
           </div>
+        </div>
 
-          <div style={{ borderTop: "1px solid #eee", paddingTop: 10, display: "grid", gap: 8 }}>
-            <div style={{ fontSize: 12, fontWeight: 600 }}>Publicador WebSocket</div>
-            <div style={{ fontSize: 12 }}>
+        <div className="advanced-block">
+          <div className="advanced-block-title">Predicción (detalle)</div>
+          <div>
+            Instantánea:{" "}
+            <b>
+              {hasTrainedModel
+                ? hasSubject
+                  ? `${liveLabel} (${liveConfidence.toFixed(2)})`
+                  : missingLabel
+                : "—"}
+            </b>
+          </div>
+          <div>
+            Estable:{" "}
+            <b>{stableLabel ? `${stableLabel} (${stableConfidence.toFixed(2)})` : "—"}</b>
+          </div>
+          <div>
+            Umbral de aceptación: <b>{ACCEPT_THRESHOLD.toFixed(2)}</b> — estado:{" "}
+            <b>{predictionAccepted ? "aceptado" : hasSubject ? "pendiente" : "sin sujeto"}</b>
+          </div>
+        </div>
+
+        {TURBOWARP_ENABLED && (
+          <div className="advanced-block">
+            <div className="advanced-block-title">TurboWarp (WebSocket)</div>
+            <div>
               Room: <b>{room || "—"}</b>
             </div>
-            <div style={{ fontSize: 12 }}>
+            <div>
               Estado: <b>{wsStatusLabel}</b>
+              {wsRole ? (
+                <>
+                  {" "}
+                  — rol <b>{wsRole}</b>
+                </>
+              ) : null}
             </div>
-            {wsRole && (
-              <div style={{ fontSize: 12 }}>
-                Rol: <b>{wsRole}</b>
-              </div>
-            )}
             {subscriberCount !== null && (
-              <div style={{ fontSize: 12 }}>
-                Subscribers: <b>{subscriberCount}</b>
+              <div>
+                Proyectos escuchando: <b>{subscriberCount}</b>
               </div>
             )}
-            <div style={{ fontSize: 12 }}>
-              Ultimo gesto: <b>{lastGestureLabel}</b>
+            <div>
+              Último gesto enviado: <b>{lastGestureLabel}</b>
             </div>
-            {wsError && <div style={{ fontSize: 12, color: "#b91c1c" }}>WS: {wsError}</div>}
+            {wsError && <div className="advanced-error">WS: {wsError}</div>}
           </div>
+        )}
 
-          <MicrobitPanel label={microbitLabel} confidence={microbitConfidence} />
-
+        <div className="advanced-block">
+          <div className="advanced-block-title">Proyecto</div>
           <ProjectPanel
             saveStatus={saveStatus}
             savedAt={savedAt}
@@ -1193,168 +1196,7 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
             onClear={() => void handleClearProject()}
           />
         </div>
-
-        {/* Cámara + overlay */}
-        <div
-          style={{
-            display: "grid",
-            gap: 8,
-            overflow: isNarrow ? "visible" : "auto",
-            maxHeight: isNarrow ? undefined : "100%",
-            minHeight: isNarrow ? undefined : 0,
-          }}
-        >
-          <div
-            style={{
-              position: isNarrow ? "relative" : "sticky",
-              top: isNarrow ? undefined : 0,
-              zIndex: 1,
-              background: "#fff",
-              paddingBottom: 8,
-            }}
-          >
-            <div style={{ position: "relative", width: 720, maxWidth: "100%" }}>
-              <video
-                ref={videoRef}
-                style={{ width: "100%", transform: "scaleX(-1)" }}
-                playsInline
-                muted
-              />
-              <canvas
-                ref={canvasRef}
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  width: "100%",
-                  height: "100%",
-                  pointerEvents: "none",
-                  transform: "scaleX(-1)",
-                }}
-              />
-            </div>
-          </div>
-
-          <div style={{ fontSize: 12, opacity: 0.7 }}>
-            Muestras totales: <b>{dataset.samples.length}</b>
-          </div>
-        </div>
-
-        {/* Evaluacion en vivo */}
-        <div
-          style={{
-            display: "grid",
-            gap: 8,
-            overflow: isNarrow ? "visible" : "auto",
-            maxHeight: isNarrow ? undefined : "100%",
-            minHeight: isNarrow ? undefined : 0,
-          }}
-        >
-          <div
-            style={{
-              border: "1px solid #eee",
-              borderRadius: 12,
-              padding: 12,
-              display: "grid",
-              gap: 10,
-              background: "#fafafa",
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ fontWeight: 600 }}>Evaluacion en vivo</div>
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <div style={{ fontSize: 12, opacity: 0.8 }}>Umbral {ACCEPT_THRESHOLD.toFixed(2)}</div>
-                {isPipSupported() && (
-                  <button
-                    type="button"
-                    onClick={() => void handleTogglePip()}
-                    title="Ventana flotante con la cámara y la predicción, para ver junto a MakeCode"
-                    style={{ fontSize: 12 }}
-                  >
-                    {pipOpen ? "Cerrar monitoreo" : "📌 Monitoreo"}
-                  </button>
-                )}
-              </div>
-            </div>
-            <div style={{ display: "grid", gap: 4, fontSize: 12, opacity: 0.9 }}>
-              <div>
-                Instantáneo:{" "}
-                <b>
-                  {hasTrainedModel
-                    ? hasSubject
-                      ? `${liveLabel} (${liveConfidence.toFixed(2)})`
-                      : missingLabel
-                    : "—"}
-                </b>
-              </div>
-              <div>
-                Estable:{" "}
-                <b>
-                  {stableLabel
-                    ? `${stableLabel} (${stableConfidence.toFixed(2)})`
-                    : hasSubject
-                    ? "—"
-                    : missingLabel}
-                </b>{" "}
-                — estado{" "}
-                <b>
-                  {hasTrainedModel
-                    ? hasSubject
-                      ? predictionAccepted
-                        ? "aceptado"
-                        : "pendiente"
-                      : missingLabel.toLowerCase()
-                    : "sin modelo"}
-                </b>
-              </div>
-            </div>
-            {hasTrainedModel ? (
-              <div style={{ display: "grid", gap: 8 }}>
-                {trainedClassNames.map((name, idx) => {
-                  const value = barData[idx]?.value ?? 0;
-                  const pct = Math.max(0, Math.min(1, value));
-                  const width = `${(pct * 100).toFixed(0)}%`;
-                  const pass = value >= ACCEPT_THRESHOLD;
-                  return (
-                    <div
-                      key={name}
-                      style={{ display: "grid", gridTemplateColumns: "120px 1fr 50px", alignItems: "center", gap: 8 }}
-                    >
-                      <div style={{ fontSize: 12 }}>{name}</div>
-                      <div
-                        style={{
-                          position: "relative",
-                          height: 12,
-                          background: "#e5e7eb",
-                          borderRadius: 999,
-                          overflow: "hidden",
-                        }}
-                        aria-label={`Probabilidad ${name}`}
-                      >
-                        <div
-                          style={{
-                            position: "absolute",
-                            inset: 0,
-                            width,
-                            background: pass ? "#22c55e" : "#d4d4d8",
-                            transition: "width 150ms ease",
-                          }}
-                        />
-                      </div>
-                      <div style={{ fontVariantNumeric: "tabular-nums", textAlign: "right", fontSize: 12 }}>
-                        {value.toFixed(2)}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div style={{ fontSize: 12, opacity: 0.75 }}>
-                Entrena un modelo para ver las probabilidades en vivo.
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+      </AdvancedDrawer>
     </div>
   );
 }

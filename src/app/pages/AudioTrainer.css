@@ -1,0 +1,42 @@
+/* Estilos propios del entrenador de sonidos (el layout general viene de Trainer.css). */
+
+.audio-stage {
+  display: grid;
+  gap: var(--space-4);
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: var(--space-4);
+}
+
+.audio-stage-loading {
+  font-size: 0.9rem;
+  color: var(--color-ink-soft);
+  background: var(--color-primary-soft);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  text-align: center;
+}
+
+.audio-stage-block {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.audio-stage-title {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.audio-stage-note {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--color-ink-soft);
+}
+
+.audio-record {
+  justify-self: start;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  background: var(--color-success);
+}

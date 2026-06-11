@@ -23,9 +23,11 @@ type MicrobitPanelProps = {
   /** Etiqueta estable actual ("" o NONE_LABEL si no hay detección). */
   label: string;
   confidence: number;
+  /** Modo avanzado: muestra umbral y log de mensajes. */
+  advanced?: boolean;
 };
 
-export default function MicrobitPanel({ label, confidence }: MicrobitPanelProps) {
+export default function MicrobitPanel({ label, confidence, advanced = false }: MicrobitPanelProps) {
   const supported = isWebSerialSupported();
   const [status, setStatus] = useState<PanelStatus>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -158,20 +160,22 @@ export default function MicrobitPanel({ label, confidence }: MicrobitPanelProps)
           </>
         )}
       </div>
-      <label style={{ fontSize: 12, display: "grid", gap: 4 }}>
-        <span>
-          Umbral de confianza: <b>{threshold.toFixed(2)}</b>
-        </span>
-        <input
-          type="range"
-          min={0.3}
-          max={0.95}
-          step={0.05}
-          value={threshold}
-          onChange={(e) => setThreshold(Number(e.target.value))}
-        />
-      </label>
-      {status === "open" && (
+      {advanced && (
+        <label style={{ fontSize: 12, display: "grid", gap: 4 }}>
+          <span>
+            Umbral de confianza: <b>{threshold.toFixed(2)}</b>
+          </span>
+          <input
+            type="range"
+            min={0.3}
+            max={0.95}
+            step={0.05}
+            value={threshold}
+            onChange={(e) => setThreshold(Number(e.target.value))}
+          />
+        </label>
+      )}
+      {advanced && status === "open" && (
         <div style={{ fontSize: 11, fontFamily: "monospace", display: "grid", gap: 2 }}>
           {log.length ? (
             log.map((line, idx) => (

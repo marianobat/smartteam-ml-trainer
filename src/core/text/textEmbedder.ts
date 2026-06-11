@@ -25,9 +25,14 @@ export function initTextEmbedder(
     embedderPromise = (async () => {
       // Import dinámico: Transformers.js solo se descarga al usar esta modalidad
       const { pipeline } = await import("@huggingface/transformers");
+      // device/dtype FIJOS: si se dejan en automático, una carga puede elegir
+      // WebGPU/fp32 y otra WASM/q8, y los embeddings dejan de ser comparables
+      // con los guardados en el proyecto (el modelo restaurado "olvida").
       const extractor = await pipeline("feature-extraction", "Xenova/all-MiniLM-L6-v2", {
         progress_callback: onProgress as never,
-      });
+        device: "wasm",
+        dtype: "q8",
+      } as never);
       return extractor as unknown as FeatureExtractionFn;
     })();
     embedderPromise.catch(() => {
