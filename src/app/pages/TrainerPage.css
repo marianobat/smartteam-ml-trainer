@@ -108,9 +108,16 @@
 .model-card-media {
   display: grid;
   place-items: center;
-  height: 110px;
-  font-size: 52px;
+  height: 140px;
+  overflow: hidden;
   background: color-mix(in srgb, var(--mod-color) 16%, white);
+}
+
+.model-card-cover {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .model-card-body {

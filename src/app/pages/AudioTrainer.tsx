@@ -22,6 +22,7 @@ import {
   type WsStatus,
 } from "../../core/bridge/gestureWs";
 import { WS_BASE } from "../../core/bridge/config";
+import { TURBOWARP_ENABLED } from "../../core/bridge/features";
 import { MIN_SAMPLES_PER_CLASS } from "../../core/dataset/datasetStore";
 import { COPY } from "../copy";
 import { useAdvancedMode } from "../hooks/useAdvancedMode";
@@ -162,8 +163,7 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
     lastSentAtRef.current = 0;
     seqRef.current = 0;
 
-    if (!room || !publishToken) {
-      // Sin sesión de TurboWarp: flujo válido (el micro:bit no la necesita)
+    if (!TURBOWARP_ENABLED || !room || !publishToken) {
       setWsStatus("idle");
       return;
     }
@@ -193,6 +193,7 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
 
   // Publicar predicción en vivo
   useEffect(() => {
+    if (!TURBOWARP_ENABLED) return;
     if (wsStatus !== "open") return;
     if (!room || !publishToken) return;
 
@@ -386,14 +387,17 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
       ? { label: liveLabel, confidence: liveConfidence }
       : null;
 
-  const chips: StatusChip[] = [
-    {
-      id: "tw",
-      icon: "🛰️",
-      label: COPY.chipTurboWarp,
-      tone: wsStatus === "open" ? "ok" : wsStatus === "error" ? "warn" : "off",
-    },
-  ];
+  const chips: StatusChip[] = TURBOWARP_ENABLED
+    ? [
+        {
+          id: "tw",
+          icon: "🛰️",
+          label: COPY.chipTurboWarp,
+          tone:
+            wsStatus === "open" ? "ok" : wsStatus === "error" ? "warn" : "off",
+        },
+      ]
+    : [];
 
   const wsStatusLabel =
     wsStatus === "open"
@@ -576,30 +580,32 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
           </button>
         </div>
 
-        <div className="advanced-block">
-          <div className="advanced-block-title">TurboWarp (WebSocket)</div>
-          <div>
-            Room: <b>{room || "—"}</b>
-          </div>
-          <div>
-            Estado: <b>{wsStatusLabel}</b>
-            {wsRole ? (
-              <>
-                {" "}
-                — rol <b>{wsRole}</b>
-              </>
-            ) : null}
-          </div>
-          {subscriberCount !== null && (
+        {TURBOWARP_ENABLED && (
+          <div className="advanced-block">
+            <div className="advanced-block-title">TurboWarp (WebSocket)</div>
             <div>
-              Proyectos escuchando: <b>{subscriberCount}</b>
+              Room: <b>{room || "—"}</b>
             </div>
-          )}
-          <div>
-            Último gesto enviado: <b>{lastGestureLabel}</b>
+            <div>
+              Estado: <b>{wsStatusLabel}</b>
+              {wsRole ? (
+                <>
+                  {" "}
+                  — rol <b>{wsRole}</b>
+                </>
+              ) : null}
+            </div>
+            {subscriberCount !== null && (
+              <div>
+                Proyectos escuchando: <b>{subscriberCount}</b>
+              </div>
+            )}
+            <div>
+              Último gesto enviado: <b>{lastGestureLabel}</b>
+            </div>
+            {wsError && <div className="advanced-error">WS: {wsError}</div>}
           </div>
-          {wsError && <div className="advanced-error">WS: {wsError}</div>}
-        </div>
+        )}
       </AdvancedDrawer>
     </div>
   );

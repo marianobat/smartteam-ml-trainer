@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { API_BASE, EXT_URL, TEMPLATE_SB3, TW_EDITOR } from "../../core/bridge/config";
+import { TURBOWARP_ENABLED } from "../../core/bridge/features";
 import { getRoom, getToken, setRoom as setSessionRoom, setToken } from "../../core/bridge/session";
 import "./Home.css";
 
@@ -92,7 +93,8 @@ export default function Home() {
         <h1 className="home-title">SmartTEAM IA</h1>
         <p className="home-subtitle">
           Enseñale a la computadora con tus manos, tu cuerpo, tu voz o tus dibujos — y conectá lo
-          que aprende a un micro:bit o a TurboWarp.
+          que aprende a un micro:bit
+          {TURBOWARP_ENABLED ? " o a TurboWarp" : ""}.
         </p>
       </header>
 
@@ -110,6 +112,7 @@ export default function Home() {
           </button>
         </article>
 
+        {TURBOWARP_ENABLED && (
         <article className="home-card home-card--program">
           <div className="home-card-icon" aria-hidden="true">
             🛰️
@@ -152,6 +155,7 @@ export default function Home() {
             ella.
           </p>
         </article>
+        )}
       </main>
     </div>
   );

@@ -6,8 +6,11 @@ import { createHandExtractor } from "../../core/extractors/handExtractor";
 import { createPoseExtractor } from "../../core/extractors/poseExtractor";
 import { createFaceExtractor } from "../../core/extractors/faceExtractor";
 import { createImageExtractor } from "../../core/extractors/imageExtractor";
+import { TURBOWARP_ENABLED } from "../../core/bridge/features";
 import { getToken, getRoom } from "../../core/bridge/session";
 import "./TrainerPage.css";
+
+const coverUrl = (name: string) => `${import.meta.env.BASE_URL}covers/${name}.svg`;
 
 const getRoomFromQuery = () => {
   if (typeof window === "undefined") return "";
@@ -72,42 +75,42 @@ export default function TrainerPage() {
       title: "Manos",
       description: "Gestos y señas con tus manos.",
       enabled: true,
-      icon: "✋",
+      cover: coverUrl("hands"),
     },
     {
       id: "face",
       title: "Caras",
       description: "Sonrisas, guiños y expresiones.",
       enabled: true,
-      icon: "😀",
+      cover: coverUrl("face"),
     },
     {
       id: "pose",
       title: "Cuerpo",
       description: "Posturas y movimientos enteros.",
       enabled: true,
-      icon: "🧍",
+      cover: coverUrl("pose"),
     },
     {
       id: "images",
       title: "Imágenes",
       description: "Objetos y dibujos frente a la cámara.",
       enabled: true,
-      icon: "🖼️",
+      cover: coverUrl("images"),
     },
     {
       id: "text",
       title: "Textos",
       description: "Frases y palabras escritas.",
       enabled: true,
-      icon: "✏️",
+      cover: coverUrl("text"),
     },
     {
       id: "audio",
       title: "Sonidos",
       description: "Palabras y sonidos con el micrófono.",
       enabled: true,
-      icon: "🎤",
+      cover: coverUrl("audio"),
     },
   ] as const;
 
@@ -131,9 +134,11 @@ export default function TrainerPage() {
               Elegí una modalidad para entrenar tu modelo con ejemplos.
             </p>
           </div>
-          {room && <div className="trainer-select-room">Room: {room}</div>}
+          {TURBOWARP_ENABLED && room && (
+            <div className="trainer-select-room">Room: {room}</div>
+          )}
         </header>
-        {!room && (
+        {TURBOWARP_ENABLED && !room && (
           <div className="trainer-select-warning">
             Sin sesión de TurboWarp: podés entrenar y usar micro:bit igual. Para publicar a
             TurboWarp, creá una sesión en el lobby.
@@ -155,7 +160,15 @@ export default function TrainerPage() {
                 disabled={disabled}
               >
                 <div className="model-card-media" aria-hidden="true">
-                  {model.icon}
+                  <img
+                    className="model-card-cover"
+                    src={model.cover}
+                    alt=""
+                    width={400}
+                    height={240}
+                    loading="lazy"
+                    decoding="async"
+                  />
                 </div>
                 <div className="model-card-body">
                   <div className="model-card-title">{model.title}</div>
@@ -165,11 +178,13 @@ export default function TrainerPage() {
             );
           })}
         </section>
-        <div className="trainer-select-actions">
-          <button type="button" onClick={() => window.location.assign(baseUrl)}>
-            Volver al Lobby
-          </button>
-        </div>
+        {TURBOWARP_ENABLED && (
+          <div className="trainer-select-actions">
+            <button type="button" onClick={() => window.location.assign(baseUrl)}>
+              Volver al Lobby
+            </button>
+          </div>
+        )}
       </div>
     );
   }
