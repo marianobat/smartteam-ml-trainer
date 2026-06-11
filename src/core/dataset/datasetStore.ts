@@ -29,6 +29,7 @@ export type DatasetAction =
   | { type: "SET_ACTIVE_CLASS"; id: string | null }
   | { type: "ADD_SAMPLE"; classId: string; x: number[]; t?: number }
   | { type: "ADD_THUMBNAIL"; classId: string; dataUrl: string }
+  | { type: "LOAD_DATASET"; state: DatasetState }
   | { type: "RESET_DATASET" };
 
 function uid(prefix = "c") {
@@ -113,6 +114,21 @@ export function datasetReducer(state: DatasetState, action: DatasetAction): Data
           [action.classId]: next,
         },
       };
+    }
+
+    case "LOAD_DATASET": {
+      const next = action.state;
+      if (next.featureDim !== state.featureDim) {
+        console.warn(
+          `[dataset] Proyecto con featureDim ${next.featureDim} incompatible con la modalidad actual (${state.featureDim}); se ignora.`
+        );
+        return state;
+      }
+      const activeClassId =
+        next.activeClassId && next.classes.some((c) => c.id === next.activeClassId)
+          ? next.activeClassId
+          : next.classes[0]?.id ?? null;
+      return { ...next, activeClassId };
     }
 
     case "RESET_DATASET":

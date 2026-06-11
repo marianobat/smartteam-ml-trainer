@@ -1,13 +1,16 @@
 // src/core/microbit/protocol.ts
 //
-// Protocolo navegador → micro:bit: una etiqueta por línea, "ML:<etiqueta>\n".
-// Se envía cuando cambia la etiqueta ganadora o cada RESEND_INTERVAL_MS como
-// heartbeat. La extensión MakeCode (smartteam-makecode-extension) parsea estas
-// líneas con serial.onDataReceived.
+// Protocolo navegador ↔ micro:bit (texto por líneas, 115200 baudios), siempre
+// "a pedido": el micro:bit pregunta con "ML?\n" y el navegador responde UNA
+// línea "ML:<etiqueta>\n". Nunca llega un byte que el micro:bit no pidió, así
+// que su buffer RX no puede llenarse. El ritmo lo marca la extensión MakeCode
+// (sondeo en segundo plano + bloque "pedir clase ML").
 
 export const BAUD_RATE = 115200;
 export const DEFAULT_CONFIDENCE_THRESHOLD = 0.7;
-export const RESEND_INTERVAL_MS = 500;
+
+/** Línea que envía el micro:bit para pedir la clase actual. */
+export const REQUEST_MESSAGE = "ML?";
 
 /** Etiqueta que indica "no hay detección" (sin sujeto o confianza baja). */
 export const NONE_LABEL = "none";

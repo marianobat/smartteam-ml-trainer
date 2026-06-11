@@ -24,8 +24,10 @@ export default function Home() {
   const templateUrl = TEMPLATE_SB3.trim();
 
   const handleOpenTrainer = () => {
-    if (!room) return;
-    window.location.assign(`${baseUrl}trainer?room=${encodeURIComponent(room)}`);
+    // La sesión (room) solo hace falta para publicar a TurboWarp; el
+    // entrenador y el micro:bit funcionan sin ella.
+    const suffix = room ? `?room=${encodeURIComponent(room)}` : "";
+    window.location.assign(`${baseUrl}trainer${suffix}`);
   };
 
   const handleOpenProgram = () => {
@@ -41,8 +43,12 @@ export default function Home() {
     window.location.assign(`${TW_EDITOR}?${params.toString()}`);
   };
 
-  const handlePanelKeyDown = (event: KeyboardEvent<HTMLDivElement>, action: () => void) => {
-    if (!canEnter) return;
+  const handlePanelKeyDown = (
+    event: KeyboardEvent<HTMLDivElement>,
+    action: () => void,
+    enabled: boolean
+  ) => {
+    if (!enabled) return;
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
       action();
@@ -99,7 +105,8 @@ export default function Home() {
           <div className="home-kicker">SmartTEAM</div>
           <h1 className="home-title">SmartTEAM IA</h1>
           <p className="home-subtitle">
-            Crea una sesión para compartir el room entre el entrenador y TurboWarp.
+            Entrená modelos y conectalos a TurboWarp o micro:bit. La sesión solo hace falta para
+            TurboWarp.
           </p>
         </div>
         <div className="home-session">
@@ -133,25 +140,19 @@ export default function Home() {
           <div
             className="home-panel-media"
             role="button"
-            tabIndex={canEnter ? 0 : -1}
-            aria-disabled={!canEnter}
-            onClick={canEnter ? handleOpenTrainer : undefined}
-            onKeyDown={(event) => handlePanelKeyDown(event, handleOpenTrainer)}
+            tabIndex={0}
+            onClick={handleOpenTrainer}
+            onKeyDown={(event) => handlePanelKeyDown(event, handleOpenTrainer, true)}
           >
             <span>Imagen</span>
           </div>
           <div className="home-panel-body">
             <h2 className="home-panel-title">Entrenador</h2>
             <p className="home-panel-copy">
-              Entrená modelos en tiempo real y publicá los gestos al bridge.
+              Entrená modelos en tiempo real y usalos con micro:bit o TurboWarp.
             </p>
             <div className="home-panel-actions">
-              <button
-                onClick={handleOpenTrainer}
-                disabled={!canEnter}
-              >
-                Abrir entrenador
-              </button>
+              <button onClick={handleOpenTrainer}>Abrir entrenador</button>
             </div>
           </div>
         </article>
@@ -163,7 +164,7 @@ export default function Home() {
             tabIndex={canEnter ? 0 : -1}
             aria-disabled={!canEnter}
             onClick={canEnter ? handleOpenProgram : undefined}
-            onKeyDown={(event) => handlePanelKeyDown(event, handleOpenProgram)}
+            onKeyDown={(event) => handlePanelKeyDown(event, handleOpenProgram, canEnter)}
           >
             <span>Imagen</span>
           </div>

@@ -36,8 +36,22 @@ import {
   createInitialDatasetState,
   datasetReducer,
   countSamplesByClass,
+  type DatasetState,
 } from "../../core/dataset/datasetStore";
+import {
+  clearProject,
+  deserializeMlModel,
+  loadProject,
+  saveProject,
+  serializeMlModel,
+  type SavedModel,
+  type SavedProject,
+} from "../../core/storage/projectStore";
+import { exportProjectZip, importProjectZip } from "../../core/export/projectZip";
 import MicrobitPanel from "../components/MicrobitPanel";
+import ProjectPanel, { type SaveStatus } from "../components/ProjectPanel";
+
+const STORAGE_KEY = "text" as const;
 
 type TrainHistory = {
   acc: number[];
@@ -102,6 +116,14 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
   const lastSentAtRef = useRef<number>(0);
   const seqRef = useRef<number>(0);
 
+  // Persistencia del proyecto (IndexedDB)
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const [savedAt, setSavedAt] = useState<number | null>(null);
+  const [projectError, setProjectError] = useState<string | null>(null);
+  const hydratedRef = useRef(false);
+  const skipAutosaveRef = useRef(false);
+  const serializedModelRef = useRef<SavedModel | null>(null);
+
   const counts = useMemo(() => countSamplesByClass(dataset), [dataset]);
   const wsUrl = useMemo(() => {
     if (!room || !publishToken) return "";
@@ -161,14 +183,9 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
     lastSentAtRef.current = 0;
     seqRef.current = 0;
 
-    if (!room) {
-      setWsStatus("error");
-      setWsError("Falta room para publicar.");
-      return;
-    }
-    if (!publishToken) {
-      setWsStatus("error");
-      setWsError("Falta token para publicar.");
+    if (!room || !publishToken) {
+      // Sin sesión de TurboWarp: flujo válido (el micro:bit no la necesita)
+      setWsStatus("idle");
       return;
     }
 
@@ -260,6 +277,154 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
     };
   }, [testText, trainedModel, mode]);
 
+  const persistProject = async (
+    datasetToSave: DatasetState,
+    textsToSave: Record<string, string[]>
+  ) => {
+    try {
+      const project: SavedProject = {
+        version: 1,
+        modality: STORAGE_KEY,
+        savedAt: Date.now(),
+        dataset: datasetToSave,
+        textsByClass: textsToSave,
+        model: serializedModelRef.current ?? undefined,
+      };
+      await saveProject(project);
+      setSavedAt(project.savedAt);
+      setSaveStatus("saved");
+      setProjectError(null);
+    } catch (err) {
+      console.error(err);
+      setSaveStatus("error");
+      setProjectError("No se pudo guardar el proyecto en este navegador.");
+    }
+  };
+
+  const applySavedProject = async (saved: SavedProject) => {
+    dispatch({ type: "LOAD_DATASET", state: saved.dataset });
+    setTextsByClass(saved.textsByClass ?? {});
+    if (saved.model) {
+      serializedModelRef.current = saved.model;
+      if (trainedRef.current?.kind === "ml") {
+        trainedRef.current.model.dispose();
+      }
+      if (saved.model.kind === "knn") {
+        trainedRef.current = { kind: "knn", model: saved.model.model };
+        trainedClassNamesRef.current = saved.model.model.classNames;
+        setMode("examples");
+      } else {
+        const model = await deserializeMlModel(saved.model);
+        trainedRef.current = { kind: "ml", model };
+        trainedClassNamesRef.current = saved.model.classNames;
+        setMode("ml");
+      }
+      setTrainedModel(trainedRef.current);
+      setTrainedClassNames(trainedClassNamesRef.current);
+      setTrainComplete(true);
+    } else {
+      serializedModelRef.current = null;
+    }
+    setSavedAt(saved.savedAt);
+    setSaveStatus("saved");
+    setProjectError(null);
+  };
+
+  // Hidratar el proyecto guardado al montar
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const saved = await loadProject(STORAGE_KEY);
+        if (!cancelled && saved) {
+          await applySavedProject(saved);
+        }
+      } catch (err) {
+        console.error(err);
+        if (!cancelled) {
+          setProjectError("No se pudo cargar el proyecto guardado.");
+        }
+      } finally {
+        if (!cancelled) {
+          hydratedRef.current = true;
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+     
+  }, []);
+
+  // Autosave (debounce 1s)
+  useEffect(() => {
+    if (!hydratedRef.current) return;
+    if (skipAutosaveRef.current) {
+      skipAutosaveRef.current = false;
+      return;
+    }
+    setSaveStatus("saving");
+    const timer = window.setTimeout(() => {
+      void persistProject(dataset, textsByClass);
+    }, 1000);
+    return () => window.clearTimeout(timer);
+     
+  }, [dataset, textsByClass]);
+
+  const handleExportProject = async () => {
+    try {
+      await exportProjectZip({
+        version: 1,
+        modality: STORAGE_KEY,
+        savedAt: Date.now(),
+        dataset,
+        textsByClass,
+        model: serializedModelRef.current ?? undefined,
+      });
+      setProjectError(null);
+    } catch (err) {
+      console.error(err);
+      setProjectError("No se pudo exportar el proyecto.");
+    }
+  };
+
+  const handleImportProject = async (file: File) => {
+    try {
+      const saved = await importProjectZip(file, STORAGE_KEY);
+      await applySavedProject(saved);
+      await saveProject(saved);
+    } catch (err) {
+      setProjectError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const handleClearProject = async () => {
+    skipAutosaveRef.current = true;
+    dispatch({ type: "RESET_DATASET" });
+    setTextsByClass({});
+    setTestText("");
+    serializedModelRef.current = null;
+    if (trainedRef.current?.kind === "ml") {
+      trainedRef.current.model.dispose();
+    }
+    trainedRef.current = null;
+    setTrainedModel(null);
+    trainedClassNamesRef.current = [];
+    setTrainedClassNames([]);
+    setTrainComplete(false);
+    setLiveProbs([]);
+    setLiveLabel("");
+    setLiveConfidence(0);
+    setSavedAt(null);
+    setSaveStatus("idle");
+    try {
+      await clearProject(STORAGE_KEY);
+    } catch (err) {
+      console.error(err);
+      setProjectError("No se pudo borrar el proyecto guardado.");
+    }
+  };
+
   const handleAddSample = async () => {
     const text = inputText.trim();
     const activeClassId = dataset.activeClassId;
@@ -340,6 +505,8 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
           valAcc: curve.valAcc[lastIdx],
         });
         setTrainComplete(true);
+        serializedModelRef.current = { kind: "knn", model: knn };
+        void persistProject(dataset, textsByClass);
       } else {
         prepared = prepareTensors(dataset.classes, dataset.samples, TEXT_FEATURE_DIM);
         const model = createClassifier(prepared.classNames.length, TEXT_FEATURE_DIM);
@@ -381,6 +548,8 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
             "Entrenamiento detenido por falta de mejora en validación. Sumá más muestras o balanceá clases."
           );
         }
+        serializedModelRef.current = await serializeMlModel(result.model, prepared.classNames);
+        void persistProject(dataset, textsByClass);
       }
     } catch (err) {
       setTrainError((err as Error).message ?? String(err));
@@ -784,6 +953,15 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
             </div>
             {wsError && <div style={{ fontSize: 12, color: "#b91c1c" }}>WS: {wsError}</div>}
             <MicrobitPanel label={liveLabel || "none"} confidence={liveConfidence} />
+            <ProjectPanel
+              saveStatus={saveStatus}
+              savedAt={savedAt}
+              canExport={dataset.samples.length > 0 || trainedModel !== null}
+              error={projectError}
+              onExport={() => void handleExportProject()}
+              onImport={(file) => void handleImportProject(file)}
+              onClear={() => void handleClearProject()}
+            />
           </div>
         </div>
       </div>
