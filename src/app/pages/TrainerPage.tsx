@@ -22,24 +22,28 @@ const trainerConfigs: Partial<Record<ModelId, TrainerConfig>> = {
     title: "Entrenador de manos (2 manos)",
     loadingText: "Cargando modelo de manos...",
     missingLabel: "Sin manos",
+    storageKey: "hands",
     createExtractor: createHandExtractor,
   },
   pose: {
     title: "Entrenador de postura corporal",
     loadingText: "Cargando modelo de cuerpo...",
     missingLabel: "Sin cuerpo",
+    storageKey: "pose",
     createExtractor: createPoseExtractor,
   },
   face: {
     title: "Entrenador de gestos de la cara",
     loadingText: "Cargando modelo de rostro...",
     missingLabel: "Sin cara",
+    storageKey: "face",
     createExtractor: createFaceExtractor,
   },
   images: {
     title: "Entrenador de imagenes",
     loadingText: "Cargando MobileNet...",
     missingLabel: "Sin imagen",
+    storageKey: "images",
     createExtractor: createImageExtractor,
   },
 };

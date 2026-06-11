@@ -39,8 +39,22 @@ import {
   createInitialDatasetState,
   datasetReducer,
   countSamplesByClass,
+  type DatasetState,
 } from "../../core/dataset/datasetStore";
+import {
+  clearProject,
+  deserializeMlModel,
+  loadProject,
+  saveProject,
+  serializeMlModel,
+  type SavedModality,
+  type SavedModel,
+  type SavedProject,
+} from "../../core/storage/projectStore";
+import { exportProjectZip, importProjectZip } from "../../core/export/projectZip";
 import MicrobitPanel from "../components/MicrobitPanel";
+import ProjectPanel, { type SaveStatus } from "../components/ProjectPanel";
+import { isPipSupported, openPipMonitor } from "../components/pipMonitor";
 
 export type TrainerConfig = {
   /** Título del entrenador, p. ej. "Entrenador de manos (2 manos)". */
@@ -49,6 +63,8 @@ export type TrainerConfig = {
   loadingText: string;
   /** Etiqueta cuando no se detecta el sujeto, p. ej. "Sin manos". */
   missingLabel: string;
+  /** Clave de persistencia en IndexedDB (una por modalidad). */
+  storageKey: SavedModality;
   createExtractor: () => VideoExtractor;
 };
 
@@ -174,6 +190,18 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
   const lastSentAtRef = useRef<number>(0);
   const seqRef = useRef<number>(0);
 
+  // Persistencia del proyecto (IndexedDB)
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const [savedAt, setSavedAt] = useState<number | null>(null);
+  const [projectError, setProjectError] = useState<string | null>(null);
+  const hydratedRef = useRef(false);
+  const skipAutosaveRef = useRef(false);
+  const serializedModelRef = useRef<SavedModel | null>(null);
+
+  // Ventana flotante de monitoreo (Document PiP)
+  const [pipOpen, setPipOpen] = useState(false);
+  const pipCloseRef = useRef<(() => void) | null>(null);
+
   const counts = useMemo(() => countSamplesByClass(dataset), [dataset]);
   const wsUrl = useMemo(() => {
     if (!room || !publishToken) return "";
@@ -275,6 +303,185 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
     }
     mediaQuery.addListener(update);
     return () => mediaQuery.removeListener(update);
+  }, []);
+
+  const persistProject = async (datasetToSave: DatasetState) => {
+    try {
+      const project: SavedProject = {
+        version: 1,
+        modality: config.storageKey,
+        savedAt: Date.now(),
+        dataset: datasetToSave,
+        model: serializedModelRef.current ?? undefined,
+      };
+      await saveProject(project);
+      setSavedAt(project.savedAt);
+      setSaveStatus("saved");
+      setProjectError(null);
+    } catch (err) {
+      console.error(err);
+      setSaveStatus("error");
+      setProjectError("No se pudo guardar el proyecto en este navegador.");
+    }
+  };
+
+  const applySavedProject = async (saved: SavedProject) => {
+    dispatch({ type: "LOAD_DATASET", state: saved.dataset });
+    if (saved.model) {
+      serializedModelRef.current = saved.model;
+      if (trainedRef.current?.kind === "ml") {
+        trainedRef.current.model.dispose();
+      }
+      if (saved.model.kind === "knn") {
+        trainedRef.current = { kind: "knn", model: saved.model.model };
+        trainedClassNamesRef.current = saved.model.model.classNames;
+        setMode("examples");
+      } else {
+        const model = await deserializeMlModel(saved.model);
+        trainedRef.current = { kind: "ml", model };
+        trainedClassNamesRef.current = saved.model.classNames;
+        setMode("ml");
+      }
+      setTrainedModel(trainedRef.current);
+      setTrainedClassNames(trainedClassNamesRef.current);
+      setTrainComplete(true);
+      prevProbsRef.current = null;
+    } else {
+      serializedModelRef.current = null;
+    }
+    setSavedAt(saved.savedAt);
+    setSaveStatus("saved");
+    setProjectError(null);
+  };
+
+  // Hidratar el proyecto guardado al montar
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const saved = await loadProject(config.storageKey);
+        if (!cancelled && saved) {
+          await applySavedProject(saved);
+        }
+      } catch (err) {
+        console.error(err);
+        if (!cancelled) {
+          setProjectError("No se pudo cargar el proyecto guardado.");
+        }
+      } finally {
+        if (!cancelled) {
+          hydratedRef.current = true;
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Autosave del dataset (debounce 1s)
+  useEffect(() => {
+    if (!hydratedRef.current) return;
+    if (skipAutosaveRef.current) {
+      skipAutosaveRef.current = false;
+      return;
+    }
+    setSaveStatus("saving");
+    const timer = window.setTimeout(() => {
+      void persistProject(dataset);
+    }, 1000);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dataset]);
+
+  const handleExportProject = async () => {
+    try {
+      await exportProjectZip({
+        version: 1,
+        modality: config.storageKey,
+        savedAt: Date.now(),
+        dataset,
+        model: serializedModelRef.current ?? undefined,
+      });
+      setProjectError(null);
+    } catch (err) {
+      console.error(err);
+      setProjectError("No se pudo exportar el proyecto.");
+    }
+  };
+
+  const handleImportProject = async (file: File) => {
+    try {
+      const saved = await importProjectZip(file, config.storageKey);
+      await applySavedProject(saved);
+      await saveProject(saved);
+    } catch (err) {
+      setProjectError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const handleClearProject = async () => {
+    skipAutosaveRef.current = true;
+    dispatch({ type: "RESET_DATASET" });
+    serializedModelRef.current = null;
+    if (trainedRef.current?.kind === "ml") {
+      trainedRef.current.model.dispose();
+    }
+    trainedRef.current = null;
+    setTrainedModel(null);
+    trainedClassNamesRef.current = [];
+    setTrainedClassNames([]);
+    setTrainComplete(false);
+    prevProbsRef.current = null;
+    setLiveProbs([]);
+    setLiveLabel("");
+    setLiveConfidence(0);
+    stableLabelRef.current = "";
+    stableConfidenceRef.current = 0;
+    setStableLabel("");
+    setStableConfidence(0);
+    setSavedAt(null);
+    setSaveStatus("idle");
+    try {
+      await clearProject(config.storageKey);
+    } catch (err) {
+      console.error(err);
+      setProjectError("No se pudo borrar el proyecto guardado.");
+    }
+  };
+
+  const handleTogglePip = async () => {
+    if (pipCloseRef.current) {
+      pipCloseRef.current();
+      return;
+    }
+    try {
+      const close = await openPipMonitor({
+        video: videoRef.current,
+        title: config.title,
+        getLabel: () => stableLabelRef.current,
+        getConfidence: () => stableConfidenceRef.current,
+        isDetecting: () => hasSubjectRef.current,
+        missingLabel,
+        acceptThreshold: ACCEPT_THRESHOLD,
+        onClose: () => {
+          pipCloseRef.current = null;
+          setPipOpen(false);
+        },
+      });
+      pipCloseRef.current = close;
+      setPipOpen(true);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // Cerrar la ventana PiP al desmontar
+  useEffect(() => {
+    return () => {
+      pipCloseRef.current?.();
+    };
   }, []);
 
   const clearHoldTimers = () => {
@@ -394,6 +601,8 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
         setTrainComplete(true);
         setTrainError(null);
         setTrainNotice(null);
+        serializedModelRef.current = { kind: "knn", model: knn };
+        void persistProject(dataset);
       } else {
         // ml mode
         prepared = prepareTensors(dataset.classes, dataset.samples, featureDim);
@@ -443,6 +652,8 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
         } else {
           setTrainNotice(null);
         }
+        serializedModelRef.current = await serializeMlModel(result.model, prepared.classNames);
+        void persistProject(dataset);
       }
     } catch (err) {
       setTrainError((err as Error).message ?? String(err));
@@ -976,6 +1187,16 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
           </div>
 
           <MicrobitPanel label={microbitLabel} confidence={microbitConfidence} />
+
+          <ProjectPanel
+            saveStatus={saveStatus}
+            savedAt={savedAt}
+            canExport={dataset.samples.length > 0 || trainedModel !== null}
+            error={projectError}
+            onExport={() => void handleExportProject()}
+            onImport={(file) => void handleImportProject(file)}
+            onClear={() => void handleClearProject()}
+          />
         </div>
 
         {/* Cámara + overlay */}
@@ -1045,7 +1266,19 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div style={{ fontWeight: 600 }}>Evaluacion en vivo</div>
-              <div style={{ fontSize: 12, opacity: 0.8 }}>Umbral {ACCEPT_THRESHOLD.toFixed(2)}</div>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <div style={{ fontSize: 12, opacity: 0.8 }}>Umbral {ACCEPT_THRESHOLD.toFixed(2)}</div>
+                {isPipSupported() && (
+                  <button
+                    type="button"
+                    onClick={() => void handleTogglePip()}
+                    title="Ventana flotante con la cámara y la predicción, para ver junto a MakeCode"
+                    style={{ fontSize: 12 }}
+                  >
+                    {pipOpen ? "Cerrar monitoreo" : "📌 Monitoreo"}
+                  </button>
+                )}
+              </div>
             </div>
             <div style={{ display: "grid", gap: 4, fontSize: 12, opacity: 0.9 }}>
               <div>
