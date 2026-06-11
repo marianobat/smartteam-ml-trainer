@@ -1,0 +1,79 @@
+// src/app/components/trainer/ClassCardStrip.tsx
+//
+// Fila horizontal de tarjetas de clase (estilo LEGO): miniatura + nombre +
+// progreso de ejemplos, más la tarjeta "Agregar". Presentacional.
+
+import { COPY } from "../../copy";
+import "./ClassCardStrip.css";
+
+export type ClassCardItem = {
+  id: string;
+  name: string;
+  count: number;
+  thumb?: string;
+};
+
+type ClassCardStripProps = {
+  items: ClassCardItem[];
+  activeId: string | null;
+  min: number;
+  placeholderIcon: string;
+  onSelect: (id: string) => void;
+  onAdd: () => void;
+  addDisabled?: boolean;
+};
+
+export default function ClassCardStrip({
+  items,
+  activeId,
+  min,
+  placeholderIcon,
+  onSelect,
+  onAdd,
+  addDisabled,
+}: ClassCardStripProps) {
+  return (
+    <div className="class-strip" role="tablist" aria-label="Clases">
+      {items.map((item) => {
+        const complete = item.count >= min;
+        return (
+          <button
+            key={item.id}
+            type="button"
+            role="tab"
+            aria-selected={item.id === activeId}
+            className={`class-strip-card ${item.id === activeId ? "is-active" : ""}`}
+            onClick={() => onSelect(item.id)}
+          >
+            <span className="class-strip-thumb" aria-hidden="true">
+              {item.thumb ? (
+                <img src={item.thumb} alt="" />
+              ) : (
+                <span className="class-strip-placeholder">{placeholderIcon}</span>
+              )}
+            </span>
+            <span className="class-strip-name">{item.name}</span>
+            <span
+              className={`class-strip-progress ${complete ? "is-complete" : ""}`}
+              aria-label={`${item.count} de ${min} ejemplos`}
+            >
+              {complete ? `✓ ${COPY.examplesCount(item.count)}` : `${item.count}/${min}`}
+            </span>
+          </button>
+        );
+      })}
+
+      <button
+        type="button"
+        className="class-strip-card class-strip-add"
+        onClick={onAdd}
+        disabled={addDisabled}
+      >
+        <span className="class-strip-thumb" aria-hidden="true">
+          <span className="class-strip-placeholder">➕</span>
+        </span>
+        <span className="class-strip-name">{COPY.addClass}</span>
+      </button>
+    </div>
+  );
+}

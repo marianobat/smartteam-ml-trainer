@@ -6,7 +6,12 @@
 
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
-import type { SavedModality, SavedProject } from "../storage/projectStore";
+import {
+  migrateProjectV1,
+  PROJECT_VERSION,
+  type SavedModality,
+  type SavedProject,
+} from "../storage/projectStore";
 
 const PROJECT_FILE = "project.json";
 const WEIGHTS_FILE = "weights.bin";
@@ -62,7 +67,13 @@ export async function importProjectZip(
     throw new Error("El project.json del ZIP está dañado.");
   }
 
-  if (parsed.version !== 1 || !parsed.modality || !parsed.dataset) {
+  if (
+    typeof parsed.version !== "number" ||
+    parsed.version < 1 ||
+    parsed.version > PROJECT_VERSION ||
+    !parsed.modality ||
+    !parsed.dataset
+  ) {
     throw new Error("Versión de proyecto no soportada.");
   }
   if (parsed.modality !== expectedModality) {
@@ -82,5 +93,5 @@ export async function importProjectZip(
   }
 
   parsed.savedAt = Date.now();
-  return parsed;
+  return migrateProjectV1(parsed);
 }

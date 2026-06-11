@@ -1,0 +1,43 @@
+.advanced-drawer {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.advanced-drawer-toggle {
+  justify-self: start;
+  background: transparent;
+  color: var(--color-ink-soft);
+  border: 1.5px dashed var(--color-outline);
+  font-size: 0.85rem;
+  padding: 0.4em 1em;
+  min-height: 36px;
+}
+.advanced-drawer-toggle:hover:not(:disabled) {
+  transform: none;
+  box-shadow: none;
+  border-color: var(--color-primary);
+  color: var(--color-ink);
+}
+
+.advanced-drawer-content {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: var(--space-4);
+  background: var(--color-surface);
+  border: 1.5px dashed var(--color-outline);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+}
+
+.advanced-block {
+  display: grid;
+  gap: var(--space-2);
+  align-content: start;
+  font-size: 0.85rem;
+}
+
+.advanced-block-title {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  color: var(--color-ink);
+}

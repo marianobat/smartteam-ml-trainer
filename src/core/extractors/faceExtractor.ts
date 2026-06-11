@@ -2,6 +2,7 @@
 import { FilesetResolver, FaceLandmarker } from "@mediapipe/tasks-vision";
 import type { FaceLandmarkerResult } from "@mediapipe/tasks-vision";
 import type { VideoExtractor } from "./types";
+import { SKEL, setupStroke } from "../overlay/skeletonStyle";
 
 // Blendshapes de MediaPipe (incluye "_neutral"): ya son invariantes a posición/escala.
 export const FACE_FEATURE_DIM = 52;
@@ -47,8 +48,7 @@ function drawFace(ctx: CanvasRenderingContext2D, result: FaceLandmarkerResult) {
 
   // Solo contornos (ojos, cejas, boca, óvalo): más liviano que la malla completa
   for (const lm of result.faceLandmarks ?? []) {
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = "rgba(168,85,247,0.7)";
+    setupStroke(ctx, SKEL.violet, SKEL.faceLineWidth);
     for (const { start, end } of FaceLandmarker.FACE_LANDMARKS_CONTOURS) {
       const a = lm[start];
       const b = lm[end];

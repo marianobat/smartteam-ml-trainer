@@ -1,8 +1,9 @@
 // src/app/pages/TextTrainer.tsx
 //
 // Entrenador de textos: misma mecánica que el Trainer de video (clases,
-// kNN/MLP, publicación WebSocket) pero con entrada por teclado y embeddings
-// de MiniLM en lugar de cámara.
+// kNN/MLP, publicación WebSocket, persistencia) pero con entrada por teclado
+// y embeddings de MiniLM en lugar de cámara. Los textos de ejemplo viven en
+// Sample.note.
 
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import * as tf from "@tensorflow/tfjs";
@@ -36,22 +37,33 @@ import {
   createInitialDatasetState,
   datasetReducer,
   countSamplesByClass,
+  MIN_SAMPLES_PER_CLASS,
   type DatasetState,
 } from "../../core/dataset/datasetStore";
 import {
   clearProject,
   deserializeMlModel,
   loadProject,
+  PROJECT_VERSION,
   saveProject,
   serializeMlModel,
   type SavedModel,
   type SavedProject,
 } from "../../core/storage/projectStore";
 import { exportProjectZip, importProjectZip } from "../../core/export/projectZip";
+import { COPY } from "../copy";
+import { useAdvancedMode } from "../hooks/useAdvancedMode";
 import MicrobitPanel from "../components/MicrobitPanel";
 import ProjectPanel, { type SaveStatus } from "../components/ProjectPanel";
-
-const STORAGE_KEY = "text" as const;
+import StepsBar from "../components/trainer/StepsBar";
+import ClassCardStrip from "../components/trainer/ClassCardStrip";
+import SampleGrid from "../components/trainer/SampleGrid";
+import TrainPanel from "../components/trainer/TrainPanel";
+import LivePredictionBars from "../components/trainer/LivePredictionBars";
+import StatusChips, { type StatusChip } from "../components/trainer/StatusChips";
+import AdvancedDrawer from "../components/trainer/AdvancedDrawer";
+import "./Trainer.css";
+import "./TextTrainer.css";
 
 type TrainHistory = {
   acc: number[];
@@ -71,7 +83,8 @@ type Trained = { kind: "knn"; model: KnnModel } | { kind: "ml"; model: tf.Layers
 
 const TRAIN_EPOCHS = 40;
 const ACCEPT_THRESHOLD = 0.7;
-const MAX_TEXTS_SHOWN_PER_CLASS = 6;
+const STORAGE_KEY = "text" as const;
+const PLACEHOLDER_ICON = "✏️";
 
 type TextTrainerProps = {
   onBack: () => void;
@@ -80,17 +93,17 @@ type TextTrainerProps = {
 };
 
 export default function TextTrainer({ onBack, room, publishToken }: TextTrainerProps) {
-  const [status, setStatus] = useState("Descargando modelo de texto (~25 MB la primera vez)...");
+  const [status, setStatus] = useState("Descargando el modelo de texto (~25 MB la primera vez)...");
   const [ready, setReady] = useState(false);
   const [mode, setMode] = useState<Mode>("examples");
-  const [isNarrow, setIsNarrow] = useState(false);
+  const [advanced, toggleAdvanced] = useAdvancedMode();
 
   const [dataset, dispatch] = useReducer(datasetReducer, TEXT_FEATURE_DIM, createInitialDatasetState);
-  const [textsByClass, setTextsByClass] = useState<Record<string, string[]>>({});
 
   const [inputText, setInputText] = useState("");
   const [isEmbedding, setIsEmbedding] = useState(false);
   const [testText, setTestText] = useState("");
+  const [triedIt, setTriedIt] = useState(false);
 
   const [isTraining, setIsTraining] = useState(false);
   const [trainProgress, setTrainProgress] = useState<TrainProgress>({ epoch: 0, total: 0, acc: 0 });
@@ -133,10 +146,10 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
     return `${WS_BASE}?${params.toString()}`;
   }, [room, publishToken]);
 
-  const totalSamples = dataset.samples.length;
-  const hasEmptyClass = dataset.classes.some((c) => (counts[c.id] ?? 0) === 0);
-  const canTrain =
-    dataset.classes.length >= 2 && !hasEmptyClass && totalSamples >= dataset.classes.length * 2;
+  const everyClassReady = dataset.classes.every(
+    (c) => (counts[c.id] ?? 0) >= MIN_SAMPLES_PER_CLASS
+  );
+  const canTrain = dataset.classes.length >= 2 && everyClassReady;
 
   // Carga del embedder
   useEffect(() => {
@@ -144,13 +157,13 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
     initTextEmbedder((p) => {
       if (cancelled) return;
       if (p.status === "progress" && typeof p.progress === "number") {
-        setStatus(`Descargando modelo de texto... ${p.progress.toFixed(0)}%`);
+        setStatus(`Descargando el modelo de texto... ${p.progress.toFixed(0)}%`);
       }
     })
       .then(() => {
         if (cancelled) return;
         setReady(true);
-        setStatus("Listo para entrenar con textos.");
+        setStatus("");
       })
       .catch((err) => {
         if (cancelled) return;
@@ -159,18 +172,6 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
     return () => {
       cancelled = true;
     };
-  }, []);
-
-  useEffect(() => {
-    const mediaQuery = window.matchMedia("(max-width: 1100px)");
-    const update = () => setIsNarrow(mediaQuery.matches);
-    update();
-    if (mediaQuery.addEventListener) {
-      mediaQuery.addEventListener("change", update);
-      return () => mediaQuery.removeEventListener("change", update);
-    }
-    mediaQuery.addListener(update);
-    return () => mediaQuery.removeListener(update);
   }, []);
 
   // WebSocket publisher (igual que el Trainer de video)
@@ -277,17 +278,20 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
     };
   }, [testText, trainedModel, mode]);
 
-  const persistProject = async (
-    datasetToSave: DatasetState,
-    textsToSave: Record<string, string[]>
-  ) => {
+  // Paso ③: primera predicción confiable
+  useEffect(() => {
+    if (trainComplete && liveConfidence >= ACCEPT_THRESHOLD && !triedIt) {
+      setTriedIt(true);
+    }
+  }, [trainComplete, liveConfidence, triedIt]);
+
+  const persistProject = async (datasetToSave: DatasetState) => {
     try {
       const project: SavedProject = {
-        version: 1,
+        version: PROJECT_VERSION,
         modality: STORAGE_KEY,
         savedAt: Date.now(),
         dataset: datasetToSave,
-        textsByClass: textsToSave,
         model: serializedModelRef.current ?? undefined,
       };
       await saveProject(project);
@@ -303,7 +307,6 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
 
   const applySavedProject = async (saved: SavedProject) => {
     dispatch({ type: "LOAD_DATASET", state: saved.dataset });
-    setTextsByClass(saved.textsByClass ?? {});
     if (saved.model) {
       serializedModelRef.current = saved.model;
       if (trainedRef.current?.kind === "ml") {
@@ -365,20 +368,19 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
     }
     setSaveStatus("saving");
     const timer = window.setTimeout(() => {
-      void persistProject(dataset, textsByClass);
+      void persistProject(dataset);
     }, 1000);
     return () => window.clearTimeout(timer);
      
-  }, [dataset, textsByClass]);
+  }, [dataset]);
 
   const handleExportProject = async () => {
     try {
       await exportProjectZip({
-        version: 1,
+        version: PROJECT_VERSION,
         modality: STORAGE_KEY,
         savedAt: Date.now(),
         dataset,
-        textsByClass,
         model: serializedModelRef.current ?? undefined,
       });
       setProjectError(null);
@@ -401,8 +403,8 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
   const handleClearProject = async () => {
     skipAutosaveRef.current = true;
     dispatch({ type: "RESET_DATASET" });
-    setTextsByClass({});
     setTestText("");
+    setTriedIt(false);
     serializedModelRef.current = null;
     if (trainedRef.current?.kind === "ml") {
       trainedRef.current.model.dispose();
@@ -433,10 +435,11 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
     setIsEmbedding(true);
     try {
       const vec = await embedText(text);
-      dispatch({ type: "ADD_SAMPLE", classId: activeClassId, x: Array.from(vec) });
-      setTextsByClass((prev) => {
-        const list = [text, ...(prev[activeClassId] ?? [])].slice(0, MAX_TEXTS_SHOWN_PER_CLASS);
-        return { ...prev, [activeClassId]: list };
+      dispatch({
+        type: "ADD_SAMPLE",
+        classId: activeClassId,
+        x: Array.from(vec),
+        note: text,
       });
       setInputText("");
     } catch (err) {
@@ -444,15 +447,6 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
     } finally {
       setIsEmbedding(false);
     }
-  };
-
-  const handleReset = () => {
-    dispatch({ type: "RESET_DATASET" });
-    setTextsByClass({});
-    setTestText("");
-    setLiveProbs([]);
-    setLiveLabel("");
-    setLiveConfidence(0);
   };
 
   const handleTrain = async () => {
@@ -506,7 +500,7 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
         });
         setTrainComplete(true);
         serializedModelRef.current = { kind: "knn", model: knn };
-        void persistProject(dataset, textsByClass);
+        void persistProject(dataset);
       } else {
         prepared = prepareTensors(dataset.classes, dataset.samples, TEXT_FEATURE_DIM);
         const model = createClassifier(prepared.classNames.length, TEXT_FEATURE_DIM);
@@ -549,7 +543,7 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
           );
         }
         serializedModelRef.current = await serializeMlModel(result.model, prepared.classNames);
-        void persistProject(dataset, textsByClass);
+        void persistProject(dataset);
       }
     } catch (err) {
       setTrainError((err as Error).message ?? String(err));
@@ -574,9 +568,14 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
 
   const activeClass = dataset.classes.find((c) => c.id === dataset.activeClassId) || null;
   const hasTrainedModel = trainedModel?.kind === (mode === "examples" ? "knn" : "ml");
-  const progressLabel = mode === "examples" ? "Muestras" : "Epoca";
-  const hasValMetric = trainProgress.valAcc !== undefined;
-  const progressTotal = trainProgress.total || (mode === "ml" ? TRAIN_EPOCHS : 0);
+
+  const activeSamples = useMemo(
+    () =>
+      dataset.samples
+        .filter((s) => s.classId === dataset.activeClassId)
+        .map((s) => ({ id: s.id, thumb: s.thumb, content: s.note })),
+    [dataset.samples, dataset.activeClassId]
+  );
 
   const lineData = useMemo(() => {
     const length = Math.max(
@@ -591,13 +590,46 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
     }));
   }, [trainHistory]);
 
-  const trainStatusLabel = isTraining
-    ? "Entrenando... ⏳"
-    : trainError
-    ? "Error"
-    : trainComplete
-    ? "Entrenado ✅"
-    : "Inactivo";
+  const steps = [
+    { label: COPY.steps[0], done: canTrain, active: !canTrain },
+    { label: COPY.steps[1], done: trainComplete, active: canTrain && !trainComplete },
+    { label: COPY.steps[2], done: triedIt, active: trainComplete && !triedIt },
+  ];
+
+  const trainHint = !canTrain
+    ? dataset.classes.length < 2
+      ? COPY.needTwoClasses
+      : COPY.needSamples(MIN_SAMPLES_PER_CLASS)
+    : null;
+  const trainProgressPct =
+    mode === "ml" && trainProgress.total > 0
+      ? Math.round((trainProgress.epoch / trainProgress.total) * 100)
+      : null;
+
+  const liveRows = trainedClassNames.map((name, idx) => {
+    const value = liveProbs[idx] ?? 0;
+    return { name, value, pass: value >= ACCEPT_THRESHOLD };
+  });
+  const seeing =
+    hasTrainedModel && liveLabel && liveConfidence >= ACCEPT_THRESHOLD
+      ? { label: liveLabel, confidence: liveConfidence }
+      : null;
+
+  const chips: StatusChip[] = [
+    {
+      id: "save",
+      icon: saveStatus === "saving" ? "⏳" : "💾",
+      label: saveStatus === "saving" ? COPY.chipSaving : COPY.chipSaved,
+      tone: saveStatus === "saved" ? "ok" : saveStatus === "error" ? "warn" : "off",
+    },
+    {
+      id: "tw",
+      icon: "🛰️",
+      label: COPY.chipTurboWarp,
+      tone: wsStatus === "open" ? "ok" : wsStatus === "error" ? "warn" : "off",
+    },
+  ];
+
   const wsStatusLabel =
     wsStatus === "open"
       ? "conectado"
@@ -613,358 +645,236 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
     : "—";
 
   return (
-    <div style={{ padding: 16, display: "grid", gap: 12, boxSizing: "border-box" }}>
-      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-        <button onClick={onBack}>← Volver</button>
-        <h2 style={{ margin: 0 }}>Entrenador de textos</h2>
+    <div className="trainer-page">
+      <header className="trainer-header">
+        <button type="button" className="trainer-back" onClick={onBack}>
+          {COPY.back}
+        </button>
+        <h2 className="trainer-title">Entrenador de textos</h2>
+        <div className="trainer-header-right">
+          <StatusChips chips={chips} />
+        </div>
+      </header>
+
+      <StepsBar steps={steps} />
+
+      <div className="trainer-main">
+        <section className="trainer-stage">
+          <div className="text-stage">
+            {!ready && <div className="text-stage-loading">{status}</div>}
+
+            <div className="text-stage-block">
+              <h3 className="text-stage-title">
+                ✏️ Enseñale con frases {activeClass ? `a "${activeClass.name}"` : ""}
+              </h3>
+              <textarea
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    void handleAddSample();
+                  }
+                }}
+                placeholder={COPY.addTextPlaceholder}
+                rows={2}
+                disabled={!ready}
+              />
+              <button
+                type="button"
+                className="text-stage-add"
+                onClick={() => void handleAddSample()}
+                disabled={!ready || !inputText.trim() || !dataset.activeClassId || isEmbedding}
+              >
+                {isEmbedding ? "Agregando..." : COPY.addTextButton}
+              </button>
+            </div>
+
+            <div className="text-stage-block">
+              <h3 className="text-stage-title">{COPY.tryTitle}</h3>
+              <textarea
+                value={testText}
+                onChange={(e) => setTestText(e.target.value)}
+                placeholder={COPY.testTextPlaceholder}
+                rows={2}
+                disabled={!hasTrainedModel}
+              />
+              <LivePredictionBars rows={liveRows} seeing={seeing} hasModel={hasTrainedModel} />
+            </div>
+          </div>
+        </section>
+
+        <aside className="trainer-side">
+          <ClassCardStrip
+            items={dataset.classes.map((c) => ({
+              id: c.id,
+              name: c.name,
+              count: counts[c.id] ?? 0,
+            }))}
+            activeId={dataset.activeClassId}
+            min={MIN_SAMPLES_PER_CLASS}
+            placeholderIcon={PLACEHOLDER_ICON}
+            onSelect={(id) => dispatch({ type: "SET_ACTIVE_CLASS", id })}
+            onAdd={() => dispatch({ type: "ADD_CLASS" })}
+          />
+
+          {activeClass && (
+            <div className="class-detail">
+              <div className="class-detail-header">
+                <input
+                  className="class-detail-name"
+                  value={activeClass.name}
+                  aria-label={COPY.className}
+                  onChange={(e) =>
+                    dispatch({ type: "RENAME_CLASS", id: activeClass.id, name: e.target.value })
+                  }
+                />
+                <button
+                  type="button"
+                  className="class-detail-delete"
+                  title={COPY.deleteClass}
+                  aria-label={COPY.deleteClass}
+                  disabled={dataset.classes.length <= 1}
+                  onClick={() => dispatch({ type: "DELETE_CLASS", id: activeClass.id })}
+                >
+                  🗑
+                </button>
+              </div>
+              <SampleGrid
+                items={activeSamples}
+                min={MIN_SAMPLES_PER_CLASS}
+                placeholderIcon={PLACEHOLDER_ICON}
+                onDelete={(id) => dispatch({ type: "REMOVE_SAMPLE", id })}
+              />
+            </div>
+          )}
+
+          <TrainPanel
+            canTrain={canTrain && ready}
+            isTraining={isTraining}
+            trainComplete={trainComplete && hasTrainedModel}
+            progressPct={trainProgressPct}
+            hint={trainHint}
+            error={trainError}
+            onTrain={() => void handleTrain()}
+          />
+
+          <div className="trainer-microbit">
+            <MicrobitPanel
+              label={liveLabel && liveConfidence >= ACCEPT_THRESHOLD ? liveLabel : "none"}
+              confidence={liveLabel && liveConfidence >= ACCEPT_THRESHOLD ? liveConfidence : 0}
+              advanced={advanced}
+            />
+          </div>
+        </aside>
       </div>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: isNarrow ? "1fr" : "minmax(0, 1fr) 360px",
-          gap: 16,
-          alignItems: "start",
-        }}
-      >
-        {/* Columna clases + entrenamiento */}
-        <div style={{ border: "1px solid #ddd", borderRadius: 12, padding: 12, display: "grid", gap: 10 }}>
-          <div style={{ display: "grid", gap: 6 }}>
-            <div style={{ fontSize: 12, fontWeight: 600 }}>Modo</div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button
-                type="button"
-                onClick={() => setMode("examples")}
-                disabled={isTraining}
-                style={{
-                  flex: 1,
-                  padding: "8px 10px",
-                  borderRadius: 8,
-                  border: mode === "examples" ? "2px solid #111" : "1px solid #ddd",
-                  background: mode === "examples" ? "#111" : "#fff",
-                  color: mode === "examples" ? "#fff" : "#111",
-                  fontWeight: 600,
-                }}
-              >
-                Por ejemplos (rápido)
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode("ml")}
-                disabled={isTraining}
-                style={{
-                  flex: 1,
-                  padding: "8px 10px",
-                  borderRadius: 8,
-                  border: mode === "ml" ? "2px solid #111" : "1px solid #ddd",
-                  background: mode === "ml" ? "#111" : "#fff",
-                  color: mode === "ml" ? "#fff" : "#111",
-                  fontWeight: 600,
-                }}
-              >
-                Entrenar un modelo (ML)
-              </button>
-            </div>
-          </div>
-          <div style={{ fontFamily: "monospace", fontSize: 13 }}>Estado: {status}</div>
-
-          <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={() => dispatch({ type: "ADD_CLASS" })} style={{ flex: 1 }}>
-              + Agregar clase
-            </button>
-            <button onClick={handleReset} title="Reinicia clases y muestras">
-              Reiniciar
-            </button>
-          </div>
-
-          <div style={{ display: "grid", gap: 8 }}>
-            {dataset.classes.map((c) => {
-              const selected = c.id === dataset.activeClassId;
-              const texts = textsByClass[c.id] ?? [];
-              return (
-                <div
-                  key={c.id}
-                  style={{
-                    border: selected ? "2px solid #111" : "1px solid #ddd",
-                    borderRadius: 10,
-                    padding: 8,
-                    display: "grid",
-                    gap: 6,
-                  }}
-                >
-                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <input
-                      value={c.name}
-                      onChange={(e) => dispatch({ type: "RENAME_CLASS", id: c.id, name: e.target.value })}
-                      style={{ flex: 1 }}
-                    />
-                    <button onClick={() => dispatch({ type: "SET_ACTIVE_CLASS", id: c.id })} title="Seleccionar">
-                      ✓
-                    </button>
-                    <button
-                      onClick={() => dispatch({ type: "DELETE_CLASS", id: c.id })}
-                      title="Eliminar clase"
-                      disabled={dataset.classes.length <= 1}
-                    >
-                      🗑
-                    </button>
-                  </div>
-                  <div style={{ fontSize: 12, opacity: 0.8 }}>
-                    Muestras: <b>{counts[c.id] ?? 0}</b>
-                  </div>
-                  {texts.length > 0 && (
-                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                      {texts.map((t, idx) => (
-                        <span
-                          key={idx}
-                          style={{
-                            fontSize: 11,
-                            border: "1px solid #ddd",
-                            borderRadius: 999,
-                            padding: "2px 8px",
-                            background: "#fafafa",
-                            maxWidth: 180,
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                          }}
-                          title={t}
-                        >
-                          {t}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          <div style={{ borderTop: "1px solid #eee", paddingTop: 10, display: "grid", gap: 8 }}>
-            <div>
-              Clase activa: <b>{activeClass ? activeClass.name : "—"}</b>
-            </div>
-            <textarea
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  void handleAddSample();
-                }
-              }}
-              placeholder="Escribí un ejemplo para la clase activa (Enter para agregar)..."
-              rows={2}
-              disabled={!ready}
-              style={{ resize: "vertical", padding: 8, borderRadius: 8, border: "1px solid #ddd" }}
-            />
+      <AdvancedDrawer open={advanced} onToggle={toggleAdvanced}>
+        <div className="advanced-block">
+          <div className="advanced-block-title">Clasificador</div>
+          <div className="advanced-mode-toggle">
             <button
-              onClick={() => void handleAddSample()}
-              disabled={!ready || !inputText.trim() || !dataset.activeClassId || isEmbedding}
-              style={{ padding: "10px 12px", borderRadius: 10, border: "1px solid #111", fontWeight: 600 }}
+              type="button"
+              className={`advanced-mode-btn ${mode === "examples" ? "is-on" : ""}`}
+              aria-pressed={mode === "examples"}
+              onClick={() => setMode("examples")}
+              disabled={isTraining}
             >
-              {isEmbedding ? "Agregando..." : "Agregar ejemplo"}
+              Comparar ejemplos (kNN)
+            </button>
+            <button
+              type="button"
+              className={`advanced-mode-btn ${mode === "ml" ? "is-on" : ""}`}
+              aria-pressed={mode === "ml"}
+              onClick={() => setMode("ml")}
+              disabled={isTraining}
+            >
+              Red neuronal (ML)
             </button>
           </div>
-
-          <div style={{ borderTop: "1px solid #eee", paddingTop: 10, display: "grid", gap: 8 }}>
-            <button
-              onClick={handleTrain}
-              disabled={!canTrain || isTraining || !ready}
-              style={{ padding: "10px 12px", borderRadius: 10, border: "1px solid #111", fontWeight: 600 }}
-            >
-              {isTraining
-                ? `Entrenando... (${progressLabel.toLowerCase()} ${trainProgress.epoch}/${progressTotal})`
-                : "Entrenar"}
-            </button>
-            <div style={{ fontSize: 12, opacity: 0.85, display: "grid", gap: 4 }}>
-              <div>
-                Estado: <b>{trainStatusLabel}</b> — {progressLabel} <b>{trainProgress.epoch}</b> / {progressTotal}
-              </div>
-              <div>
-                Precision <b>{(trainProgress.acc ?? 0).toFixed(2)}</b> / Validacion{" "}
-                <b>{hasValMetric ? (trainProgress.valAcc ?? 0).toFixed(2) : "—"}</b>
-              </div>
-              <div>
-                Modelo:{" "}
-                <b>{hasTrainedModel ? `Entrenado (${trainedClassNames.length} clases)` : "No entrenado"}</b>
-              </div>
-              <div>
-                Requiere ≥2 clases, sin clases vacías y ~2 muestras por clase (total ≥{" "}
-                {dataset.classes.length * 2}).
-              </div>
-              {trainNotice && (
-                <div
-                  style={{
-                    fontSize: 12,
-                    color: "#7c2d12",
-                    background: "#fff7ed",
-                    border: "1px solid #fed7aa",
-                    padding: "6px 8px",
-                    borderRadius: 8,
-                  }}
-                >
-                  {trainNotice}
-                </div>
-              )}
-              {trainError && <div style={{ color: "red" }}>Error: {trainError}</div>}
-            </div>
-            <div style={{ height: 180, border: "1px solid #eee", borderRadius: 10, padding: 8, background: "#fafafa" }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={lineData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="step" tickLine={false} />
-                  <YAxis domain={[0, 1]} tickCount={6} />
-                  <Tooltip
-                    formatter={(value: number | string) =>
-                      typeof value === "number" ? value.toFixed(2) : value
-                    }
-                    labelFormatter={(label) =>
-                      mode === "examples" ? `Muestras ${label}` : `Epoca ${label}`
-                    }
-                  />
-                  <Legend />
+          <div>
+            {mode === "examples" ? "Muestras" : "Época"}: <b>{trainProgress.epoch}</b> /{" "}
+            {trainProgress.total || (mode === "ml" ? TRAIN_EPOCHS : 0)} — Precisión{" "}
+            <b>{(trainProgress.acc ?? 0).toFixed(2)}</b> / Validación{" "}
+            <b>{trainProgress.valAcc !== undefined ? trainProgress.valAcc.toFixed(2) : "—"}</b>
+          </div>
+          {trainNotice && <div className="advanced-notice">{trainNotice}</div>}
+          <div className="advanced-chart">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={lineData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="step" tickLine={false} />
+                <YAxis domain={[0, 1]} tickCount={6} />
+                <Tooltip
+                  formatter={(value: number | string) =>
+                    typeof value === "number" ? value.toFixed(2) : value
+                  }
+                  labelFormatter={(label) =>
+                    mode === "examples" ? `Muestras ${label}` : `Época ${label}`
+                  }
+                />
+                <Legend />
+                <Line
+                  type="monotone"
+                  dataKey="acc"
+                  name="Precisión entrenamiento"
+                  stroke="#7C4DFF"
+                  dot={false}
+                  isAnimationActive={false}
+                />
+                {trainHistory.valAcc.length > 0 && (
                   <Line
                     type="monotone"
-                    dataKey="acc"
-                    name="Precision entrenamiento"
-                    stroke="#111"
+                    dataKey="valAcc"
+                    name="Precisión validación"
+                    stroke="#00BCD9"
                     dot={false}
                     isAnimationActive={false}
                   />
-                  {trainHistory.valAcc.length > 0 && (
-                    <Line
-                      type="monotone"
-                      dataKey="valAcc"
-                      name="Precision validacion"
-                      stroke="#5b8def"
-                      dot={false}
-                      isAnimationActive={false}
-                    />
-                  )}
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
+                )}
+              </LineChart>
+            </ResponsiveContainer>
           </div>
         </div>
 
-        {/* Columna prueba en vivo + WS */}
-        <div style={{ display: "grid", gap: 12 }}>
-          <div
-            style={{
-              border: "1px solid #eee",
-              borderRadius: 12,
-              padding: 12,
-              display: "grid",
-              gap: 10,
-              background: "#fafafa",
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ fontWeight: 600 }}>Probar en vivo</div>
-              <div style={{ fontSize: 12, opacity: 0.8 }}>Umbral {ACCEPT_THRESHOLD.toFixed(2)}</div>
-            </div>
-            <textarea
-              value={testText}
-              onChange={(e) => setTestText(e.target.value)}
-              placeholder="Escribí un texto y mirá qué clase predice..."
-              rows={3}
-              disabled={!hasTrainedModel}
-              style={{ resize: "vertical", padding: 8, borderRadius: 8, border: "1px solid #ddd" }}
-            />
-            <div style={{ fontSize: 12 }}>
-              Prediccion:{" "}
-              <b>
-                {hasTrainedModel
-                  ? liveLabel
-                    ? `${liveLabel} (${liveConfidence.toFixed(2)})`
-                    : "—"
-                  : "Entrena un modelo primero"}
-              </b>
-            </div>
-            {hasTrainedModel && trainedClassNames.length > 0 && (
-              <div style={{ display: "grid", gap: 8 }}>
-                {trainedClassNames.map((name, idx) => {
-                  const value = liveProbs[idx] ?? 0;
-                  const pct = Math.max(0, Math.min(1, value));
-                  const width = `${(pct * 100).toFixed(0)}%`;
-                  const pass = value >= ACCEPT_THRESHOLD;
-                  return (
-                    <div
-                      key={name}
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "120px 1fr 50px",
-                        alignItems: "center",
-                        gap: 8,
-                      }}
-                    >
-                      <div style={{ fontSize: 12 }}>{name}</div>
-                      <div
-                        style={{
-                          position: "relative",
-                          height: 12,
-                          background: "#e5e7eb",
-                          borderRadius: 999,
-                          overflow: "hidden",
-                        }}
-                        aria-label={`Probabilidad ${name}`}
-                      >
-                        <div
-                          style={{
-                            position: "absolute",
-                            inset: 0,
-                            width,
-                            background: pass ? "#22c55e" : "#d4d4d8",
-                            transition: "width 150ms ease",
-                          }}
-                        />
-                      </div>
-                      <div style={{ fontVariantNumeric: "tabular-nums", textAlign: "right", fontSize: 12 }}>
-                        {value.toFixed(2)}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+        <div className="advanced-block">
+          <div className="advanced-block-title">TurboWarp (WebSocket)</div>
+          <div>
+            Room: <b>{room || "—"}</b>
           </div>
-
-          <div style={{ border: "1px solid #eee", borderRadius: 12, padding: 12, display: "grid", gap: 8 }}>
-            <div style={{ fontSize: 12, fontWeight: 600 }}>Publicador WebSocket</div>
-            <div style={{ fontSize: 12 }}>
-              Room: <b>{room || "—"}</b>
-            </div>
-            <div style={{ fontSize: 12 }}>
-              Estado: <b>{wsStatusLabel}</b>
-            </div>
-            {wsRole && (
-              <div style={{ fontSize: 12 }}>
-                Rol: <b>{wsRole}</b>
-              </div>
-            )}
-            {subscriberCount !== null && (
-              <div style={{ fontSize: 12 }}>
-                Subscribers: <b>{subscriberCount}</b>
-              </div>
-            )}
-            <div style={{ fontSize: 12 }}>
-              Ultimo gesto: <b>{lastGestureLabel}</b>
-            </div>
-            {wsError && <div style={{ fontSize: 12, color: "#b91c1c" }}>WS: {wsError}</div>}
-            <MicrobitPanel label={liveLabel || "none"} confidence={liveConfidence} />
-            <ProjectPanel
-              saveStatus={saveStatus}
-              savedAt={savedAt}
-              canExport={dataset.samples.length > 0 || trainedModel !== null}
-              error={projectError}
-              onExport={() => void handleExportProject()}
-              onImport={(file) => void handleImportProject(file)}
-              onClear={() => void handleClearProject()}
-            />
+          <div>
+            Estado: <b>{wsStatusLabel}</b>
+            {wsRole ? (
+              <>
+                {" "}
+                — rol <b>{wsRole}</b>
+              </>
+            ) : null}
           </div>
+          {subscriberCount !== null && (
+            <div>
+              Proyectos escuchando: <b>{subscriberCount}</b>
+            </div>
+          )}
+          <div>
+            Último gesto enviado: <b>{lastGestureLabel}</b>
+          </div>
+          {wsError && <div className="advanced-error">WS: {wsError}</div>}
         </div>
-      </div>
+
+        <div className="advanced-block">
+          <div className="advanced-block-title">Proyecto</div>
+          <ProjectPanel
+            saveStatus={saveStatus}
+            savedAt={savedAt}
+            canExport={dataset.samples.length > 0 || trainedModel !== null}
+            error={projectError}
+            onExport={() => void handleExportProject()}
+            onImport={(file) => void handleImportProject(file)}
+            onClear={() => void handleClearProject()}
+          />
+        </div>
+      </AdvancedDrawer>
     </div>
   );
 }

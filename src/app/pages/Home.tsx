@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import type { KeyboardEvent } from "react";
 import { API_BASE, EXT_URL, TEMPLATE_SB3, TW_EDITOR } from "../../core/bridge/config";
 import { getRoom, getToken, setRoom as setSessionRoom, setToken } from "../../core/bridge/session";
 import "./Home.css";
@@ -41,18 +40,6 @@ export default function Home() {
       params.set("extension", extensionUrl);
     }
     window.location.assign(`${TW_EDITOR}?${params.toString()}`);
-  };
-
-  const handlePanelKeyDown = (
-    event: KeyboardEvent<HTMLDivElement>,
-    action: () => void,
-    enabled: boolean
-  ) => {
-    if (!enabled) return;
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      action();
-    }
   };
 
   useEffect(() => {
@@ -100,90 +87,72 @@ export default function Home() {
 
   return (
     <div className="home">
-      <header className="home-header">
-        <div>
-          <div className="home-kicker">SmartTEAM</div>
-          <h1 className="home-title">SmartTEAM IA</h1>
-          <p className="home-subtitle">
-            Entrená modelos y conectalos a TurboWarp o micro:bit. La sesión solo hace falta para
-            TurboWarp.
-          </p>
-        </div>
-        <div className="home-session">
-          <div className="home-session-row">
-            <button onClick={handleCreateSession} disabled={isCreating}>
-              {isCreating ? "Creando..." : "Crear sesión"}
-            </button>
-            <div className="home-session-status">
-              Estado: <b>{status === "ready" ? "lista" : status === "error" ? "error" : "inactiva"}</b>
-            </div>
-          </div>
-          <div className="home-room">
-            <div className="home-room-label">Room</div>
-            <div className="home-room-row">
-              <div className="home-room-code">{room || "—"}</div>
-              <button onClick={handleCopy} disabled={!room}>
-                Copiar
-              </button>
-              {copyNotice && <div className="home-room-note">{copyNotice}</div>}
-            </div>
-          </div>
-          {error && <div className="home-session-error">{error}</div>}
-          <div className="home-session-note">
-            Si refrescás la página, la sesión se mantiene solo en esta pestaña.
-          </div>
-        </div>
+      <header className="home-hero">
+        <div className="home-kicker">SmartTEAM</div>
+        <h1 className="home-title">SmartTEAM IA</h1>
+        <p className="home-subtitle">
+          Enseñale a la computadora con tus manos, tu cuerpo, tu voz o tus dibujos — y conectá lo
+          que aprende a un micro:bit o a TurboWarp.
+        </p>
       </header>
 
-      <section className="home-panels">
-        <article className="home-panel home-panel--trainer">
-          <div
-            className="home-panel-media"
-            role="button"
-            tabIndex={0}
-            onClick={handleOpenTrainer}
-            onKeyDown={(event) => handlePanelKeyDown(event, handleOpenTrainer, true)}
-          >
-            <span>Imagen</span>
+      <main className="home-cards">
+        <article className="home-card home-card--trainer">
+          <div className="home-card-icon" aria-hidden="true">
+            ✋ 😀 🧍 🖼️ ✏️ 🎤
           </div>
-          <div className="home-panel-body">
-            <h2 className="home-panel-title">Entrenador</h2>
-            <p className="home-panel-copy">
-              Entrená modelos en tiempo real y usalos con micro:bit o TurboWarp.
-            </p>
-            <div className="home-panel-actions">
-              <button onClick={handleOpenTrainer}>Abrir entrenador</button>
-            </div>
-          </div>
+          <h2 className="home-card-title">Entrenador</h2>
+          <p className="home-card-copy">
+            Elegí una modalidad, enseñale con ejemplos, entrená tu modelo y probalo en vivo.
+          </p>
+          <button type="button" className="home-card-cta" onClick={handleOpenTrainer}>
+            ✨ Abrir entrenador
+          </button>
         </article>
 
-        <article className="home-panel home-panel--program">
-          <div
-            className="home-panel-media"
-            role="button"
-            tabIndex={canEnter ? 0 : -1}
-            aria-disabled={!canEnter}
-            onClick={canEnter ? handleOpenProgram : undefined}
-            onKeyDown={(event) => handlePanelKeyDown(event, handleOpenProgram, canEnter)}
-          >
-            <span>Imagen</span>
+        <article className="home-card home-card--program">
+          <div className="home-card-icon" aria-hidden="true">
+            🛰️
           </div>
-          <div className="home-panel-body">
-            <h2 className="home-panel-title">Programador</h2>
-            <p className="home-panel-copy">
-              Abrí TurboWarp listo para recibir el room y la extensión.
-            </p>
-            <div className="home-panel-actions">
-              <button
-                onClick={handleOpenProgram}
-                disabled={!canEnter}
-              >
-                Abrir TurboWarp
+          <h2 className="home-card-title">TurboWarp</h2>
+          <p className="home-card-copy">
+            Para programar en Scratch con lo que detecta tu modelo, primero creá una sesión y
+            compartí el room.
+          </p>
+
+          <div className="home-session">
+            <div className="home-session-row">
+              <button type="button" onClick={() => void handleCreateSession()} disabled={isCreating}>
+                {isCreating ? "Creando..." : "Crear sesión"}
               </button>
+              <span className="home-session-status">
+                {status === "ready" ? "✓ lista" : status === "error" ? "error" : "sin sesión"}
+              </span>
             </div>
+            <div className="home-room">
+              <span className="home-room-code">{room || "—"}</span>
+              <button type="button" onClick={() => void handleCopy()} disabled={!room}>
+                Copiar
+              </button>
+              {copyNotice && <span className="home-room-note">{copyNotice}</span>}
+            </div>
+            {error && <div className="home-session-error">{error}</div>}
           </div>
+
+          <button
+            type="button"
+            className="home-card-cta home-card-cta--secondary"
+            onClick={handleOpenProgram}
+            disabled={!canEnter}
+          >
+            Abrir TurboWarp
+          </button>
+          <p className="home-card-note">
+            La sesión solo hace falta para TurboWarp: el entrenador y el micro:bit funcionan sin
+            ella.
+          </p>
         </article>
-      </section>
+      </main>
     </div>
   );
 }

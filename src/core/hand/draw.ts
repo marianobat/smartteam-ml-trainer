@@ -1,4 +1,5 @@
 import type { HandLandmarkerResult } from "@mediapipe/tasks-vision";
+import { SKEL, setupStroke, drawJoint } from "../overlay/skeletonStyle";
 
 // Conexiones estándar de MediaPipe Hands (21 puntos)
 const HAND_CONNECTIONS: Array<[number, number]> = [
@@ -45,23 +46,10 @@ export function drawHands(
     const lm = hands[i];
     const side = getSide(result, i, mirrorView);
 
-    const isLeft = side === "Left";
-    const isRight = side === "Right";
+    // Izquierda rosa, derecha cian (violeta si no se sabe)
+    const color = side === "Left" ? SKEL.pink : side === "Right" ? SKEL.cyan : SKEL.violet;
 
-    // Colores: Left = rojo, Right = azul
-    // (si Unknown, gris)
-    const pointColor = isLeft ? "rgba(255,0,0,0.9)"
-                    : isRight ? "rgba(0,0,255,0.9)"
-                    : "rgba(180,180,180,0.9)";
-
-    const lineColor  = isLeft ? "rgba(255,0,0,0.6)"
-                    : isRight ? "rgba(0,0,255,0.6)"
-                    : "rgba(180,180,180,0.6)";
-
-    // Dibujar líneas
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = lineColor;
-
+    setupStroke(ctx, color, SKEL.handLineWidth);
     for (const [a, b] of HAND_CONNECTIONS) {
       const pa = lm[a];
       const pb = lm[b];
@@ -71,12 +59,11 @@ export function drawHands(
       ctx.stroke();
     }
 
-    // Dibujar puntos
-    ctx.fillStyle = pointColor;
-    for (const p of lm) {
-      ctx.beginPath();
-      ctx.arc(p.x * w, p.y * h, 4, 0, Math.PI * 2);
-      ctx.fill();
+    // Articulaciones: nudillos y puntas (no los 21, para no saturar)
+    const jointIdx = [0, 4, 8, 12, 16, 20, 5, 9, 13, 17];
+    for (const idx of jointIdx) {
+      const p = lm[idx];
+      drawJoint(ctx, p.x * w, p.y * h, SKEL.handJointRadius, color);
     }
   }
 }

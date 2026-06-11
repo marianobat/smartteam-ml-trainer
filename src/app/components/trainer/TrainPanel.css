@@ -1,0 +1,63 @@
+.train-panel {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.train-panel-btn {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  padding: 0.7em 1.4em;
+  background: var(--color-success);
+  color: #fff;
+}
+.train-panel-btn:disabled {
+  background: var(--color-outline);
+  color: var(--color-ink-soft);
+  opacity: 1;
+}
+
+.train-panel-progress {
+  height: 12px;
+  border-radius: var(--radius-pill);
+  background: var(--color-outline);
+  overflow: hidden;
+}
+.train-panel-progress-fill {
+  height: 100%;
+  background: var(--color-success);
+  border-radius: var(--radius-pill);
+  transition: width 200ms ease;
+}
+.train-panel-progress-fill.is-indeterminate {
+  width: 35%;
+  animation: train-indeterminate 1.1s ease-in-out infinite alternate;
+}
+@keyframes train-indeterminate {
+  from {
+    margin-left: 0;
+  }
+  to {
+    margin-left: 65%;
+  }
+}
+
+.train-panel-done {
+  font-family: var(--font-display);
+  color: var(--color-success);
+  font-size: 1rem;
+  text-align: center;
+}
+
+.train-panel-hint {
+  font-size: 0.85rem;
+  color: var(--color-ink-soft);
+  text-align: center;
+}
+
+.train-panel-error {
+  font-size: 0.85rem;
+  color: var(--color-danger);
+  background: var(--color-danger-soft);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2);
+}

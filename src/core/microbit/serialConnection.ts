@@ -148,10 +148,29 @@ async function doDisconnect(): Promise<void> {
   const activePort = port;
   port = null;
   if (activePort) {
+    // Cancelar los streams a nivel puerto: en macOS/Chrome a veces close()
+    // no libera el descriptor si quedó un stream vivo.
+    try {
+      await activePort.readable?.cancel();
+    } catch {
+      // ya cancelado o puerto desaparecido
+    }
+    try {
+      await activePort.writable?.abort();
+    } catch {
+      // idem
+    }
     try {
       await activePort.close();
     } catch (err) {
       console.warn("[microbit] port.close() falló; el puerto puede quedar tomado:", err);
+    }
+    // Soltar la asociación del navegador con el puerto: sin esto, Chrome
+    // puede retener el dispositivo y MakeCode no logra vincular la consola.
+    try {
+      await activePort.forget();
+    } catch {
+      // forget no disponible o ya olvidado
     }
   }
 }

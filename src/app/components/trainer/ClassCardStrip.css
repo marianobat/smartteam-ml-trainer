@@ -1,0 +1,83 @@
+.class-strip {
+  display: flex;
+  gap: var(--space-3);
+  overflow-x: auto;
+  padding: var(--space-1);
+  scrollbar-width: thin;
+}
+
+.class-strip-card {
+  display: grid;
+  gap: var(--space-1);
+  justify-items: center;
+  min-width: 110px;
+  padding: var(--space-2);
+  background: var(--color-surface);
+  border: 2px solid var(--color-outline);
+  border-radius: var(--radius-md);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  min-height: auto;
+}
+
+.class-strip-card:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-card);
+}
+
+.class-strip-card.is-active {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-soft);
+}
+
+.class-strip-thumb {
+  width: 72px;
+  height: 72px;
+  border-radius: var(--radius-sm);
+  background: #fff;
+  border: 1px solid var(--color-outline);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+.class-strip-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.class-strip-placeholder {
+  font-size: 28px;
+  opacity: 0.45;
+}
+
+.class-strip-name {
+  font-weight: 700;
+  font-size: 0.9rem;
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.class-strip-progress {
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--color-warning-soft);
+  color: var(--color-ink);
+  border: 1px solid var(--color-warning);
+}
+.class-strip-progress.is-complete {
+  background: var(--color-success-soft);
+  border-color: var(--color-success);
+}
+
+.class-strip-add {
+  border-style: dashed;
+  background: transparent;
+  color: var(--color-ink-soft);
+}

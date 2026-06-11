@@ -5,6 +5,8 @@
 // el entrenamiento usa el flujo propio de la librería (collectExample/train/
 // listen), que ya implementa la captura de espectrogramas de 1 segundo.
 // Requiere una clase de "Ruido de fondo" para distinguir cuándo nadie habla.
+// Nota: sin persistencia ni borrado individual de grabaciones (los ejemplos
+// viven dentro del transfer recognizer de speech-commands).
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type {
@@ -20,13 +22,25 @@ import {
   type WsStatus,
 } from "../../core/bridge/gestureWs";
 import { WS_BASE } from "../../core/bridge/config";
+import { MIN_SAMPLES_PER_CLASS } from "../../core/dataset/datasetStore";
+import { COPY } from "../copy";
+import { useAdvancedMode } from "../hooks/useAdvancedMode";
 import MicrobitPanel from "../components/MicrobitPanel";
+import StepsBar from "../components/trainer/StepsBar";
+import ClassCardStrip from "../components/trainer/ClassCardStrip";
+import SampleGrid from "../components/trainer/SampleGrid";
+import TrainPanel from "../components/trainer/TrainPanel";
+import LivePredictionBars from "../components/trainer/LivePredictionBars";
+import StatusChips, { type StatusChip } from "../components/trainer/StatusChips";
+import AdvancedDrawer from "../components/trainer/AdvancedDrawer";
+import "./Trainer.css";
+import "./AudioTrainer.css";
 
 const BACKGROUND_LABEL = "_background_noise_";
 const BACKGROUND_NAME = "Ruido de fondo";
-const MIN_EXAMPLES_PER_CLASS = 3;
 const TRAIN_EPOCHS = 40;
 const ACCEPT_THRESHOLD = 0.7;
+const PLACEHOLDER_ICON = "🔊";
 
 type AudioClass = { id: string; name: string };
 
@@ -46,11 +60,14 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
   const transferCounterRef = useRef(0);
   const listeningRef = useRef(false);
 
-  const [status, setStatus] = useState("Descargando modelo de audio...");
+  const [status, setStatus] = useState("Descargando el modelo de audio...");
   const [ready, setReady] = useState(false);
   const [classes, setClasses] = useState<AudioClass[]>([{ id: uid(), name: "Clase 1" }]);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [recordingId, setRecordingId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [advanced, toggleAdvanced] = useAdvancedMode();
+  const [triedIt, setTriedIt] = useState(false);
 
   const [isTraining, setIsTraining] = useState(false);
   const [trainProgress, setTrainProgress] = useState<{ epoch: number; total: number; acc?: number }>({
@@ -80,6 +97,13 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
     classesRef.current = classes;
   }, [classes]);
 
+  // Clase seleccionada por defecto: la primera de usuario
+  useEffect(() => {
+    if (!selectedId || (selectedId !== BACKGROUND_LABEL && !classes.some((c) => c.id === selectedId))) {
+      setSelectedId(classes[0]?.id ?? BACKGROUND_LABEL);
+    }
+  }, [classes, selectedId]);
+
   const wsUrl = useMemo(() => {
     if (!room || !publishToken) return "";
     const params = new URLSearchParams();
@@ -89,14 +113,12 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
   }, [room, publishToken]);
 
   const noiseCount = counts[BACKGROUND_LABEL] ?? 0;
-  const everyClassHasExamples = classes.every((c) => (counts[c.id] ?? 0) >= MIN_EXAMPLES_PER_CLASS);
-  const canTrain =
-    ready &&
-    classes.length >= 2 &&
-    everyClassHasExamples &&
-    noiseCount >= MIN_EXAMPLES_PER_CLASS &&
-    !isTraining &&
-    !recordingId;
+  const everyClassHasExamples = classes.every(
+    (c) => (counts[c.id] ?? 0) >= MIN_SAMPLES_PER_CLASS
+  );
+  const samplesReady =
+    classes.length >= 2 && everyClassHasExamples && noiseCount >= MIN_SAMPLES_PER_CLASS;
+  const canTrain = ready && samplesReady && !isTraining && !recordingId;
 
   // Carga del modelo base
   useEffect(() => {
@@ -111,7 +133,7 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
       transferCounterRef.current += 1;
       transferRef.current = base.createTransfer(`smartteam-${transferCounterRef.current}`);
       setReady(true);
-      setStatus("Listo. Grabá ejemplos de 1 segundo por clase.");
+      setStatus("");
     }
 
     load().catch((err) => {
@@ -188,6 +210,19 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
     lastSentAtRef.current = now;
     setLastSentGesture({ label: labelToSend, confidence });
   }, [liveRawLabel, liveLabel, liveConfidence, wsStatus, room, publishToken]);
+
+  // Paso ③: primera detección confiable que no sea ruido
+  useEffect(() => {
+    if (
+      trainComplete &&
+      liveRawLabel &&
+      liveRawLabel !== BACKGROUND_LABEL &&
+      liveConfidence >= ACCEPT_THRESHOLD &&
+      !triedIt
+    ) {
+      setTriedIt(true);
+    }
+  }, [trainComplete, liveRawLabel, liveConfidence, triedIt]);
 
   const refreshCounts = () => {
     const transfer = transferRef.current;
@@ -308,6 +343,7 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
     setClasses([{ id: uid(), name: "Clase 1" }]);
     setCounts({});
     setTrainComplete(false);
+    setTriedIt(false);
     setTrainProgress({ epoch: 0, total: 0 });
     setTrainError(null);
     setLiveScores([]);
@@ -316,13 +352,49 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
     setLiveConfidence(0);
   };
 
-  const trainStatusLabel = isTraining
-    ? "Entrenando... ⏳"
-    : trainError
-    ? "Error"
-    : trainComplete
-    ? "Entrenado ✅"
-    : "Inactivo";
+  const selectedIsNoise = selectedId === BACKGROUND_LABEL;
+  const selectedClass = selectedIsNoise
+    ? { id: BACKGROUND_LABEL, name: BACKGROUND_NAME }
+    : classes.find((c) => c.id === selectedId) ?? null;
+  const selectedCount = selectedClass ? counts[selectedClass.id] ?? 0 : 0;
+  const isRecordingSelected = recordingId === selectedClass?.id;
+
+  const steps = [
+    { label: COPY.steps[0], done: samplesReady, active: !samplesReady },
+    { label: COPY.steps[1], done: trainComplete, active: samplesReady && !trainComplete },
+    { label: COPY.steps[2], done: triedIt, active: trainComplete && !triedIt },
+  ];
+
+  const trainHint = !samplesReady
+    ? classes.length < 2
+      ? COPY.needTwoClasses
+      : noiseCount < MIN_SAMPLES_PER_CLASS
+      ? `Grabá ${MIN_SAMPLES_PER_CLASS} muestras de "${BACKGROUND_NAME}" (el ruido normal del aula): así el modelo sabe cuándo nadie habla.`
+      : COPY.needSamples(MIN_SAMPLES_PER_CLASS)
+    : null;
+
+  const liveRows = liveScores.map(({ name, value }) => ({
+    name,
+    value,
+    pass: value >= ACCEPT_THRESHOLD,
+  }));
+  const seeing =
+    trainComplete &&
+    liveRawLabel &&
+    liveRawLabel !== BACKGROUND_LABEL &&
+    liveConfidence >= ACCEPT_THRESHOLD
+      ? { label: liveLabel, confidence: liveConfidence }
+      : null;
+
+  const chips: StatusChip[] = [
+    {
+      id: "tw",
+      icon: "🛰️",
+      label: COPY.chipTurboWarp,
+      tone: wsStatus === "open" ? "ok" : wsStatus === "error" ? "warn" : "off",
+    },
+  ];
+
   const wsStatusLabel =
     wsStatus === "open"
       ? "conectado"
@@ -337,237 +409,198 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
     ? `${lastSentGesture.label} (${lastSentGesture.confidence.toFixed(2)})`
     : "—";
 
-  const renderRecordRow = (id: string, name: string, isNoise: boolean) => {
-    const count = counts[id] ?? 0;
-    const isRecordingThis = recordingId === id;
-    return (
-      <div
-        key={id}
-        style={{
-          border: "1px solid #ddd",
-          borderRadius: 10,
-          padding: 8,
-          display: "grid",
-          gap: 6,
-          background: isNoise ? "#f8fafc" : "#fff",
-        }}
-      >
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          {isNoise ? (
-            <div style={{ flex: 1, fontWeight: 600, fontSize: 14 }}>{name} 🤫</div>
-          ) : (
-            <input
-              value={name}
-              onChange={(e) =>
-                setClasses((prev) => prev.map((c) => (c.id === id ? { ...c, name: e.target.value } : c)))
-              }
-              style={{ flex: 1 }}
-            />
+  return (
+    <div className="trainer-page">
+      <header className="trainer-header">
+        <button type="button" className="trainer-back" onClick={onBack}>
+          {COPY.back}
+        </button>
+        <h2 className="trainer-title">Entrenador de sonidos</h2>
+        <div className="trainer-header-right">
+          <StatusChips chips={chips} />
+        </div>
+      </header>
+
+      <StepsBar steps={steps} />
+
+      <div className="trainer-main">
+        <section className="trainer-stage">
+          <div className="audio-stage">
+            {!ready && status && <div className="audio-stage-loading">{status}</div>}
+
+            {selectedClass && (
+              <div className="audio-stage-block">
+                <h3 className="audio-stage-title">
+                  {selectedIsNoise ? "🤫" : "🎤"} Grabá ejemplos para "{selectedClass.name}"
+                </h3>
+                {selectedIsNoise && (
+                  <p className="audio-stage-note">
+                    Quedate en silencio (o dejá el ruido normal del aula) mientras graba.
+                  </p>
+                )}
+                <button
+                  type="button"
+                  className="audio-record"
+                  onClick={() => void handleRecord(selectedClass.id)}
+                  disabled={!ready || Boolean(recordingId) || isTraining || isListening}
+                >
+                  {isRecordingSelected
+                    ? "🔴 Grabando..."
+                    : selectedIsNoise
+                    ? "🎙 Grabar 2 segundos"
+                    : COPY.recordAudio}
+                </button>
+                {isListening && (
+                  <p className="audio-stage-note">
+                    Para grabar más ejemplos, primero pausá la escucha en "Probalo".
+                  </p>
+                )}
+                <SampleGrid
+                  items={Array.from({ length: selectedCount }, (_, i) => ({
+                    id: `${selectedClass.id}-${i}`,
+                  }))}
+                  min={MIN_SAMPLES_PER_CLASS}
+                  placeholderIcon={PLACEHOLDER_ICON}
+                />
+              </div>
+            )}
+
+            <div className="audio-stage-block">
+              <div className="try-panel-header">
+                <h3 className="audio-stage-title">{COPY.tryTitle}</h3>
+                {trainComplete && (
+                  <button
+                    type="button"
+                    className="try-pip"
+                    onClick={() => void (isListening ? stopListening() : startListening())}
+                  >
+                    {isListening ? "⏸ Pausar escucha" : "▶ Escuchar"}
+                  </button>
+                )}
+              </div>
+              <LivePredictionBars rows={liveRows} seeing={seeing} hasModel={trainComplete} />
+            </div>
+          </div>
+        </section>
+
+        <aside className="trainer-side">
+          <ClassCardStrip
+            items={[
+              {
+                id: BACKGROUND_LABEL,
+                name: BACKGROUND_NAME,
+                count: noiseCount,
+              },
+              ...classes.map((c) => ({
+                id: c.id,
+                name: c.name,
+                count: counts[c.id] ?? 0,
+              })),
+            ]}
+            activeId={selectedId}
+            min={MIN_SAMPLES_PER_CLASS}
+            placeholderIcon={PLACEHOLDER_ICON}
+            onSelect={(id) => setSelectedId(id)}
+            onAdd={() => {
+              const id = uid();
+              setClasses((prev) => [...prev, { id, name: `Clase ${prev.length + 1}` }]);
+              setSelectedId(id);
+            }}
+            addDisabled={isTraining || Boolean(recordingId)}
+          />
+
+          {selectedClass && !selectedIsNoise && (
+            <div className="class-detail">
+              <div className="class-detail-header">
+                <input
+                  className="class-detail-name"
+                  value={selectedClass.name}
+                  aria-label={COPY.className}
+                  onChange={(e) =>
+                    setClasses((prev) =>
+                      prev.map((c) =>
+                        c.id === selectedClass.id ? { ...c, name: e.target.value } : c
+                      )
+                    )
+                  }
+                />
+              </div>
+            </div>
           )}
-          <button
-            onClick={() => void handleRecord(id)}
-            disabled={!ready || Boolean(recordingId) || isTraining || isListening}
-            title={isNoise ? "Graba 2s de silencio/ruido del aula" : "Graba 1s de audio"}
-          >
-            {isRecordingThis ? "🔴 Grabando..." : "🎙 Grabar"}
+
+          <TrainPanel
+            canTrain={canTrain}
+            isTraining={isTraining}
+            trainComplete={trainComplete}
+            progressPct={
+              trainProgress.total > 0
+                ? Math.round((trainProgress.epoch / trainProgress.total) * 100)
+                : null
+            }
+            hint={trainHint}
+            error={trainError}
+            onTrain={() => void handleTrain()}
+          />
+
+          <div className="trainer-microbit">
+            <MicrobitPanel
+              label={
+                liveRawLabel && liveRawLabel !== BACKGROUND_LABEL && liveConfidence >= ACCEPT_THRESHOLD
+                  ? liveLabel
+                  : "none"
+              }
+              confidence={
+                liveRawLabel && liveRawLabel !== BACKGROUND_LABEL && liveConfidence >= ACCEPT_THRESHOLD
+                  ? liveConfidence
+                  : 0
+              }
+              advanced={advanced}
+            />
+          </div>
+        </aside>
+      </div>
+
+      <AdvancedDrawer open={advanced} onToggle={toggleAdvanced}>
+        <div className="advanced-block">
+          <div className="advanced-block-title">Clasificador (speech-commands)</div>
+          <div>
+            Época: <b>{trainProgress.epoch}</b> / {trainProgress.total || TRAIN_EPOCHS} — Precisión{" "}
+            <b>{(trainProgress.acc ?? 0).toFixed(2)}</b>
+          </div>
+          <div>
+            Las grabaciones viven dentro del modelo de transferencia: no se guardan al recargar la
+            página ni se pueden borrar de a una.
+          </div>
+          <button type="button" onClick={() => void handleReset()}>
+            Reiniciar clases y grabaciones
           </button>
         </div>
-        <div style={{ fontSize: 12, opacity: 0.8 }}>
-          Muestras: <b>{count}</b> (mínimo {MIN_EXAMPLES_PER_CLASS})
-        </div>
-      </div>
-    );
-  };
 
-  return (
-    <div style={{ padding: 16, display: "grid", gap: 12, boxSizing: "border-box" }}>
-      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-        <button onClick={onBack}>← Volver</button>
-        <h2 style={{ margin: 0 }}>Entrenador de sonidos</h2>
-      </div>
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "minmax(0, 1fr) 360px",
-          gap: 16,
-          alignItems: "start",
-        }}
-      >
-        <div style={{ border: "1px solid #ddd", borderRadius: 12, padding: 12, display: "grid", gap: 10 }}>
-          <div style={{ fontFamily: "monospace", fontSize: 13 }}>Estado: {status}</div>
-
-          {renderRecordRow(BACKGROUND_LABEL, BACKGROUND_NAME, true)}
-          {noiseCount < MIN_EXAMPLES_PER_CLASS && (
-            <div
-              style={{
-                fontSize: 12,
-                color: "#7c2d12",
-                background: "#fff7ed",
-                border: "1px solid #fed7aa",
-                padding: "6px 8px",
-                borderRadius: 8,
-              }}
-            >
-              Grabá al menos {MIN_EXAMPLES_PER_CLASS} muestras de "{BACKGROUND_NAME}" (silencio o el
-              ruido normal del aula). Así el modelo aprende a saber cuándo nadie está hablando.
+        <div className="advanced-block">
+          <div className="advanced-block-title">TurboWarp (WebSocket)</div>
+          <div>
+            Room: <b>{room || "—"}</b>
+          </div>
+          <div>
+            Estado: <b>{wsStatusLabel}</b>
+            {wsRole ? (
+              <>
+                {" "}
+                — rol <b>{wsRole}</b>
+              </>
+            ) : null}
+          </div>
+          {subscriberCount !== null && (
+            <div>
+              Proyectos escuchando: <b>{subscriberCount}</b>
             </div>
           )}
-
-          <div style={{ display: "flex", gap: 8 }}>
-            <button
-              onClick={() => setClasses((prev) => [...prev, { id: uid(), name: `Clase ${prev.length + 1}` }])}
-              disabled={isTraining || Boolean(recordingId)}
-              style={{ flex: 1 }}
-            >
-              + Agregar clase
-            </button>
-            <button onClick={() => void handleReset()} title="Reinicia clases y muestras">
-              Reiniciar
-            </button>
+          <div>
+            Último gesto enviado: <b>{lastGestureLabel}</b>
           </div>
-
-          <div style={{ display: "grid", gap: 8 }}>
-            {classes.map((c) => renderRecordRow(c.id, c.name, false))}
-          </div>
-
-          <div style={{ borderTop: "1px solid #eee", paddingTop: 10, display: "grid", gap: 8 }}>
-            <button
-              onClick={() => void handleTrain()}
-              disabled={!canTrain}
-              style={{ padding: "10px 12px", borderRadius: 10, border: "1px solid #111", fontWeight: 600 }}
-            >
-              {isTraining ? `Entrenando... (epoca ${trainProgress.epoch}/${trainProgress.total})` : "Entrenar"}
-            </button>
-            <div style={{ fontSize: 12, opacity: 0.85, display: "grid", gap: 4 }}>
-              <div>
-                Estado: <b>{trainStatusLabel}</b> — Epoca <b>{trainProgress.epoch}</b> /{" "}
-                {trainProgress.total || TRAIN_EPOCHS}
-              </div>
-              <div>
-                Precision <b>{(trainProgress.acc ?? 0).toFixed(2)}</b>
-              </div>
-              <div>
-                Requiere ≥2 clases con ≥{MIN_EXAMPLES_PER_CLASS} muestras cada una, más{" "}
-                {MIN_EXAMPLES_PER_CLASS} de ruido de fondo.
-              </div>
-              {trainError && <div style={{ color: "red" }}>Error: {trainError}</div>}
-            </div>
-            {trainComplete && (
-              <button
-                onClick={() => void (isListening ? stopListening() : startListening())}
-                style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #111" }}
-              >
-                {isListening ? "⏸ Dejar de escuchar" : "▶ Escuchar"}
-              </button>
-            )}
-          </div>
+          {wsError && <div className="advanced-error">WS: {wsError}</div>}
         </div>
-
-        <div style={{ display: "grid", gap: 12 }}>
-          <div
-            style={{
-              border: "1px solid #eee",
-              borderRadius: 12,
-              padding: 12,
-              display: "grid",
-              gap: 10,
-              background: "#fafafa",
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ fontWeight: 600 }}>Evaluacion en vivo</div>
-              <div style={{ fontSize: 12, opacity: 0.8 }}>Umbral {ACCEPT_THRESHOLD.toFixed(2)}</div>
-            </div>
-            <div style={{ fontSize: 12 }}>
-              Escuchando: <b>{isListening ? "sí 🎧" : "no"}</b>
-            </div>
-            <div style={{ fontSize: 12 }}>
-              Prediccion:{" "}
-              <b>
-                {trainComplete
-                  ? liveLabel
-                    ? `${liveLabel} (${liveConfidence.toFixed(2)})`
-                    : "—"
-                  : "Entrena un modelo primero"}
-              </b>
-            </div>
-            {liveScores.length > 0 && (
-              <div style={{ display: "grid", gap: 8 }}>
-                {liveScores.map(({ raw, name, value }) => {
-                  const pct = Math.max(0, Math.min(1, value));
-                  const width = `${(pct * 100).toFixed(0)}%`;
-                  const pass = value >= ACCEPT_THRESHOLD;
-                  return (
-                    <div
-                      key={raw}
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "120px 1fr 50px",
-                        alignItems: "center",
-                        gap: 8,
-                      }}
-                    >
-                      <div style={{ fontSize: 12 }}>{name}</div>
-                      <div
-                        style={{
-                          position: "relative",
-                          height: 12,
-                          background: "#e5e7eb",
-                          borderRadius: 999,
-                          overflow: "hidden",
-                        }}
-                        aria-label={`Probabilidad ${name}`}
-                      >
-                        <div
-                          style={{
-                            position: "absolute",
-                            inset: 0,
-                            width,
-                            background: pass ? "#22c55e" : "#d4d4d8",
-                            transition: "width 150ms ease",
-                          }}
-                        />
-                      </div>
-                      <div style={{ fontVariantNumeric: "tabular-nums", textAlign: "right", fontSize: 12 }}>
-                        {value.toFixed(2)}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          <div style={{ border: "1px solid #eee", borderRadius: 12, padding: 12, display: "grid", gap: 8 }}>
-            <div style={{ fontSize: 12, fontWeight: 600 }}>Publicador WebSocket</div>
-            <div style={{ fontSize: 12 }}>
-              Room: <b>{room || "—"}</b>
-            </div>
-            <div style={{ fontSize: 12 }}>
-              Estado: <b>{wsStatusLabel}</b>
-            </div>
-            {wsRole && (
-              <div style={{ fontSize: 12 }}>
-                Rol: <b>{wsRole}</b>
-              </div>
-            )}
-            {subscriberCount !== null && (
-              <div style={{ fontSize: 12 }}>
-                Subscribers: <b>{subscriberCount}</b>
-              </div>
-            )}
-            <div style={{ fontSize: 12 }}>
-              Ultimo gesto: <b>{lastGestureLabel}</b>
-            </div>
-            {wsError && <div style={{ fontSize: 12, color: "#b91c1c" }}>WS: {wsError}</div>}
-            <MicrobitPanel
-              label={!liveRawLabel || liveRawLabel === BACKGROUND_LABEL ? "none" : liveLabel}
-              confidence={!liveRawLabel || liveRawLabel === BACKGROUND_LABEL ? 0 : liveConfidence}
-            />
-          </div>
-        </div>
-      </div>
+      </AdvancedDrawer>
     </div>
   );
 }

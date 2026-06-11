@@ -19,30 +19,42 @@ type ModelId = "hands" | "face" | "images" | "pose" | "text" | "audio";
 
 const trainerConfigs: Partial<Record<ModelId, TrainerConfig>> = {
   hands: {
-    title: "Entrenador de manos (2 manos)",
-    loadingText: "Cargando modelo de manos...",
+    title: "Entrenador de manos",
+    loadingText: "Preparando el detector de manos...",
     missingLabel: "Sin manos",
+    missingHint: "No veo tus manos 👀 Ponelas frente a la cámara",
+    placeholderIcon: "✋",
+    thumbnailSource: "overlay",
     storageKey: "hands",
     createExtractor: createHandExtractor,
   },
   pose: {
-    title: "Entrenador de postura corporal",
-    loadingText: "Cargando modelo de cuerpo...",
+    title: "Entrenador de posturas",
+    loadingText: "Preparando el detector de cuerpo...",
     missingLabel: "Sin cuerpo",
+    missingHint: "No te veo 👀 Alejate un poco de la cámara",
+    placeholderIcon: "🧍",
+    thumbnailSource: "overlay",
     storageKey: "pose",
     createExtractor: createPoseExtractor,
   },
   face: {
-    title: "Entrenador de gestos de la cara",
-    loadingText: "Cargando modelo de rostro...",
+    title: "Entrenador de caras",
+    loadingText: "Preparando el detector de caras...",
     missingLabel: "Sin cara",
+    missingHint: "No veo tu cara 👀 Acercate a la cámara",
+    placeholderIcon: "😀",
+    thumbnailSource: "overlay",
     storageKey: "face",
     createExtractor: createFaceExtractor,
   },
   images: {
     title: "Entrenador de imagenes",
-    loadingText: "Cargando MobileNet...",
+    loadingText: "Preparando el detector de imagenes...",
     missingLabel: "Sin imagen",
+    missingHint: "Mostrale algo a la cámara 📦",
+    placeholderIcon: "🖼️",
+    thumbnailSource: "video",
     storageKey: "images",
     createExtractor: createImageExtractor,
   },
@@ -57,45 +69,45 @@ export default function TrainerPage() {
   const models = [
     {
       id: "hands",
-      title: "Gesto de las manos",
-      description: "Camara + MediaPipe + clasificador en vivo.",
+      title: "Manos",
+      description: "Gestos y señas con tus manos.",
       enabled: true,
-      imageLabel: "Manos",
+      icon: "✋",
     },
     {
       id: "face",
-      title: "Gesto de la cara",
-      description: "Expresiones y movimiento facial.",
+      title: "Caras",
+      description: "Sonrisas, guiños y expresiones.",
       enabled: true,
-      imageLabel: "Cara",
-    },
-    {
-      id: "images",
-      title: "Imagenes",
-      description: "Reconocer objetos o escenas.",
-      enabled: true,
-      imageLabel: "Imagen",
+      icon: "😀",
     },
     {
       id: "pose",
-      title: "Postura del cuerpo",
-      description: "Pose completa con articulaciones.",
+      title: "Cuerpo",
+      description: "Posturas y movimientos enteros.",
       enabled: true,
-      imageLabel: "Cuerpo",
+      icon: "🧍",
+    },
+    {
+      id: "images",
+      title: "Imágenes",
+      description: "Objetos y dibujos frente a la cámara.",
+      enabled: true,
+      icon: "🖼️",
     },
     {
       id: "text",
       title: "Textos",
-      description: "Clasificacion y comandos por texto.",
+      description: "Frases y palabras escritas.",
       enabled: true,
-      imageLabel: "Texto",
+      icon: "✏️",
     },
     {
       id: "audio",
       title: "Sonidos",
-      description: "Palabras y sonidos por microfono.",
+      description: "Palabras y sonidos con el micrófono.",
       enabled: true,
-      imageLabel: "Audio",
+      icon: "🎤",
     },
   ] as const;
 
@@ -114,17 +126,17 @@ export default function TrainerPage() {
         <header className="trainer-select-header">
           <div>
             <div className="trainer-select-kicker">SmartTEAM IA</div>
-            <h1 className="trainer-select-title">Selecciona un modelo</h1>
+            <h1 className="trainer-select-title">¿Qué le querés enseñar?</h1>
             <p className="trainer-select-subtitle">
-              Elegi que queres entrenar: manos, cara, cuerpo, imagenes, textos o sonidos.
+              Elegí una modalidad para entrenar tu modelo con ejemplos.
             </p>
           </div>
-          <div className="trainer-select-room">Room: {room || "—"}</div>
+          {room && <div className="trainer-select-room">Room: {room}</div>}
         </header>
         {!room && (
           <div className="trainer-select-warning">
-            Sin sesion de TurboWarp: podes entrenar y usar micro:bit igual. Para publicar a
-            TurboWarp, crea una sesion en el lobby.
+            Sin sesión de TurboWarp: podés entrenar y usar micro:bit igual. Para publicar a
+            TurboWarp, creá una sesión en el lobby.
           </div>
         )}
         <section className="trainer-select-grid">
@@ -134,7 +146,7 @@ export default function TrainerPage() {
               <button
                 key={model.id}
                 type="button"
-                className={`model-card ${disabled ? "is-disabled" : ""}`}
+                className={`model-card model-card--${model.id} ${disabled ? "is-disabled" : ""}`}
                 onClick={() => {
                   if (!disabled) {
                     setSelectedModel(model.id);
@@ -142,13 +154,12 @@ export default function TrainerPage() {
                 }}
                 disabled={disabled}
               >
-                <div className={`model-card-media model-card-media--${model.id}`}>
-                  <span>{model.imageLabel}</span>
+                <div className="model-card-media" aria-hidden="true">
+                  {model.icon}
                 </div>
                 <div className="model-card-body">
                   <div className="model-card-title">{model.title}</div>
                   <div className="model-card-meta">{model.description}</div>
-                  <div className="model-card-status">{disabled ? "Proximamente" : "Disponible"}</div>
                 </div>
               </button>
             );

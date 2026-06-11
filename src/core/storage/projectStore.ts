@@ -6,11 +6,14 @@
 // almacena nativo).
 
 import * as tf from "@tensorflow/tfjs";
-import type { DatasetState } from "../dataset/datasetStore";
+import { createSampleId, type DatasetState } from "../dataset/datasetStore";
 import type { KnnModel } from "../training/knn";
 import { idbDelete, idbGet, idbPut } from "./db";
 
 export type SavedModality = "hands" | "face" | "pose" | "images" | "text";
+
+/** v1: muestras sin id/thumb, miniaturas en thumbnailsByClass. v2: Sample.id + Sample.thumb. */
+export const PROJECT_VERSION = 2;
 
 export type SavedKnnModel = {
   kind: "knn";
@@ -28,14 +31,49 @@ export type SavedMlModel = {
 export type SavedModel = SavedKnnModel | SavedMlModel;
 
 export type SavedProject = {
-  version: 1;
+  version: number;
   modality: SavedModality;
   savedAt: number;
   dataset: DatasetState;
-  /** Textos de ejemplo del TextTrainer (solo modalidad "text"). */
+  /** @deprecated v1: textos del TextTrainer; en v2 viven en Sample.note. */
   textsByClass?: Record<string, string[]>;
   model?: SavedModel;
 };
+
+/**
+ * Migra un proyecto v1 a v2: asigna id a cada muestra y reparte las miniaturas
+ * viejas (thumbnailsByClass, newest-first) y los textos (textsByClass) sobre
+ * las muestras más recientes de cada clase, best-effort.
+ */
+export function migrateProjectV1(project: SavedProject): SavedProject {
+  if (project.version >= 2) return project;
+
+  const dataset = project.dataset;
+  const samples = dataset.samples.map((s) => ({ ...s, id: s.id ?? createSampleId() }));
+
+  const assignNewestFirst = (
+    byClass: Record<string, string[]> | undefined,
+    key: "thumb" | "note"
+  ) => {
+    for (const [classId, list] of Object.entries(byClass ?? {})) {
+      const classSamples = samples.filter((s) => s.classId === classId);
+      for (let i = 0; i < list.length; i += 1) {
+        const target = classSamples[classSamples.length - 1 - i];
+        if (!target) break;
+        if (!target[key]) target[key] = list[i];
+      }
+    }
+  };
+  assignNewestFirst(dataset.thumbnailsByClass, "thumb");
+  assignNewestFirst(project.textsByClass, "note");
+
+  return {
+    ...project,
+    version: PROJECT_VERSION,
+    textsByClass: undefined,
+    dataset: { ...dataset, samples, thumbnailsByClass: {} },
+  };
+}
 
 export async function saveProject(project: SavedProject): Promise<void> {
   await idbPut(project.modality, project);
@@ -44,11 +82,17 @@ export async function saveProject(project: SavedProject): Promise<void> {
 export async function loadProject(modality: SavedModality): Promise<SavedProject | null> {
   const stored = await idbGet<SavedProject>(modality);
   if (!stored) return null;
-  if (stored.version !== 1 || stored.modality !== modality || !stored.dataset) {
+  if (
+    typeof stored.version !== "number" ||
+    stored.version < 1 ||
+    stored.version > PROJECT_VERSION ||
+    stored.modality !== modality ||
+    !stored.dataset
+  ) {
     console.warn(`[storage] Proyecto guardado de "${modality}" inválido; se ignora.`);
     return null;
   }
-  return stored;
+  return migrateProjectV1(stored);
 }
 
 export async function clearProject(modality: SavedModality): Promise<void> {

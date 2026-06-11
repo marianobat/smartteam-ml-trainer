@@ -1,6 +1,7 @@
 // src/core/dataset/datasetStore.ts
 
-const MAX_THUMBNAILS_PER_CLASS = 20;
+/** Mínimo de muestras por clase para habilitar el entrenamiento. */
+export const MIN_SAMPLES_PER_CLASS = 5;
 
 export type ClassDef = {
   id: string;
@@ -8,9 +9,14 @@ export type ClassDef = {
 };
 
 export type Sample = {
+  id: string;
   classId: string;
   x: number[]; // serializable
   t: number;
+  /** Miniatura (dataURL): esqueleto sobre blanco, foto (imágenes) o nada (audio). */
+  thumb?: string;
+  /** Texto de la muestra (modalidad textos). */
+  note?: string;
 };
 
 export type DatasetState = {
@@ -19,6 +25,7 @@ export type DatasetState = {
   classes: ClassDef[];
   samples: Sample[];
   activeClassId: string | null;
+  /** @deprecated Solo para leer proyectos v1; las miniaturas viven en Sample.thumb. */
   thumbnailsByClass: Record<string, string[]>;
 };
 
@@ -27,13 +34,18 @@ export type DatasetAction =
   | { type: "RENAME_CLASS"; id: string; name: string }
   | { type: "DELETE_CLASS"; id: string }
   | { type: "SET_ACTIVE_CLASS"; id: string | null }
-  | { type: "ADD_SAMPLE"; classId: string; x: number[]; t?: number }
-  | { type: "ADD_THUMBNAIL"; classId: string; dataUrl: string }
+  | { type: "ADD_SAMPLE"; classId: string; x: number[]; t?: number; thumb?: string; note?: string }
+  | { type: "REMOVE_SAMPLE"; id: string }
   | { type: "LOAD_DATASET"; state: DatasetState }
   | { type: "RESET_DATASET" };
 
 function uid(prefix = "c") {
   return `${prefix}_${Math.random().toString(16).slice(2)}_${Date.now().toString(16)}`;
+}
+
+/** Id único para muestras (expuesto para la migración de proyectos v1). */
+export function createSampleId(): string {
+  return uid("s");
 }
 
 export function createInitialDatasetState(featureDim: number): DatasetState {
@@ -43,7 +55,7 @@ export function createInitialDatasetState(featureDim: number): DatasetState {
     classes: [{ id: firstId, name: "Clase 1" }],
     samples: [],
     activeClassId: firstId,
-    thumbnailsByClass: { [firstId]: [] },
+    thumbnailsByClass: {},
   };
 }
 
@@ -57,7 +69,6 @@ export function datasetReducer(state: DatasetState, action: DatasetAction): Data
         ...state,
         classes: [...state.classes, { id, name }],
         activeClassId: id,
-        thumbnailsByClass: { ...state.thumbnailsByClass, [id]: [] },
       };
     }
 
@@ -77,15 +88,11 @@ export function datasetReducer(state: DatasetState, action: DatasetAction): Data
         activeClassId = classes.length ? classes[0].id : null;
       }
 
-      const { [action.id]: removed, ...restThumbs } = state.thumbnailsByClass;
-      void removed;
-
       return {
         ...state,
         classes,
         samples,
         activeClassId,
-        thumbnailsByClass: restThumbs,
       };
     }
 
@@ -98,21 +105,24 @@ export function datasetReducer(state: DatasetState, action: DatasetAction): Data
         return state;
       }
       const t = action.t ?? Date.now();
+      const sample: Sample = {
+        id: createSampleId(),
+        classId: action.classId,
+        x: action.x,
+        t,
+        thumb: action.thumb,
+        note: action.note,
+      };
       return {
         ...state,
-        samples: [...state.samples, { classId: action.classId, x: action.x, t }],
+        samples: [...state.samples, sample],
       };
     }
 
-    case "ADD_THUMBNAIL": {
-      const prev = state.thumbnailsByClass[action.classId] ?? [];
-      const next = [action.dataUrl, ...prev].slice(0, MAX_THUMBNAILS_PER_CLASS);
+    case "REMOVE_SAMPLE": {
       return {
         ...state,
-        thumbnailsByClass: {
-          ...state.thumbnailsByClass,
-          [action.classId]: next,
-        },
+        samples: state.samples.filter((s) => s.id !== action.id),
       };
     }
 
@@ -128,7 +138,7 @@ export function datasetReducer(state: DatasetState, action: DatasetAction): Data
         next.activeClassId && next.classes.some((c) => c.id === next.activeClassId)
           ? next.activeClassId
           : next.classes[0]?.id ?? null;
-      return { ...next, activeClassId };
+      return { ...next, thumbnailsByClass: next.thumbnailsByClass ?? {}, activeClassId };
     }
 
     case "RESET_DATASET":

@@ -4,6 +4,7 @@
 interface SerialPort {
   open(options: { baudRate: number }): Promise<void>;
   close(): Promise<void>;
+  forget(): Promise<void>;
   readonly readable: ReadableStream<Uint8Array> | null;
   readonly writable: WritableStream<Uint8Array> | null;
 }

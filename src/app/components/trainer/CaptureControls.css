@@ -1,0 +1,62 @@
+.capture-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  background: rgba(20, 18, 42, 0.72);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-pill);
+}
+
+.capture-mode {
+  display: flex;
+  gap: var(--space-1);
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-pill);
+  padding: 3px;
+}
+
+.capture-mode-btn {
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  border-radius: 50%;
+  background: transparent;
+  font-size: 18px;
+  display: grid;
+  place-items: center;
+}
+.capture-mode-btn.is-on {
+  background: var(--color-surface);
+}
+.capture-mode-btn:hover:not(:disabled) {
+  transform: none;
+  box-shadow: none;
+}
+
+.capture-shutter {
+  width: var(--tap-big);
+  height: var(--tap-big);
+  min-height: var(--tap-big);
+  padding: 0;
+  border-radius: 50%;
+  background: #fff;
+  display: grid;
+  place-items: center;
+  border: none;
+}
+.capture-shutter:hover:not(:disabled) {
+  transform: scale(1.05);
+  box-shadow: 0 0 0 6px rgba(46, 197, 107, 0.35);
+}
+.capture-shutter:active:not(:disabled) .capture-shutter-dot {
+  transform: scale(0.85);
+}
+
+.capture-shutter-dot {
+  width: calc(var(--tap-big) - 16px);
+  height: calc(var(--tap-big) - 16px);
+  border-radius: 50%;
+  background: var(--color-success);
+  transition: transform 0.1s ease;
+}
