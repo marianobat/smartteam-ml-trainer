@@ -123,7 +123,8 @@ export default function TrainerPage() {
         </header>
         {!room && (
           <div className="trainer-select-warning">
-            No hay room disponible. Volve al lobby para crear una sesion.
+            Sin sesion de TurboWarp: podes entrenar y usar micro:bit igual. Para publicar a
+            TurboWarp, crea una sesion en el lobby.
           </div>
         )}
         <section className="trainer-select-grid">

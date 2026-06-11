@@ -183,14 +183,9 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
     lastSentAtRef.current = 0;
     seqRef.current = 0;
 
-    if (!room) {
-      setWsStatus("error");
-      setWsError("Falta room para publicar.");
-      return;
-    }
-    if (!publishToken) {
-      setWsStatus("error");
-      setWsError("Falta token para publicar.");
+    if (!room || !publishToken) {
+      // Sin sesión de TurboWarp: flujo válido (el micro:bit no la necesita)
+      setWsStatus("idle");
       return;
     }
 

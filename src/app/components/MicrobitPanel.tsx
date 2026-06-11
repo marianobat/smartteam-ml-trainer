@@ -1,13 +1,9 @@
 // src/app/components/MicrobitPanel.tsx
 //
 // Panel "Conectar micro:bit" compartido por todos los entrenadores. Recibe la
-// etiqueta estable y su confianza; aplica el umbral y publica por Web Serial.
-//
-// Dos modos:
-//  - "a pedido" (default): responde una línea solo cuando el micro:bit envía
-//    "ML?" (bloque "pedir clase ML"). No puede llenar el buffer del micro:bit.
-//  - "automático": empuja al cambiar la etiqueta + heartbeat (compatibilidad
-//    con programas viejos que solo usan "al detectar clase ML").
+// etiqueta estable y su confianza; aplica el umbral y responde por Web Serial
+// cada vez que el micro:bit pide la clase actual ("ML?"). Nunca envía nada
+// sin pedido, así el buffer del micro:bit no puede llenarse.
 
 import { useEffect, useRef, useState } from "react";
 import {
@@ -17,16 +13,11 @@ import {
   sendMicrobitLabel,
   setMicrobitRequestListener,
 } from "../../core/microbit/serialConnection";
-import {
-  DEFAULT_CONFIDENCE_THRESHOLD,
-  NONE_LABEL,
-  RESEND_INTERVAL_MS,
-} from "../../core/microbit/protocol";
+import { DEFAULT_CONFIDENCE_THRESHOLD, NONE_LABEL } from "../../core/microbit/protocol";
 
 const MAX_LOG_LINES = 6;
 
-type PanelStatus = "idle" | "connecting" | "open" | "error";
-type SendMode = "ondemand" | "auto";
+type PanelStatus = "idle" | "connecting" | "open" | "disconnecting" | "error";
 
 type MicrobitPanelProps = {
   /** Etiqueta estable actual ("" o NONE_LABEL si no hay detección). */
@@ -39,7 +30,6 @@ export default function MicrobitPanel({ label, confidence }: MicrobitPanelProps)
   const [status, setStatus] = useState<PanelStatus>("idle");
   const [error, setError] = useState<string | null>(null);
   const [threshold, setThreshold] = useState(DEFAULT_CONFIDENCE_THRESHOLD);
-  const [sendMode, setSendMode] = useState<SendMode>("ondemand");
   const [log, setLog] = useState<string[]>([]);
   const [requestCount, setRequestCount] = useState(0);
 
@@ -50,19 +40,15 @@ export default function MicrobitPanel({ label, confidence }: MicrobitPanelProps)
   labelToSendRef.current =
     label && label !== NONE_LABEL && confidence >= threshold ? label : NONE_LABEL;
 
-  const lastSentRef = useRef<string>("");
-
   const pushLog = (line: string) => {
     setLog((prev) => [line, ...prev].slice(0, MAX_LOG_LINES));
   };
 
-  const trySend = async (force: boolean) => {
+  const respondRequest = async () => {
     if (statusRef.current !== "open") return;
-    const labelToSend = labelToSendRef.current;
-    if (!force && labelToSend === lastSentRef.current) return;
     try {
-      const line = await sendMicrobitLabel(labelToSend);
-      lastSentRef.current = labelToSend;
+      const line = await sendMicrobitLabel(labelToSendRef.current);
+      setRequestCount((prev) => prev + 1);
       pushLog(line);
     } catch (err) {
       setStatus("error");
@@ -70,33 +56,15 @@ export default function MicrobitPanel({ label, confidence }: MicrobitPanelProps)
     }
   };
 
-  // Modo "a pedido": responder cada "ML?" del micro:bit
+  // Responder cada "ML?" del micro:bit
   useEffect(() => {
-    if (status !== "open" || sendMode !== "ondemand") return;
+    if (status !== "open") return;
     setMicrobitRequestListener(() => {
-      setRequestCount((prev) => prev + 1);
-      void trySend(true);
+      void respondRequest();
     });
     return () => setMicrobitRequestListener(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, sendMode]);
-
-  // Modo "automático": envío inmediato cuando cambia la etiqueta efectiva
-  useEffect(() => {
-    if (sendMode !== "auto") return;
-    void trySend(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [label, confidence, threshold, status, sendMode]);
-
-  // Modo "automático": heartbeat cada RESEND_INTERVAL_MS
-  useEffect(() => {
-    if (status !== "open" || sendMode !== "auto") return;
-    const id = window.setInterval(() => {
-      void trySend(true);
-    }, RESEND_INTERVAL_MS);
-    return () => window.clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, sendMode]);
+  }, [status]);
 
   // Desconexión limpia al desmontar
   useEffect(() => {
@@ -109,9 +77,10 @@ export default function MicrobitPanel({ label, confidence }: MicrobitPanelProps)
   const handleConnect = async () => {
     setError(null);
     setStatus("connecting");
+    setRequestCount(0);
+    setLog([]);
     try {
       await connectMicrobit();
-      lastSentRef.current = "";
       setStatus("open");
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -126,9 +95,13 @@ export default function MicrobitPanel({ label, confidence }: MicrobitPanelProps)
   };
 
   const handleDisconnect = async () => {
-    await disconnectMicrobit();
-    setStatus("idle");
-    setError(null);
+    setStatus("disconnecting");
+    try {
+      await disconnectMicrobit();
+    } finally {
+      setStatus("idle");
+      setError(null);
+    }
   };
 
   if (!supported) {
@@ -148,6 +121,8 @@ export default function MicrobitPanel({ label, confidence }: MicrobitPanelProps)
       ? "conectado"
       : status === "connecting"
       ? "conectando"
+      : status === "disconnecting"
+      ? "desconectando"
       : status === "error"
       ? "error"
       : "desconectado";
@@ -156,9 +131,13 @@ export default function MicrobitPanel({ label, confidence }: MicrobitPanelProps)
     <div style={{ borderTop: "1px solid #eee", paddingTop: 10, display: "grid", gap: 8 }}>
       <div style={{ fontSize: 12, fontWeight: 600 }}>micro:bit (Web Serial)</div>
       <div style={{ display: "flex", gap: 8 }}>
-        {status === "open" ? (
-          <button onClick={() => void handleDisconnect()} style={{ flex: 1 }}>
-            Desconectar micro:bit
+        {status === "open" || status === "disconnecting" ? (
+          <button
+            onClick={() => void handleDisconnect()}
+            disabled={status === "disconnecting"}
+            style={{ flex: 1 }}
+          >
+            {status === "disconnecting" ? "Desconectando..." : "Desconectar micro:bit"}
           </button>
         ) : (
           <button
@@ -172,47 +151,12 @@ export default function MicrobitPanel({ label, confidence }: MicrobitPanelProps)
       </div>
       <div style={{ fontSize: 12 }}>
         Estado: <b>{statusLabel}</b>
-        {status === "open" && sendMode === "ondemand" && (
+        {status === "open" && (
           <>
             {" "}
             — pedidos respondidos: <b>{requestCount}</b>
           </>
         )}
-      </div>
-      <div style={{ display: "flex", gap: 8 }}>
-        <button
-          type="button"
-          onClick={() => setSendMode("ondemand")}
-          style={{
-            flex: 1,
-            fontSize: 12,
-            borderRadius: 8,
-            border: sendMode === "ondemand" ? "2px solid #111" : "1px solid #ddd",
-            background: sendMode === "ondemand" ? "#111" : "#fff",
-            color: sendMode === "ondemand" ? "#fff" : "#111",
-          }}
-        >
-          A pedido
-        </button>
-        <button
-          type="button"
-          onClick={() => setSendMode("auto")}
-          style={{
-            flex: 1,
-            fontSize: 12,
-            borderRadius: 8,
-            border: sendMode === "auto" ? "2px solid #111" : "1px solid #ddd",
-            background: sendMode === "auto" ? "#111" : "#fff",
-            color: sendMode === "auto" ? "#fff" : "#111",
-          }}
-        >
-          Automático
-        </button>
-      </div>
-      <div style={{ fontSize: 11, opacity: 0.65 }}>
-        {sendMode === "ondemand"
-          ? 'Responde solo cuando el programa usa el bloque "pedir clase ML". Evita que se llene el buffer del micro:bit.'
-          : "Envía la clase al cambiar y cada 500 ms. Solo para programas viejos; puede colgar el micro:bit si su programa se bloquea."}
       </div>
       <label style={{ fontSize: 12, display: "grid", gap: 4 }}>
         <span>
@@ -236,13 +180,13 @@ export default function MicrobitPanel({ label, confidence }: MicrobitPanelProps)
               </div>
             ))
           ) : (
-            <div style={{ opacity: 0.55 }}>Sin mensajes todavía.</div>
+            <div style={{ opacity: 0.55 }}>Esperando pedidos del micro:bit...</div>
           )}
         </div>
       )}
       {error && <div style={{ fontSize: 12, color: "#b91c1c" }}>{error}</div>}
       <div style={{ fontSize: 11, opacity: 0.65 }}>
-        El micro:bit necesita un programa MakeCode con la extensión SmartTEAM ML. Si MakeCode está
+        Responde solo cuando el micro:bit pregunta (extensión SmartTEAM ML v0.3+). Si MakeCode está
         conectado en otra pestaña, desconectalo antes.
       </div>
     </div>

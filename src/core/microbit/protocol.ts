@@ -1,18 +1,13 @@
 // src/core/microbit/protocol.ts
 //
-// Protocolo navegador ↔ micro:bit (texto por líneas, 115200 baudios):
-//
-//   Modo "a pedido" (recomendado): el micro:bit pregunta con "ML?\n" y el
-//   navegador responde UNA línea "ML:<etiqueta>\n". Nunca llega un byte que
-//   el micro:bit no pidió → no se llena el buffer RX.
-//
-//   Modo "automático" (compatibilidad con programas viejos): el navegador
-//   empuja "ML:<etiqueta>\n" al cambiar la etiqueta y como heartbeat cada
-//   RESEND_INTERVAL_MS.
+// Protocolo navegador ↔ micro:bit (texto por líneas, 115200 baudios), siempre
+// "a pedido": el micro:bit pregunta con "ML?\n" y el navegador responde UNA
+// línea "ML:<etiqueta>\n". Nunca llega un byte que el micro:bit no pidió, así
+// que su buffer RX no puede llenarse. El ritmo lo marca la extensión MakeCode
+// (sondeo en segundo plano + bloque "pedir clase ML").
 
 export const BAUD_RATE = 115200;
 export const DEFAULT_CONFIDENCE_THRESHOLD = 0.7;
-export const RESEND_INTERVAL_MS = 500;
 
 /** Línea que envía el micro:bit para pedir la clase actual. */
 export const REQUEST_MESSAGE = "ML?";
