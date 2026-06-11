@@ -133,11 +133,15 @@ async function doDisconnect(): Promise<void> {
     try {
       await activeWriter.abort();
     } catch {
-      try {
-        activeWriter.releaseLock();
-      } catch {
-        // ya liberado
-      }
+      // el stream pudo haberse cerrado solo (p. ej. cable desenchufado)
+    }
+    // abort() NO libera el lock: sin esto, port.close() rechaza con
+    // "Cannot close a locked stream" y el SO deja el puerto tomado,
+    // bloqueando reconexiones desde MakeCode.
+    try {
+      activeWriter.releaseLock();
+    } catch {
+      // ya liberado
     }
   }
 
@@ -146,8 +150,8 @@ async function doDisconnect(): Promise<void> {
   if (activePort) {
     try {
       await activePort.close();
-    } catch {
-      // ya cerrado
+    } catch (err) {
+      console.warn("[microbit] port.close() falló; el puerto puede quedar tomado:", err);
     }
   }
 }
