@@ -275,8 +275,8 @@ export default function MicrobitPanel({ label, confidence, advanced = false }: M
       )}
       {error && <div style={{ fontSize: 12, color: "#b91c1c" }}>{error}</div>}
       <div style={{ fontSize: 11, opacity: 0.65 }}>
-        Por USB usá la extensión SmartTEAM ML; por Bluetooth, SmartTEAM ML Bluetooth (requiere
-        micro:bit V2). Si MakeCode está conectado a la placa en otra pestaña, desconectalo antes.
+        USB: extensión SmartTEAM ML / Bluetooth: extensión SmartTEAM ML Bluetooth. 
+        Si MakeCode está conectado a la placa en otra pestaña, desconectar antes.
       </div>
     </div>
   );
