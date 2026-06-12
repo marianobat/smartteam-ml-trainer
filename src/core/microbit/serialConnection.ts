@@ -4,7 +4,8 @@
 // cargado un programa MakeCode con la extensión SmartTEAM ML, que pide la
 // clase actual enviando líneas "ML?" por USB.
 
-import { BAUD_RATE, formatLabelMessage, REQUEST_MESSAGE } from "./protocol";
+import { BAUD_RATE, formatLabelMessage } from "./protocol";
+import { createLineBuffer } from "./transport";
 
 export function isWebSerialSupported(): boolean {
   return typeof navigator !== "undefined" && "serial" in navigator;
@@ -15,38 +16,18 @@ let writer: WritableStreamDefaultWriter<Uint8Array> | null = null;
 let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
 let readLoopDone: Promise<void> | null = null;
 let disconnectInFlight: Promise<void> | null = null;
-let requestListener: (() => void) | null = null;
 const encoder = new TextEncoder();
 
-/**
- * Registra el callback que se dispara cada vez que el micro:bit envía "ML?".
- * Pasar null para dejar de escuchar.
- */
-export function setMicrobitRequestListener(listener: (() => void) | null): void {
-  requestListener = listener;
-}
-
-// Lee las líneas que manda el micro:bit. Solo reaccionamos a REQUEST_MESSAGE;
-// cualquier otra salida serial del programa del chico se ignora.
+// Lee las líneas que manda el micro:bit y las despacha al parser compartido
+// (transport.ts). Cualquier salida serial ajena al protocolo se ignora.
 async function readLoop(activeReader: ReadableStreamDefaultReader<Uint8Array>): Promise<void> {
   const decoder = new TextDecoder();
-  let buffer = "";
+  const lineBuffer = createLineBuffer();
   try {
     for (;;) {
       const { value, done } = await activeReader.read();
       if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      let newlineIdx = buffer.indexOf("\n");
-      while (newlineIdx >= 0) {
-        const line = buffer.slice(0, newlineIdx).trim();
-        buffer = buffer.slice(newlineIdx + 1);
-        if (line === REQUEST_MESSAGE) {
-          requestListener?.();
-        }
-        newlineIdx = buffer.indexOf("\n");
-      }
-      // si el programa del chico imprime sin saltos de línea, no acumular sin límite
-      if (buffer.length > 256) buffer = buffer.slice(-256);
+      lineBuffer.push(decoder.decode(value, { stream: true }));
     }
   } catch {
     // puerto cerrado o cable desenchufado: el loop termina solo

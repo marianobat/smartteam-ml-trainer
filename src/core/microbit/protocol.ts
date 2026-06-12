@@ -12,6 +12,17 @@ export const DEFAULT_CONFIDENCE_THRESHOLD = 0.7;
 /** Línea que envía el micro:bit para pedir la clase actual. */
 export const REQUEST_MESSAGE = "ML?";
 
+/**
+ * Prefijo del mensaje de alias (solo Bluetooth): el programa MakeCode puede
+ * "nombrar la placa" y envía "ML@<alias>\n" al conectar.
+ */
+export const ALIAS_PREFIX = "ML@";
+
+/** El alias viaja en una línea: sin saltos, ":" ni "@", máximo 24 chars. */
+export function sanitizeAlias(alias: string): string {
+  return alias.replace(/[\r\n:@]+/g, " ").trim().slice(0, 24);
+}
+
 /** Etiqueta que indica "no hay detección" (sin sujeto o confianza baja). */
 export const NONE_LABEL = "none";
 
