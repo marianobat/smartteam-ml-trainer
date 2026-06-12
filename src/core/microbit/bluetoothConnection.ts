@@ -12,9 +12,9 @@ import { createLineBuffer, notifyDrop } from "./transport";
 
 const NUS_SERVICE = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
 /** Escritura: navegador → micro:bit. */
-const NUS_RX = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
+const NUS_RX = "6e400003-b5a3-f393-e0a9-e50e24dcca9e";
 /** Notificaciones: micro:bit → navegador. */
-const NUS_TX = "6e400003-b5a3-f393-e0a9-e50e24dcca9e";
+const NUS_TX = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
 
 // BLE escribe de a paquetes chicos (MTU típico 23 → 20 bytes útiles)
 const CHUNK_SIZE = 20;
@@ -93,8 +93,6 @@ export async function connectMicrobitBle(): Promise<string> {
         lineBuffer.push(decoder.decode(value));
       }
     });
-    // Si el .hex fue compilado con emparejamiento requerido, la placa rechaza
-    // esta suscripción y Chrome lo reporta como "GATT Error: Not supported".
     await txChar.startNotifications();
   } catch (err) {
     rxChar = null;
@@ -104,7 +102,7 @@ export async function connectMicrobitBle(): Promise<string> {
       // ya desconectado
     }
     const message = err instanceof Error ? err.message : String(err);
-    if (/not supported|authentication|insufficient|security/i.test(message)) {
+    if (/authentication|insufficient|security/i.test(message)) {
       throw new Error(
         'La placa está exigiendo emparejamiento. En MakeCode: Configuración del proyecto → activá "No Pairing Required", volvé a descargar y regrabar el programa. Si la placa figura emparejada en el Bluetooth del sistema, eliminala de ahí también.'
       );
