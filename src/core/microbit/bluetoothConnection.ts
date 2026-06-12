@@ -81,18 +81,36 @@ export async function connectMicrobitBle(): Promise<string> {
     );
   }
 
-  const txChar = await service.getCharacteristic(NUS_TX);
-  rxChar = await service.getCharacteristic(NUS_RX);
+  try {
+    const txChar = await service.getCharacteristic(NUS_TX);
+    rxChar = await service.getCharacteristic(NUS_RX);
 
-  const decoder = new TextDecoder();
-  const lineBuffer = createLineBuffer();
-  txChar.addEventListener("characteristicvaluechanged", (event) => {
-    const value = (event.target as BluetoothRemoteGATTCharacteristic).value;
-    if (value) {
-      lineBuffer.push(decoder.decode(value));
+    const decoder = new TextDecoder();
+    const lineBuffer = createLineBuffer();
+    txChar.addEventListener("characteristicvaluechanged", (event) => {
+      const value = (event.target as BluetoothRemoteGATTCharacteristic).value;
+      if (value) {
+        lineBuffer.push(decoder.decode(value));
+      }
+    });
+    // Si el .hex fue compilado con emparejamiento requerido, la placa rechaza
+    // esta suscripción y Chrome lo reporta como "GATT Error: Not supported".
+    await txChar.startNotifications();
+  } catch (err) {
+    rxChar = null;
+    try {
+      gatt.disconnect();
+    } catch {
+      // ya desconectado
     }
-  });
-  await txChar.startNotifications();
+    const message = err instanceof Error ? err.message : String(err);
+    if (/not supported|authentication|insufficient|security/i.test(message)) {
+      throw new Error(
+        'La placa está exigiendo emparejamiento. En MakeCode: Configuración del proyecto → activá "No Pairing Required", volvé a descargar y regrabar el programa. Si la placa figura emparejada en el Bluetooth del sistema, eliminala de ahí también.'
+      );
+    }
+    throw err;
+  }
 
   selected.addEventListener("gattserverdisconnected", handleUnexpectedDisconnect);
 
