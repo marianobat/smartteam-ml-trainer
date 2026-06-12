@@ -4,8 +4,9 @@
 // Queda always-on-top sobre MakeCode y muestra: la cámara, la clase detectada
 // con su confianza, y el estado de conexión del micro:bit. Comparte el
 // contexto JS de la pestaña, así que lee los refs del Trainer en vivo —
-// el modelo, la cámara y la conexión serial siguen viviendo en la página.
+// el modelo, la cámara y la conexión USB/BLE siguen viviendo en la página.
 
+import { isMicrobitBleConnected } from "../../core/microbit/bluetoothConnection";
 import { isMicrobitConnected } from "../../core/microbit/serialConnection";
 
 export function isPipSupported(): boolean {
@@ -98,8 +99,13 @@ export async function openPipMonitor(opts: PipMonitorOptions): Promise<() => voi
     barFill.style.width = `${Math.round(Math.max(0, Math.min(1, confidence)) * 100)}%`;
     barFill.style.background = accepted ? "#22c55e" : "#666";
 
-    const connected = isMicrobitConnected();
-    microbitEl.textContent = connected ? "● micro:bit conectado" : "○ micro:bit desconectado";
+    const viaUsb = isMicrobitConnected();
+    const viaBle = isMicrobitBleConnected();
+    const connected = viaUsb || viaBle;
+    const transport = viaUsb ? "USB" : viaBle ? "Bluetooth" : "";
+    microbitEl.textContent = connected
+      ? `● micro:bit conectado (${transport})`
+      : "○ micro:bit desconectado";
     microbitEl.style.color = connected ? "#22c55e" : "#888";
 
     raf = pip.requestAnimationFrame(tick);
