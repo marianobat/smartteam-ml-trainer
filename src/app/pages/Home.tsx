@@ -1,4 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
+import {
+  Hand,
+  Smile,
+  PersonStanding,
+  Image as ImageIcon,
+  Pencil,
+  Mic,
+  Sparkles,
+  Satellite,
+  Check,
+} from "lucide-react";
 import { API_BASE, EXT_URL, TEMPLATE_SB3, TW_EDITOR } from "../../core/bridge/config";
 import { TURBOWARP_ENABLED } from "../../core/bridge/features";
 import { getRoom, getToken, setRoom as setSessionRoom, setToken } from "../../core/bridge/session";
@@ -69,7 +80,7 @@ export default function Home() {
     } catch (err) {
       console.error(err);
       setStatus("error");
-      setError("No se pudo crear la sesión. Probá de nuevo.");
+      setError("No se pudo crear la sesión. Prueba de nuevo.");
     } finally {
       setIsCreating(false);
     }
@@ -79,7 +90,7 @@ export default function Home() {
     if (!room) return;
     try {
       await navigator.clipboard.writeText(room);
-      setCopyNotice("Copiado ✅");
+      setCopyNotice("¡Copiado!");
     } catch (err) {
       console.error(err);
       setCopyNotice("No se pudo copiar.");
@@ -92,7 +103,7 @@ export default function Home() {
         <div className="home-kicker">SmartTEAM</div>
         <h1 className="home-title">SmartTEAM IA</h1>
         <p className="home-subtitle">
-          Enseñale a la computadora con tus manos, tu cuerpo, tu voz o tus dibujos — y conectá lo
+          Enséñale a la computadora con tus manos, tu cuerpo, tu voz o tus dibujos — y conecta lo
           que aprende a un micro:bit
           {TURBOWARP_ENABLED ? " o a TurboWarp" : ""}.
         </p>
@@ -101,26 +112,31 @@ export default function Home() {
       <main className="home-cards">
         <article className="home-card home-card--trainer">
           <div className="home-card-icon" aria-hidden="true">
-            ✋ 😀 🧍 🖼️ ✏️ 🎤
+            <Hand size={26} />
+            <Smile size={26} />
+            <PersonStanding size={26} />
+            <ImageIcon size={26} />
+            <Pencil size={26} />
+            <Mic size={26} />
           </div>
           <h2 className="home-card-title">Entrenador</h2>
           <p className="home-card-copy">
-            Elegí una modalidad, enseñale con ejemplos, entrená tu modelo y probalo en vivo.
+            Elige una modalidad, enséñale con ejemplos, entrena tu modelo y pruébalo en vivo.
           </p>
           <button type="button" className="home-card-cta" onClick={handleOpenTrainer}>
-            ✨ Abrir entrenador
+            <Sparkles size={18} aria-hidden="true" /> Abrir entrenador
           </button>
         </article>
 
         {TURBOWARP_ENABLED && (
         <article className="home-card home-card--program">
           <div className="home-card-icon" aria-hidden="true">
-            🛰️
+            <Satellite size={26} />
           </div>
           <h2 className="home-card-title">TurboWarp</h2>
           <p className="home-card-copy">
-            Para programar en Scratch con lo que detecta tu modelo, primero creá una sesión y
-            compartí el room.
+            Para programar en Scratch con lo que detecta tu modelo, primero crea una sesión y
+            comparte el room.
           </p>
 
           <div className="home-session">
@@ -129,7 +145,15 @@ export default function Home() {
                 {isCreating ? "Creando..." : "Crear sesión"}
               </button>
               <span className="home-session-status">
-                {status === "ready" ? "✓ lista" : status === "error" ? "error" : "sin sesión"}
+                {status === "ready" ? (
+                  <>
+                    <Check size={14} aria-hidden="true" /> lista
+                  </>
+                ) : status === "error" ? (
+                  "error"
+                ) : (
+                  "sin sesión"
+                )}
               </span>
             </div>
             <div className="home-room">

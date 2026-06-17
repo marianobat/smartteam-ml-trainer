@@ -3,6 +3,7 @@
 // Indicador de pasos ① Enseñale ejemplos → ② Entrená → ③ Probalo.
 // Presentacional: el estado de cada paso lo deriva el entrenador.
 
+import { Check } from "lucide-react";
 import "./StepsBar.css";
 
 export type Step = {
@@ -25,7 +26,7 @@ export default function StepsBar({ steps }: StepsBarProps) {
           aria-current={step.active ? "step" : undefined}
         >
           <span className="steps-bar-dot" aria-hidden="true">
-            {step.done ? "✓" : idx + 1}
+            {step.done ? <Check size={16} aria-hidden="true" /> : idx + 1}
           </span>
           <span className="steps-bar-label">{step.label}</span>
           {idx < steps.length - 1 && <span className="steps-bar-line" aria-hidden="true" />}

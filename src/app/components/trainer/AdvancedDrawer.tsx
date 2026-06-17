@@ -4,6 +4,7 @@
 // El contenido solo se monta cuando está abierto (recharts es caro).
 
 import type { ReactNode } from "react";
+import { Settings, ChevronDown, ChevronUp } from "lucide-react";
 import { COPY } from "../../copy";
 import "./AdvancedDrawer.css";
 
@@ -23,7 +24,13 @@ export default function AdvancedDrawer({ open, onToggle, children }: AdvancedDra
         aria-expanded={open}
         onClick={onToggle}
       >
-        ⚙️ {COPY.advanced} {open ? "▲" : "▼"}
+        <Settings size={15} aria-hidden="true" />
+        {COPY.advanced}
+        {open ? (
+          <ChevronUp size={15} aria-hidden="true" />
+        ) : (
+          <ChevronDown size={15} aria-hidden="true" />
+        )}
       </button>
       {open && <div className="advanced-drawer-content">{children}</div>}
     </section>

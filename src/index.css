@@ -23,8 +23,8 @@ body {
   min-width: 320px;
   min-height: 100vh;
   color: var(--color-ink);
-  background: radial-gradient(circle at 15% 8%, rgba(124, 77, 255, 0.1) 0%, rgba(124, 77, 255, 0) 45%),
-    radial-gradient(circle at 85% 15%, rgba(0, 188, 217, 0.1) 0%, rgba(0, 188, 217, 0) 50%),
+  background: radial-gradient(circle at 15% 8%, rgba(121, 110, 176, 0.12) 0%, rgba(121, 110, 176, 0) 45%),
+    radial-gradient(circle at 85% 15%, rgba(53, 191, 233, 0.1) 0%, rgba(53, 191, 233, 0) 50%),
     var(--color-bg);
 }
 
@@ -46,7 +46,7 @@ a {
   text-decoration: none;
 }
 a:hover {
-  color: #5c33d4;
+  color: var(--color-primary-strong);
 }
 
 button {
@@ -92,6 +92,15 @@ textarea {
   outline: 3px solid var(--color-primary);
   outline-offset: 2px;
   border-radius: var(--radius-sm);
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

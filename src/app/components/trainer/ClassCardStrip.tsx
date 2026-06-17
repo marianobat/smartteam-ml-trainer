@@ -3,6 +3,7 @@
 // Fila horizontal de tarjetas de clase (estilo LEGO): miniatura + nombre +
 // progreso de ejemplos, más la tarjeta "Agregar". Presentacional.
 
+import { Check, Plus } from "lucide-react";
 import { COPY } from "../../copy";
 import "./ClassCardStrip.css";
 
@@ -11,6 +12,8 @@ export type ClassCardItem = {
   name: string;
   count: number;
   thumb?: string;
+  /** Ícono propio de la clase (p. ej. preset); pisa al placeholder genérico. */
+  icon?: string;
 };
 
 type ClassCardStripProps = {
@@ -48,6 +51,8 @@ export default function ClassCardStrip({
             <span className="class-strip-thumb" aria-hidden="true">
               {item.thumb ? (
                 <img src={item.thumb} alt="" />
+              ) : item.icon ? (
+                <span className="class-strip-icon">{item.icon}</span>
               ) : (
                 <span className="class-strip-placeholder">{placeholderIcon}</span>
               )}
@@ -57,7 +62,13 @@ export default function ClassCardStrip({
               className={`class-strip-progress ${complete ? "is-complete" : ""}`}
               aria-label={`${item.count} de ${min} ejemplos`}
             >
-              {complete ? `✓ ${COPY.examplesCount(item.count)}` : `${item.count}/${min}`}
+              {complete ? (
+                <>
+                  <Check size={13} aria-hidden="true" /> {COPY.examplesCount(item.count)}
+                </>
+              ) : (
+                `${item.count}/${min}`
+              )}
             </span>
           </button>
         );
@@ -70,7 +81,9 @@ export default function ClassCardStrip({
         disabled={addDisabled}
       >
         <span className="class-strip-thumb" aria-hidden="true">
-          <span className="class-strip-placeholder">➕</span>
+          <span className="class-strip-placeholder">
+            <Plus size={28} aria-hidden="true" />
+          </span>
         </span>
         <span className="class-strip-name">{COPY.addClass}</span>
       </button>

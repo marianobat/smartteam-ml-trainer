@@ -2,6 +2,7 @@
 //
 // Botón grande de entrenar con barra de progreso y mensajes para chicos.
 
+import { Sparkles, CheckCircle2 } from "lucide-react";
 import { COPY } from "../../copy";
 import "./TrainPanel.css";
 
@@ -34,7 +35,14 @@ export default function TrainPanel({
         disabled={!canTrain || isTraining}
         onClick={onTrain}
       >
-        {isTraining ? COPY.training : COPY.train}
+        {isTraining ? (
+          COPY.training
+        ) : (
+          <>
+            <Sparkles size={18} aria-hidden="true" />
+            {COPY.train}
+          </>
+        )}
       </button>
       {isTraining && (
         <div className="train-panel-progress" role="progressbar" aria-label="Entrenando">
@@ -44,7 +52,12 @@ export default function TrainPanel({
           />
         </div>
       )}
-      {!isTraining && trainComplete && <div className="train-panel-done">{COPY.trained}</div>}
+      {!isTraining && trainComplete && (
+        <div className="train-panel-done">
+          <CheckCircle2 size={16} aria-hidden="true" />
+          {COPY.trained}
+        </div>
+      )}
       {!isTraining && !trainComplete && hint && <div className="train-panel-hint">{hint}</div>}
       {error && <div className="train-panel-error">{error}</div>}
     </div>

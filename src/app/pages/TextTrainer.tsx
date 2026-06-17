@@ -7,6 +7,7 @@
 
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import * as tf from "@tensorflow/tfjs";
+import { Save, Loader2, Satellite, Pencil, Trash2 } from "lucide-react";
 import {
   ResponsiveContainer,
   LineChart,
@@ -480,7 +481,7 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
         }
 
         const knn = createKnnModel(classNames, samplesArr, labelsArr, {
-          k: 3,
+          k: 5,
           featureDim: TEXT_FEATURE_DIM,
         });
         const curve = computeKnnLearningCurve(samplesArr, labelsArr, classNames.length, { k: knn.k });
@@ -537,10 +538,10 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
         setTrainComplete(true);
         const sampleCount = prepared.xs.shape[0];
         if (sampleCount < 30) {
-          setTrainNotice("Hay pocas muestras para validar. Sumá más ejemplos para mejorar el modelo.");
+          setTrainNotice("Hay pocas muestras para validar. Suma más ejemplos para mejorar el modelo.");
         } else if (result.meta.stoppedEarly) {
           setTrainNotice(
-            "Entrenamiento detenido por falta de mejora en validación. Sumá más muestras o balanceá clases."
+            "Entrenamiento detenido por falta de mejora en validación. Suma más muestras o balancea las clases."
           );
         }
         serializedModelRef.current = await serializeMlModel(result.model, prepared.classNames);
@@ -619,7 +620,12 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
   const chips: StatusChip[] = [
     {
       id: "save",
-      icon: saveStatus === "saving" ? "⏳" : "💾",
+      icon:
+        saveStatus === "saving" ? (
+          <Loader2 size={14} className="spin" aria-hidden="true" />
+        ) : (
+          <Save size={14} aria-hidden="true" />
+        ),
       label: saveStatus === "saving" ? COPY.chipSaving : COPY.chipSaved,
       tone: saveStatus === "saved" ? "ok" : saveStatus === "error" ? "warn" : "off",
     },
@@ -627,7 +633,7 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
       ? [
           {
             id: "tw",
-            icon: "🛰️",
+            icon: <Satellite size={14} aria-hidden="true" />,
             label: COPY.chipTurboWarp,
             tone:
               wsStatus === "open" ? ("ok" as const) : wsStatus === "error" ? ("warn" as const) : ("off" as const),
@@ -671,7 +677,8 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
 
             <div className="text-stage-block">
               <h3 className="text-stage-title">
-                ✏️ Enseñale con frases {activeClass ? `a "${activeClass.name}"` : ""}
+                <Pencil size={18} aria-hidden="true" /> Enséñale con frases{" "}
+                {activeClass ? `a "${activeClass.name}"` : ""}
               </h3>
               <textarea
                 value={inputText}
@@ -743,7 +750,7 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
                   disabled={dataset.classes.length <= 1}
                   onClick={() => dispatch({ type: "DELETE_CLASS", id: activeClass.id })}
                 >
-                  🗑
+                  <Trash2 size={16} aria-hidden="true" />
                 </button>
               </div>
               <SampleGrid
@@ -824,7 +831,7 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
                   type="monotone"
                   dataKey="acc"
                   name="Precisión entrenamiento"
-                  stroke="#7C4DFF"
+                  stroke="#796eb0"
                   dot={false}
                   isAnimationActive={false}
                 />
@@ -833,7 +840,7 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
                     type="monotone"
                     dataKey="valAcc"
                     name="Precisión validación"
-                    stroke="#00BCD9"
+                    stroke="#35bfe9"
                     dot={false}
                     isAnimationActive={false}
                   />

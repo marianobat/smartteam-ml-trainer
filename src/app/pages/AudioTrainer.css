@@ -24,6 +24,9 @@
 }
 
 .audio-stage-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   margin: 0;
   font-size: 1.1rem;
 }
@@ -35,8 +38,14 @@
 }
 
 .audio-record {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   justify-self: start;
   font-family: var(--font-display);
   font-size: 1.05rem;
-  background: var(--color-success);
+  background: var(--color-primary);
+}
+.audio-record:hover:not(:disabled) {
+  background: var(--color-primary-strong);
 }

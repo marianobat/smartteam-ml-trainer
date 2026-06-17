@@ -17,6 +17,11 @@
   color: var(--color-ink-soft);
 }
 
+.status-chip-icon {
+  display: inline-flex;
+  align-items: center;
+}
+
 .status-chip.tone-ok {
   background: var(--color-success-soft);
   border-color: var(--color-success);
