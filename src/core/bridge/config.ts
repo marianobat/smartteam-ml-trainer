@@ -6,8 +6,6 @@ const DEFAULT_TEMPLATE_SB3 = "";
 // URL del fork propio de MakeCode (flujo micro:bit). Vacío hasta deployarlo:
 // fijala con VITE_MAKECODE_FORK_URL o pasala por query ?mk=<url>.
 const DEFAULT_MAKECODE_FORK_URL = "";
-// Dependencia de la extensión BLE para el pxt.json del proyecto inyectado.
-const DEFAULT_MAKECODE_BLE_DEP = "github:smartteamok/smartteam-ml-bluetooth";
 
 const getEnv = (key: string, fallback: string) => {
   const value = import.meta.env[key] as string | undefined;
@@ -22,4 +20,3 @@ export const TW_EDITOR = trimTrailingSlash(getEnv("VITE_TW_EDITOR", DEFAULT_TW_E
 export const EXT_URL = getEnv("VITE_EXT_URL", DEFAULT_EXT_URL);
 export const TEMPLATE_SB3 = getEnv("VITE_TEMPLATE_SB3", DEFAULT_TEMPLATE_SB3);
 export const MAKECODE_FORK_URL = getEnv("VITE_MAKECODE_FORK_URL", DEFAULT_MAKECODE_FORK_URL);
-export const MAKECODE_BLE_DEP = getEnv("VITE_MAKECODE_BLE_DEP", DEFAULT_MAKECODE_BLE_DEP);

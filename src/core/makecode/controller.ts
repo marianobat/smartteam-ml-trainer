@@ -22,6 +22,11 @@ const nextId = () => `st-${Date.now()}-${messageSeq++}`;
 /**
  * Devuelve la URL del iframe en modo controller (agrega controller=1 sin pisar
  * query existente) y el origin para validar/postear mensajes.
+ *
+ * `ws=browser` fuerza el workspace de IndexedDB dentro del iframe. Sin esto, el
+ * editor en modo controller usa el "iframe workspace", que hace un handshake de
+ * storage contra el padre (workspacesync/save) y se queda colgado en el splash
+ * si el padre no responde ese protocolo (nosotros sólo inyectamos importproject).
  */
 export function resolveControllerUrl(baseUrl: string): { src: string; origin: string } | null {
   const trimmed = baseUrl.trim();
@@ -29,6 +34,7 @@ export function resolveControllerUrl(baseUrl: string): { src: string; origin: st
   try {
     const url = new URL(trimmed, window.location.href);
     url.searchParams.set("controller", "1");
+    url.searchParams.set("ws", "browser");
     return { src: url.toString(), origin: url.origin };
   } catch {
     return null;

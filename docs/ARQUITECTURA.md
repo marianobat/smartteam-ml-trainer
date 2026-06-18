@@ -43,7 +43,7 @@ en la UI (la alegría viene del color y la ilustración; los íconos son Lucide)
 
 ```
 src/
-├─ App.tsx                 Enrutado: "/", "/trainer", "/program" (+ flag TurboWarp)
+├─ App.tsx                 Enrutado: "/", "/trainer", "/program", "/microbit", "/lab"
 ├─ main.tsx, index.css, theme.css
 ├─ app/                    Capa de UI (React)
 │  ├─ pages/
@@ -52,6 +52,8 @@ src/
 │  │  ├─ Trainer.tsx       Entrenador genérico de VIDEO (manos/cara/pose/imágenes)
 │  │  ├─ TextTrainer.tsx   Entrenador de texto (embeddings MiniLM)
 │  │  ├─ AudioTrainer.tsx  Entrenador de sonidos (speech-commands)
+│  │  ├─ MicrobitPage.tsx  Flujo "Programar micro:bit" (/microbit): eval en vivo + MakeCode embebido
+│  │  ├─ LabPage.tsx       Página de prueba aislada (/lab) del embed de MakeCode
 │  │  └─ Program.tsx       Redirección a TurboWarp
 │  ├─ components/
 │  │  ├─ trainer/          Presentacionales reusables (props planas, sin lógica ML)
@@ -75,6 +77,7 @@ src/
    ├─ export/              projectZip.ts (export/import ZIP)
    ├─ presets/             presets.ts (proyectos de fábrica pose/manos)
    ├─ microbit/            protocol, transport, serialConnection, bluetoothConnection
+   ├─ makecode/            codegen, project, controller, extensions/ (integración MakeCode)
    └─ bridge/              features (flag), config, session, gestureWs (TurboWarp)
 ```
 
@@ -233,7 +236,42 @@ estado, y umbral + log en avanzado).
 
 ---
 
-## 10. Ventana flotante de monitoreo (Document PiP)
+## 10. Programar el micro:bit con MakeCode (`/microbit`)
+
+Flujo "Programar micro:bit": el trainer es el **shell** y embebe un editor
+MakeCode propio para que el chico programe la placa con sus clases entrenadas.
+Detalle completo y de mantenimiento en **`INTEGRATION.md`** (raíz del repo).
+
+Recorrido: en el entrenador, con un modelo listo, el botón **"Programar
+micro:bit"** lleva a `/microbit?model=<modalidad>`. Esa página muestra a la
+izquierda la **evaluación en vivo** (cámara + barras + conexión BLE, reusando
+`useLiveEvaluation`/`useMicrobit`) y a la derecha un **iframe del editor**.
+
+Piezas (`core/makecode/`, sin React):
+- `codegen.ts` — genera el `main.blocks` (XML de Blockly) y el `main.ts`
+  equivalente con un bloque "al detectar clase ML <nombre>" por cada clase real
+  más "cuando no se detecta ninguna".
+- `project.ts` — arma el `project.text` (`pxt.json` con `bluetooth` + yotta,
+  `main.blocks`, `main.ts` y la **extensión BLE inline** `smartteamMLBT.ts`).
+- `extensions/smartteam-ml-bluetooth.ts.txt` — copia de la extensión BLE,
+  importada `?raw` (viaja dentro del proyecto, no como dependencia de GitHub:
+  un build estático no tiene proxy `/api/gh`).
+- `controller.ts` — resuelve la URL del iframe (`?controller=1&ws=browser`),
+  espera `editorcontentloaded` y postea `importproject` validando el `origin`.
+
+Decisiones clave (ver `INTEGRATION.md` para el porqué):
+- `?controller=1&ws=browser`: controller habilita los mensajes del padre;
+  `ws=browser` evita el "iframe workspace" que colgaba el editor en el splash.
+- Los bloques se mandan como **XML** (`main.blocks`): en modo controller el
+  editor NO decompila TS→bloques al importar.
+- El editor casi no necesita fork: ver "fork vs. vanilla" en `INTEGRATION.md`.
+
+Config: `VITE_MAKECODE_FORK_URL` (URL del editor) en `core/bridge/config.ts`;
+también pisable por query `?mk=<url>`.
+
+---
+
+## 11. Ventana flotante de monitoreo (Document PiP)
 
 `app/components/pipMonitor.ts` — Document Picture-in-Picture (Chrome 116+). Queda
 always-on-top sobre MakeCode/Scratch y **replica el lenguaje visual de las páginas
@@ -257,7 +295,7 @@ control de "Escuchar").
 
 ---
 
-## 11. TurboWarp (opcional, detrás de flag)
+## 12. TurboWarp (opcional, detrás de flag)
 
 Integración opcional para publicar la clase detectada a un proyecto Scratch en
 TurboWarp vía un bridge WebSocket (Cloudflare Worker). **Desactivada por defecto**
@@ -270,19 +308,21 @@ Archivos: `bridge/features.ts` (flag `TURBOWARP_ENABLED`), `bridge/config.ts` (U
 
 ---
 
-## 12. Enrutamiento y configuración
+## 13. Enrutamiento y configuración
 
 `App.tsx` resuelve la ruta desde `window.location.pathname` (respeta `BASE_URL`):
-`/trainer` → selector de modalidades, `/program` → redirección a TurboWarp, `/` →
-lobby (o directamente el selector si TurboWarp está desactivado).
+`/trainer` → selector de modalidades, `/microbit` → programar la placa con
+MakeCode (§10), `/lab` → prueba aislada del embed, `/program` → redirección a
+TurboWarp, `/` → lobby (o directamente el selector si TurboWarp está desactivado).
 
 Variables Vite (todas con default en `core/bridge/config.ts`):
 `VITE_ENABLE_TURBOWARP`, `VITE_API_BASE`, `VITE_WS_BASE`, `VITE_TW_EDITOR`,
-`VITE_EXT_URL`, `VITE_TEMPLATE_SB3`, `VITE_BASE_PATH` (solo GitHub Pages).
+`VITE_EXT_URL`, `VITE_TEMPLATE_SB3`, `VITE_MAKECODE_FORK_URL` (editor MakeCode),
+`VITE_BASE_PATH` (solo GitHub Pages).
 
 ---
 
-## 13. Desarrollo, build y deploy
+## 14. Desarrollo, build y deploy
 
 ```bash
 npm install
@@ -301,7 +341,7 @@ prueban manualmente.
 
 ---
 
-## 14. Roadmap / pendientes
+## 15. Roadmap / pendientes
 
 - Robustecer inicialización cámara/overlay en el primer ingreso (StrictMode/dev).
 - Afinado de detección "coarse" para gestos simples (variabilidad de muestras,
@@ -312,8 +352,10 @@ prueban manualmente.
 
 ---
 
-## 15. Documentos relacionados
+## 16. Documentos relacionados
 
+- `INTEGRATION.md` (raíz) — vigente: detalle y mantenimiento del flujo MakeCode
+  `/microbit` (contrato controller, extensión inline, fork vs. vanilla, deploy).
 - `docs/TURBOWARP.md` — vigente: detalle de la integración TurboWarp.
 - `docs/PLAN_UX.md` — histórico: plan del rediseño (ejecutado); útil como decisiones.
 - `docs/AVANCES_Y_PROXIMOS_PASOS.md` — histórico: notas del MVP inicial.
