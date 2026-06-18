@@ -1,17 +1,16 @@
 // src/core/makecode/project.ts
 //
 // Arma el proyecto MakeCode que el shell le inyecta al fork vía el mensaje
-// `importproject` (ver core/makecode/controller.ts). El proyecto trae la
-// extensión BLE inline (como archivo del proyecto, no como dependencia de
-// GitHub) y un main.ts generado con las clases reales, que el editor decompila
-// a bloques al abrir.
+// `importproject` (ver core/makecode/controller.ts). El canvas arranca vacío
+// (sin bloques pre-armados) pero con la extensión BLE inline en el toolbox y un
+// archivo `clases.ts` generado que expone las clases entrenadas como desplegable.
 //
 // Inline en vez de `github:...`: el editor está deployado como build estático
 // (pxt staticpkg) sin backend, así que el proxy /api/gh devuelve 404 y una
 // dependencia de GitHub nunca resolvería. Embebiendo la fuente en el proyecto
 // evitamos toda dependencia de red y mantenemos el fork mínimo.
 
-import { generateBlocksCode, generateBlocksXml, type BlocksTransport } from "./codegen";
+import { generateClassesFile, type BlocksTransport } from "./codegen";
 import bleExtensionSource from "./extensions/smartteam-ml-bluetooth.ts.txt?raw";
 
 /** Mapa nombre-de-archivo → contenido (formato pxt.workspace.Project.text). */
@@ -24,29 +23,28 @@ export interface MakeCodeProject {
 export interface BuildProjectOptions {
   name?: string;
   transport?: BlocksTransport;
-  classes: string[];
-  includeNone?: boolean;
+  /** Clases del modelo entrenado → se exponen como desplegable en `clases.ts`. */
+  classes?: string[];
 }
 
 /** Archivo del proyecto con la fuente inline de la extensión BLE. */
 const BLE_EXTENSION_FILE = "smartteamMLBT.ts";
+/** Archivo generado con el enum de clases (desplegable) y sus bloques. */
+const CLASSES_FILE = "clases.ts";
+
+const EMPTY_BLOCKS = '<xml xmlns="https://developers.google.com/blockly/xml"></xml>';
 
 /**
- * Construye el `project.text` para `importproject`. Generamos main.blocks (XML
- * de Blockly) con los bloques ya armados y main.ts equivalente: el editor en
- * modo controller NO decompila TS→bloques al importar, así que el XML es lo que
- * realmente se ve en el lienzo. La extensión BLE viaja inline como un archivo
- * más del proyecto, con `bluetooth` (paquete built-in) como dependencia y el
- * yotta config que habilita BLE.
+ * Construye el `project.text` para `importproject`. El canvas arranca vacío (sin
+ * bloques pre-armados); trae la extensión BLE inline más `clases.ts`, que define
+ * el enum con las clases entrenadas y los bloques de desplegable. La extensión
+ * viaja como un archivo más del proyecto, con `bluetooth` (paquete built-in)
+ * como dependencia y el yotta config que habilita BLE.
  */
-export function buildMakeCodeProject(options: BuildProjectOptions): MakeCodeProject {
-  const transport = options.transport ?? "bluetooth";
-  const includeNone = options.includeNone ?? true;
+export function buildMakeCodeProject(options: BuildProjectOptions = {}): MakeCodeProject {
   const name = options.name ?? "SmartTEAM ML";
-
-  const meta = { transport, classes: options.classes, includeNone };
-  const mainTs = generateBlocksCode(meta);
-  const mainBlocks = generateBlocksXml(meta);
+  const transport = options.transport ?? "bluetooth";
+  const classesSource = generateClassesFile({ transport, classes: options.classes ?? [] });
 
   const config = {
     name,
@@ -63,16 +61,17 @@ export function buildMakeCodeProject(options: BuildProjectOptions): MakeCodeProj
         },
       },
     },
-    files: ["main.blocks", "main.ts", BLE_EXTENSION_FILE],
+    files: ["main.blocks", "main.ts", BLE_EXTENSION_FILE, CLASSES_FILE],
     preferredEditor: "blocksprj",
   };
 
   return {
     text: {
       "pxt.json": JSON.stringify(config, null, 4),
-      "main.blocks": mainBlocks,
-      "main.ts": mainTs,
+      "main.blocks": EMPTY_BLOCKS,
+      "main.ts": "",
       [BLE_EXTENSION_FILE]: bleExtensionSource,
+      [CLASSES_FILE]: classesSource,
     },
   };
 }

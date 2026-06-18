@@ -1,10 +1,12 @@
 // src/core/makecode/codegen.ts
 //
-// Genera el TypeScript que se inyecta en el proyecto del chico vía
-// importproject (postMessage al fork de MakeCode). El editor lo decompila a
-// bloques, así que el resultado son bloques "al detectar clase ML <nombre>" YA
-// armados con los nombres reales de las clases entrenadas (en vez de un
-// dropdown dinámico forkeado).
+// Genera el archivo `clases.ts` que se inyecta en el proyecto del chico vía
+// importproject (postMessage al fork de MakeCode). Define un `enum ClaseML` con
+// las clases reales del modelo entrenado (dropdown nativo de MakeCode) y unos
+// bloques que mapean ese enum a la API de string de la extensión BLE inline.
+//
+// Así el bloque "al detectar clase ML <clase>" muestra un desplegable con las
+// clases entrenadas, sin tocar el fork ni depender de la red.
 
 const NONE_LABEL = "none";
 
@@ -21,24 +23,24 @@ const NAMESPACE: Record<BlocksTransport, string> = {
   bluetooth: "smartteamMLBT",
 };
 
-/**
- * Prefijo de los blockId de cada extensión (definidos con `//% blockId=...`).
- * Se usan para armar el XML de main.blocks que el editor renderiza directo
- * (importproject NO decompila TS→bloques en modo controller, así que el XML es
- * la única vía confiable para pre-armar los bloques).
- */
+/** Prefijo de los blockId de cada extensión (para IDs únicos y estables). */
 const BLOCK_ID_PREFIX: Record<BlocksTransport, string> = {
   usb: "smartteam_ml",
   bluetooth: "smartteam_mlbt",
 };
 
-export interface BlocksMetadata {
+export interface ClassesMetadata {
   /** Transporte → define el namespace de los bloques generados. */
   transport: BlocksTransport;
-  /** Nombres canónicos de las clases, en orden. */
+  /** Nombres canónicos de las clases entrenadas, en orden. */
   classes: string[];
-  /** Incluir el manejador "cuando no se detecta ninguna clase". */
-  includeNone: boolean;
+}
+
+/** Clases válidas (sin vacías ni "none", que tiene su propio bloque aparte). */
+function detectableClasses(classes: string[]): string[] {
+  return classes
+    .map((c) => c.trim())
+    .filter((c) => c.length > 0 && c.toLowerCase() !== NONE_LABEL);
 }
 
 /** Escapa un nombre para usarlo como literal de string en TS. */
@@ -47,85 +49,56 @@ function toStringLiteral(name: string): string {
   return `"${escaped}"`;
 }
 
-/** Escapa texto para insertarlo en un atributo/nodo XML de Blockly. */
-function escapeXml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
-}
-
-/** Clases válidas (sin vacías ni "none", que tiene su propio bloque). */
-function detectableClasses(meta: BlocksMetadata): string[] {
-  return meta.classes
-    .map((c) => c.trim())
-    .filter((c) => c.length > 0 && c.toLowerCase() !== NONE_LABEL);
-}
-
-function handlerBlock(call: string): string {
-  // El cuerpo vacío con una línea en blanco indentada deja el bloque listo
-  // para que el chico arrastre acciones dentro.
-  return `${call} {\n    \n})`;
+/** Etiqueta para `//% block="..."`: una sola línea, sin comillas dobles. */
+function toBlockLabel(name: string): string {
+  return name.replace(/\s+/g, " ").replace(/"/g, "'").trim();
 }
 
 /**
- * Construye el TS a inyectar a partir de la lista de clases.
- * Filtra "none" de los eventos por clase (tiene su propio bloque).
+ * Genera el contenido de `clases.ts`: el enum con las clases reales (dropdown) y
+ * los bloques `al detectar clase ML %clase` / `clase ML es %clase` que lo mapean
+ * a la API de string de la extensión. Si no hay clases (modelo sin entrenar),
+ * usa una entrada placeholder para que el bloque exista igual.
  */
-export function generateBlocksCode(meta: BlocksMetadata): string {
+export function generateClassesFile(meta: ClassesMetadata): string {
   const ns = NAMESPACE[meta.transport];
-  const classes = detectableClasses(meta);
+  const prefix = BLOCK_ID_PREFIX[meta.transport];
+  const found = detectableClasses(meta.classes);
+  const list = found.length > 0 ? found : ["clase 1"];
 
-  const lines: string[] = [];
-  for (const name of classes) {
-    lines.push(handlerBlock(`${ns}.alDetectarClase(${toStringLiteral(name)}, function ()`));
-  }
-  if (meta.includeNone) {
-    lines.push(handlerBlock(`${ns}.cuandoNoHayDeteccion(function ()`));
-  }
+  const enumMembers = list
+    .map((name, i) => `    //% block="${toBlockLabel(name)}"\n    Clase${i} = ${i}`)
+    .join(",\n");
 
-  return lines.length > 0 ? lines.join("\n") + "\n" : "";
+  const nombres = list.map(toStringLiteral).join(", ");
+
+  return `// Generado por el trainer: clases del modelo entrenado como desplegable.
+enum ClaseML {
+${enumMembers}
 }
 
-/**
- * Construye el XML de `main.blocks`: un bloque-evento por clase ("al detectar
- * clase ML <nombre>") con el nombre real en un shadow de texto, más el bloque
- * "cuando no se detecta ninguna clase ML". El editor lo renderiza tal cual al
- * importar, con los cuerpos vacíos listos para que el chico arrastre acciones.
- */
-export function generateBlocksXml(meta: BlocksMetadata): string {
-  const prefix = BLOCK_ID_PREFIX[meta.transport];
-  const classes = detectableClasses(meta);
+namespace ${ns} {
+    const NOMBRES_CLASE = [${nombres}]
 
-  const X = 16;
-  const STEP_Y = 140;
-  const blocks: string[] = [];
-  let y = 16;
+    /**
+     * Ejecuta el código cuando el entrenador detecta la clase elegida.
+     */
+    //% blockId=${prefix}_al_detectar_sel
+    //% block="al detectar clase ML %clase"
+    //% weight=99
+    export function alDetectarClaseSel(clase: ClaseML, manejador: () => void): void {
+        alDetectarClase(NOMBRES_CLASE[clase], manejador)
+    }
 
-  for (const name of classes) {
-    blocks.push(
-      [
-        `  <block type="${prefix}_al_detectar" x="${X}" y="${y}">`,
-        `    <value name="nombre"><shadow type="text"><field name="TEXT">${escapeXml(name)}</field></shadow></value>`,
-        `    <statement name="HANDLER"></statement>`,
-        `  </block>`,
-      ].join("\n")
-    );
-    y += STEP_Y;
-  }
-
-  if (meta.includeNone) {
-    blocks.push(
-      [
-        `  <block type="${prefix}_sin_deteccion" x="${X}" y="${y}">`,
-        `    <statement name="HANDLER"></statement>`,
-        `  </block>`,
-      ].join("\n")
-    );
-  }
-
-  const inner = blocks.length > 0 ? `\n${blocks.join("\n")}\n` : "";
-  return `<xml xmlns="https://developers.google.com/blockly/xml">${inner}</xml>`;
+    /**
+     * Verdadero si la clase detectada en este momento es la elegida.
+     */
+    //% blockId=${prefix}_clase_es_sel
+    //% block="clase ML es %clase"
+    //% weight=85
+    export function claseEsSel(clase: ClaseML): boolean {
+        return claseEs(NOMBRES_CLASE[clase])
+    }
+}
+`;
 }

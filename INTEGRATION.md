@@ -73,15 +73,18 @@ Protocolo (ver `pxt/pxteditor/editorcontroller.ts` y `app.tsx`):
   `{ type: "pxteditor", id, action: "importproject", project: { text } }`
   donde `text` es un mapa `archivo → contenido`:
   - `pxt.json`: dependencias `core` + `bluetooth` (built-in), `yotta` config que
-    abre BLE, y `files: ["main.blocks", "main.ts", "smartteamMLBT.ts"]`.
-  - `main.blocks`: XML de Blockly con los bloques ya armados
-    (salida de `generateBlocksXml`). **Esto es lo que se ve en el lienzo**: en
-    modo controller el editor NO decompila TS→bloques al importar, así que el
-    XML es la única vía confiable.
-  - `main.ts`: salida de `generateBlocksCode` (equivalente en TS, por consistencia).
+    abre BLE, y `files: ["main.blocks", "main.ts", "smartteamMLBT.ts", "clases.ts"]`.
+  - `main.blocks` / `main.ts`: vacíos. El lienzo arranca limpio; el chico arma
+    sus propios bloques desde el toolbox.
   - `smartteamMLBT.ts`: copia inline de la extensión BLE (en vez de una
     dependencia `github:...`, que no resuelve en un build estático sin backend:
-    el proxy `/api/gh` devuelve 404).
+    el proxy `/api/gh` devuelve 404). Expone los bloques fijos (clase actual,
+    cuando no se detecta, mostrar nombre Bluetooth) y las funciones internas
+    `alDetectarClase` / `claseEs` (sin bloque propio).
+  - `clases.ts`: generado por `generateClassesFile` (`core/makecode/codegen.ts`)
+    a partir de las clases entrenadas. Define `enum ClaseML` (desplegable nativo
+    de MakeCode) y los bloques `al detectar clase ML %clase` / `clase ML es
+    %clase`, que mapean el enum a las funciones internas de la extensión.
 
 El shell sólo postea `importproject` después de recibir `editorcontentloaded`, y
 valida `event.origin` contra el origin del fork.
@@ -139,7 +142,7 @@ forks, mantenelos en ramas separadas; este flujo no requiere que diverjan.
 | Querés… | Tocá… |
 | --- | --- |
 | Cambiar/añadir bloques (texto, nuevos handlers) | `src/core/makecode/extensions/smartteam-ml-bluetooth.ts.txt` (fuente inline) y, si cambia un `blockId`, el mapa en `src/core/makecode/codegen.ts` |
-| Cambiar qué bloques se pre-arman en el lienzo | `generateBlocksXml` / `generateBlocksCode` en `src/core/makecode/codegen.ts` |
+| Cambiar el desplegable de clases (enum/bloques generados) | `generateClassesFile` en `src/core/makecode/codegen.ts` |
 | Cambiar deps/yotta del proyecto inyectado | `buildMakeCodeProject` en `src/core/makecode/project.ts` |
 | Cambiar la URL del editor | env `VITE_MAKECODE_FORK_URL` (o query `?mk=<url>`); resolución en `src/core/makecode/controller.ts` |
 | Cambiar flags del iframe (controller/ws/permisos) | `resolveControllerUrl` y el `allow=` del `<iframe>` en `MicrobitPage.tsx` |

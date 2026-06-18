@@ -74,7 +74,7 @@ export default function MicrobitPage() {
   return (
     <div className="mb-page">
       <header className="mb-header">
-        <a className="mb-back" href={`${baseUrl}trainer`}>
+        <a className="mb-back" href={`${baseUrl}trainer?model=${model}`}>
           <ArrowLeft size={16} aria-hidden="true" /> Entrenador
         </a>
         <h1 className="mb-title">Programar micro:bit — {CONFIGS[model].label}</h1>

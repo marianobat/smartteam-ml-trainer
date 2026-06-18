@@ -13,32 +13,6 @@
  *   micro:bit → navegador: "ML?\n"
  *   navegador → micro:bit: "ML:<nombre de la clase>\n" ("none" si no hay)
  */
-enum PoseLista {
-    //% block="brazos abajo"
-    BrazosAbajo = 0,
-    //% block="brazo izquierdo arriba"
-    BrazoIzquierdoArriba = 1,
-    //% block="brazo derecho arriba"
-    BrazoDerechoArriba = 2,
-    //% block="brazos arriba"
-    BrazosArriba = 3
-}
-
-enum GestoMano {
-    //% block="pulgar arriba"
-    PulgarArriba = 0,
-    //% block="pulgar abajo"
-    PulgarAbajo = 1,
-    //% block="mano abierta"
-    ManoAbierta = 2,
-    //% block="mano cerrada"
-    ManoCerrada = 3,
-    //% block="apuntar"
-    Apuntar = 4,
-    //% block="paz"
-    Paz = 5
-}
-
 //% color="#00BCD9" icon="\uf294" block="SmartTEAM ML BT" weight=89
 namespace smartteamMLBT {
     const PREFIJO = "ML:"
@@ -133,13 +107,8 @@ namespace smartteamMLBT {
 
     /**
      * Verdadero si la clase detectada en este momento es la indicada.
-     * Se actualiza sola gracias al sondeo en segundo plano.
-     * @param nombre el nombre de la clase, igual que en el entrenador
+     * Interna: la usa el bloque desplegable generado en clases.ts.
      */
-    //% blockId=smartteam_mlbt_clase_es
-    //% block="clase ML es %nombre"
-    //% nombre.defl="clase 1"
-    //% weight=90
     export function claseEs(nombre: string): boolean {
         iniciar()
         return claseActualInterna == limpiar(nombre)
@@ -159,12 +128,8 @@ namespace smartteamMLBT {
 
     /**
      * Ejecuta el código cuando el entrenador detecta la clase indicada.
-     * @param nombre el nombre de la clase, igual que en el entrenador
+     * Interna: la usa el bloque desplegable generado en clases.ts.
      */
-    //% blockId=smartteam_mlbt_al_detectar
-    //% block="al detectar clase ML %nombre"
-    //% nombre.defl="clase 1"
-    //% weight=70
     export function alDetectarClase(nombre: string, manejador: () => void): void {
         iniciar()
         nombres.push(limpiar(nombre))
@@ -179,67 +144,5 @@ namespace smartteamMLBT {
     //% weight=60
     export function cuandoNoHayDeteccion(manejador: () => void): void {
         alDetectarClase(SIN_DETECCION, manejador)
-    }
-
-    // ----- Clases listas (presets del entrenador) -----
-
-    function nombrePose(pose: PoseLista): string {
-        switch (pose) {
-            case PoseLista.BrazoIzquierdoArriba: return "brazo izquierdo arriba"
-            case PoseLista.BrazoDerechoArriba: return "brazo derecho arriba"
-            case PoseLista.BrazosArriba: return "brazos arriba"
-            default: return "brazos abajo"
-        }
-    }
-
-    function nombreGesto(gesto: GestoMano): string {
-        switch (gesto) {
-            case GestoMano.PulgarAbajo: return "pulgar abajo"
-            case GestoMano.ManoAbierta: return "mano abierta"
-            case GestoMano.ManoCerrada: return "mano cerrada"
-            case GestoMano.Apuntar: return "apuntar"
-            case GestoMano.Paz: return "paz"
-            default: return "pulgar arriba"
-        }
-    }
-
-    /**
-     * Ejecuta el código cuando el entrenador detecta una de las poses listas.
-     */
-    //% blockId=smartteam_mlbt_al_detectar_pose
-    //% block="al detectar pose %pose"
-    //% weight=99
-    export function alDetectarPose(pose: PoseLista, manejador: () => void): void {
-        alDetectarClase(nombrePose(pose), manejador)
-    }
-
-    /**
-     * Verdadero si la pose detectada en este momento es la indicada.
-     */
-    //% blockId=smartteam_mlbt_pose_es
-    //% block="pose es %pose"
-    //% weight=66
-    export function poseEs(pose: PoseLista): boolean {
-        return claseEs(nombrePose(pose))
-    }
-
-    /**
-     * Ejecuta el código cuando el entrenador detecta uno de los gestos listos.
-     */
-    //% blockId=smartteam_mlbt_al_detectar_gesto
-    //% block="al detectar gesto %gesto"
-    //% weight=98
-    export function alDetectarGesto(gesto: GestoMano, manejador: () => void): void {
-        alDetectarClase(nombreGesto(gesto), manejador)
-    }
-
-    /**
-     * Verdadero si el gesto detectado en este momento es el indicado.
-     */
-    //% blockId=smartteam_mlbt_gesto_es
-    //% block="gesto es %gesto"
-    //% weight=65
-    export function gestoEs(gesto: GestoMano): boolean {
-        return claseEs(nombreGesto(gesto))
     }
 }

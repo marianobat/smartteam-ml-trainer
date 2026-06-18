@@ -20,6 +20,15 @@ const getRoomFromQuery = () => {
 
 type ModelId = "hands" | "face" | "images" | "pose" | "text" | "audio";
 
+const MODEL_IDS: readonly ModelId[] = ["hands", "face", "images", "pose", "text", "audio"];
+
+/** Permite entrar directo a una modalidad con ?model= (p. ej. desde micro:bit). */
+const getModelFromQuery = (): ModelId | null => {
+  if (typeof window === "undefined") return null;
+  const value = new URLSearchParams(window.location.search).get("model");
+  return MODEL_IDS.find((id) => id === value) ?? null;
+};
+
 const trainerConfigs: Partial<Record<ModelId, TrainerConfig>> = {
   hands: {
     title: "Entrenador de manos",
@@ -67,7 +76,7 @@ export default function TrainerPage() {
   const baseUrl = import.meta.env.BASE_URL ?? "/";
   const room = getRoomFromQuery() || getRoom() || "";
   const publishToken = getToken() || "";
-  const [selectedModel, setSelectedModel] = useState<ModelId | null>(null);
+  const [selectedModel, setSelectedModel] = useState<ModelId | null>(getModelFromQuery);
 
   const models = [
     {
