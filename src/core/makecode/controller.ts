@@ -57,6 +57,12 @@ export function useMakeCodeController(
   const projectRef = useRef<MakeCodeProject | null>(project);
   projectRef.current = project;
 
+  const postAction = (action: string) => {
+    const win = iframeRef.current?.contentWindow;
+    if (!win || !forkOrigin) return;
+    win.postMessage({ type: "pxteditor", id: nextId(), action }, forkOrigin);
+  };
+
   const sendImport = () => {
     if (importedRef.current) return;
     const win = iframeRef.current?.contentWindow;
@@ -68,6 +74,11 @@ export function useMakeCodeController(
       forkOrigin
     );
     setState("imported");
+    // Colapsar el simulador (más espacio para los bloques). La cámara + barras
+    // del trainer cumplen el rol del simulador. `hidesimulator` →
+    // collapseSimulator() en el fork; re-aseguramos por si el import lo expande.
+    postAction("hidesimulator");
+    window.setTimeout(() => postAction("hidesimulator"), 1200);
   };
 
   useEffect(() => {
