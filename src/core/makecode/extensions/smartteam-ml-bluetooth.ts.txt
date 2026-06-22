@@ -93,6 +93,17 @@ namespace smartteamMLBT {
     }
 
     /**
+     * Arranca el servicio Bluetooth (UART) y el sondeo en segundo plano. Se
+     * llama sola al encender la placa (ver el final del archivo) para que el
+     * navegador pueda VER y CONECTAR la placa aunque el programa todavía no use
+     * ningún bloque SmartTEAM. Sin esto, con el canvas vacío el micro:bit no
+     * inicia BLE y no aparece en el selector del navegador.
+     */
+    export function iniciarServicio(): void {
+        iniciar()
+    }
+
+    /**
      * Muestra en los LEDs el nombre Bluetooth de esta placa (p. ej. "zatig"),
      * para encontrarla en el selector del navegador. El nombre es propio de
      * cada placa y no se puede cambiar.
@@ -146,3 +157,7 @@ namespace smartteamMLBT {
         alDetectarClase(SIN_DETECCION, manejador)
     }
 }
+
+// Auto-arranque: el servicio Bluetooth se inicia al encender la placa, así el
+// navegador puede verla y conectarse aunque el programa aún no use bloques.
+smartteamMLBT.iniciarServicio()

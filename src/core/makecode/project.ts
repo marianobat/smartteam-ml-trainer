@@ -52,6 +52,21 @@ export function buildMakeCodeProject(options: BuildProjectOptions = {}): MakeCod
       core: "*",
       bluetooth: "*",
     },
+    // "No Pairing Required": la placa advierte y acepta conexión SIN emparejar,
+    // que es lo que necesita el Web Bluetooth del trainer. Sin esto, el modo por
+    // defecto (JustWorks) exige emparejamiento y el navegador no logra conectar.
+    // open=1 (abierto), whitelist=0 (cualquiera puede conectar). Vale V1 y V2.
+    yotta: {
+      config: {
+        "microbit-dal": {
+          bluetooth: {
+            enabled: 1,
+            open: 1,
+            whitelist: 0,
+          },
+        },
+      },
+    },
     files: ["main.blocks", "main.ts", BLE_EXTENSION_FILE, CLASSES_FILE],
     preferredEditor: "blocksprj",
   };

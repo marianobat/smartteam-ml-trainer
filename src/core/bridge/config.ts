@@ -3,9 +3,11 @@ const DEFAULT_WS_BASE = "wss://smartteam-gesture-bridge.marianobat.workers.dev/w
 const DEFAULT_TW_EDITOR = "https://turbowarp.org/editor";
 const DEFAULT_EXT_URL = "https://marianobat.github.io/smartteam-live-extension/live.js";
 const DEFAULT_TEMPLATE_SB3 = "";
-// URL del fork propio de MakeCode (flujo micro:bit). Vacío hasta deployarlo:
-// fijala con VITE_MAKECODE_FORK_URL o pasala por query ?mk=<url>.
-const DEFAULT_MAKECODE_FORK_URL = "";
+// URL del editor MakeCode embebido (flujo micro:bit). Por defecto el editor
+// OFICIAL, que compila Bluetooth y flashea por WebUSB. Un fork estático propio
+// no sirve para BLE (no tiene backend de compilación). Se puede pisar con
+// VITE_MAKECODE_FORK_URL (env) o, para probar, con ?mk=<url> en la query.
+const DEFAULT_MAKECODE_FORK_URL = "https://makecode.microbit.org/";
 
 const getEnv = (key: string, fallback: string) => {
   const value = import.meta.env[key] as string | undefined;
