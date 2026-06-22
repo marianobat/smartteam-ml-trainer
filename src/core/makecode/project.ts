@@ -52,15 +52,6 @@ export function buildMakeCodeProject(options: BuildProjectOptions = {}): MakeCod
       core: "*",
       bluetooth: "*",
     },
-    yotta: {
-      config: {
-        "microbit-dal": {
-          bluetooth: {
-            open: 1,
-          },
-        },
-      },
-    },
     files: ["main.blocks", "main.ts", BLE_EXTENSION_FILE, CLASSES_FILE],
     preferredEditor: "blocksprj",
   };
