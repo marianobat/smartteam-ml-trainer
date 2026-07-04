@@ -1,6 +1,13 @@
-# SmartTEAM ML Trainer (Hands) - MediaPipe + TFJS + kNN
+# SmartTEAM ML Trainer
 
-Web app (Vite + React + TypeScript) to capture hand poses, train a classifier, and run live evaluation from the camera. It is an educational tool and a first step toward a future Scratch integration.
+Web app (Vite + React + TypeScript) educativa: los estudiantes enseñan ejemplos,
+entrenan un modelo en el navegador y lo prueban en vivo, conectándolo a un
+**micro:bit** (USB/Bluetooth) o, opcional, a **TurboWarp/Scratch**. Modalidades:
+manos, cara, cuerpo, imágenes, texto y sonidos.
+
+> 📐 **La arquitectura completa y vigente está en [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md).**
+> Este README es solo una entrada rápida; secciones de abajo pueden citar nombres
+> de archivo antiguos del MVP de manos.
 
 ---
 
@@ -112,17 +119,22 @@ Pending or future ideas:
 
 ## Project map
 
-- `src/app/pages/HandTrainer.tsx` - main UI, capture, training, live evaluation.
-- `src/core/hand/handLandmarker.ts` - MediaPipe setup + detect loop.
-- `src/core/hand/featurize.ts` - feature extraction (10D).
-- `src/core/dataset/datasetStore.ts` - dataset state (classes, samples, thumbnails).
-- `src/core/training/*` - preparation, training, prediction, kNN.
+Estructura actual y detalle de capas en [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md).
+Puntos de entrada:
+
+- `src/App.tsx` — enrutado (`/`, `/trainer`, `/program`).
+- `src/app/pages/TrainerPage.tsx` — selector de modalidades.
+- `src/app/pages/Trainer.tsx` — entrenador genérico de video (manos/cara/cuerpo/imágenes).
+- `src/core/extractors/types.ts` — contrato `VideoExtractor` (agregar modalidad = implementarlo).
+- `src/core/training/*` — preparación, entrenamiento, predicción, kNN.
 
 ---
 
 ## Documentation
 
-- `docs/AVANCES_Y_PROXIMOS_PASOS.md`
+- [`docs/ARQUITECTURA.md`](docs/ARQUITECTURA.md) — **documento de arquitectura vigente**.
+- [`docs/TURBOWARP.md`](docs/TURBOWARP.md) — integración TurboWarp (opcional).
+- `docs/PLAN_UX.md`, `docs/AVANCES_Y_PROXIMOS_PASOS.md` — históricos.
 
 ---
 

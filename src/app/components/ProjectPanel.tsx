@@ -4,6 +4,7 @@
 // auto-guardado y ofrece exportar/importar ZIP y borrar el proyecto guardado.
 
 import { useRef } from "react";
+import { Check } from "lucide-react";
 
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
 
@@ -37,13 +38,17 @@ export default function ProjectPanel({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const statusLabel =
-    saveStatus === "saving"
-      ? "Guardando..."
-      : saveStatus === "saved"
-      ? `Guardado ✓${savedAt ? ` ${formatTime(savedAt)}` : ""}`
-      : saveStatus === "error"
-      ? "Error al guardar"
-      : "Sin guardar";
+    saveStatus === "saving" ? (
+      "Guardando..."
+    ) : saveStatus === "saved" ? (
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+        <Check size={13} aria-hidden="true" /> Guardado{savedAt ? ` ${formatTime(savedAt)}` : ""}
+      </span>
+    ) : saveStatus === "error" ? (
+      "Error al guardar"
+    ) : (
+      "Sin guardar"
+    );
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];

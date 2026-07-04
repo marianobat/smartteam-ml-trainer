@@ -4,6 +4,7 @@
 // ráfaga" + botón redondo grande verde (mantener apretado para ráfaga).
 
 import type { MouseEvent, TouchEvent } from "react";
+import { Camera, Layers } from "lucide-react";
 import { COPY } from "../../copy";
 import "./CaptureControls.css";
 
@@ -33,8 +34,9 @@ export default function CaptureControls({
           aria-pressed={!burstMode}
           onClick={() => burstMode && onToggleBurst()}
           title={COPY.captureOne}
+          aria-label={COPY.captureOne}
         >
-          📷
+          <Camera size={20} aria-hidden="true" />
         </button>
         <button
           type="button"
@@ -42,8 +44,9 @@ export default function CaptureControls({
           aria-pressed={burstMode}
           onClick={() => !burstMode && onToggleBurst()}
           title={`${COPY.captureBurst} — ${COPY.captureHint}`}
+          aria-label={COPY.captureBurst}
         >
-          🎞️
+          <Layers size={20} aria-hidden="true" />
         </button>
       </div>
 

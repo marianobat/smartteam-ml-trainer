@@ -1,0 +1,163 @@
+/**
+ * SmartTEAM ML Bluetooth — bloques para reaccionar a las clases que detecta
+ * el entrenador SmartTEAM ML en el navegador, conectado por Bluetooth
+ * (servicio UART). Requiere micro:bit V2 (la V1 queda corta de memoria con
+ * el stack Bluetooth).
+ *
+ * Esta es una copia self-contained de la extensión smartteam-ml-bluetooth,
+ * inyectada como archivo del proyecto (no como dependencia de GitHub) para que
+ * funcione en el editor estático sin proxy /api/gh. Fuente original:
+ *   https://github.com/smartteamok/smartteam-ml-bluetooth
+ *
+ * Protocolo (una línea por mensaje), siempre "a pedido":
+ *   micro:bit → navegador: "ML?\n"
+ *   navegador → micro:bit: "ML:<nombre de la clase>\n" ("none" si no hay)
+ */
+//% color="#00BCD9" icon="\uf294" block="SmartTEAM ML BT" weight=89
+namespace smartteamMLBT {
+    const PREFIJO = "ML:"
+    const PEDIDO = "ML?"
+    const SIN_DETECCION = "none"
+    const TIMEOUT_PEDIDO_MS = 500
+    const INTERVALO_SONDEO_MS = 200
+
+    let nombres: string[] = []
+    let manejadores: (() => void)[] = []
+    let claseActualInterna = ""
+    let respuestaPendiente = false
+    let iniciado = false
+    let conectado = false
+
+    function limpiar(texto: string): string {
+        let inicio = 0
+        let fin = texto.length
+        while (inicio < fin && texto.charCodeAt(inicio) <= 32) inicio++
+        while (fin > inicio && texto.charCodeAt(fin - 1) <= 32) fin--
+        return texto.substr(inicio, fin - inicio)
+    }
+
+    function esperarRespuesta(): void {
+        let esperado = 0
+        while (respuestaPendiente && esperado < TIMEOUT_PEDIDO_MS) {
+            basic.pause(10)
+            esperado += 10
+        }
+        respuestaPendiente = false
+    }
+
+    function solicitar(): void {
+        if (!conectado) return
+        if (respuestaPendiente) {
+            esperarRespuesta()
+            return
+        }
+        respuestaPendiente = true
+        bluetooth.uartWriteString(PEDIDO + "\n")
+        esperarRespuesta()
+    }
+
+    function iniciar(): void {
+        if (iniciado) return
+        iniciado = true
+
+        bluetooth.startUartService()
+
+        bluetooth.onUartDataReceived(serial.delimiters(Delimiters.NewLine), function () {
+            const linea = limpiar(bluetooth.uartReadUntil(serial.delimiters(Delimiters.NewLine)))
+            if (linea.indexOf(PREFIJO) != 0) return
+            const clase = limpiar(linea.substr(PREFIJO.length))
+            if (clase.length == 0) return
+            respuestaPendiente = false
+            if (clase == claseActualInterna) return
+            claseActualInterna = clase
+            for (let i = 0; i < nombres.length; i++) {
+                if (nombres[i] == clase) manejadores[i]()
+            }
+        })
+
+        bluetooth.onBluetoothConnected(function () {
+            conectado = true
+        })
+
+        bluetooth.onBluetoothDisconnected(function () {
+            conectado = false
+            respuestaPendiente = false
+        })
+
+        control.inBackground(function () {
+            while (true) {
+                if (conectado) solicitar()
+                basic.pause(INTERVALO_SONDEO_MS)
+            }
+        })
+    }
+
+    /**
+     * Arranca el servicio Bluetooth (UART) y el sondeo en segundo plano. Se
+     * llama sola al encender la placa (ver el final del archivo) para que el
+     * navegador pueda VER y CONECTAR la placa aunque el programa todavía no use
+     * ningún bloque SmartTEAM. Sin esto, con el canvas vacío el micro:bit no
+     * inicia BLE y no aparece en el selector del navegador.
+     */
+    export function iniciarServicio(): void {
+        iniciar()
+    }
+
+    /**
+     * Muestra en los LEDs el nombre Bluetooth de esta placa (p. ej. "zatig"),
+     * para encontrarla en el selector del navegador. El nombre es propio de
+     * cada placa y no se puede cambiar.
+     */
+    //% blockId=smartteam_mlbt_mostrar_nombre
+    //% block="mostrar nombre Bluetooth"
+    //% weight=100
+    export function mostrarNombreBluetooth(): void {
+        iniciar()
+        basic.showString(control.deviceName())
+    }
+
+    /**
+     * Verdadero si la clase detectada en este momento es la indicada.
+     * Interna: la usa el bloque desplegable generado en clases.ts.
+     */
+    export function claseEs(nombre: string): boolean {
+        iniciar()
+        return claseActualInterna == limpiar(nombre)
+    }
+
+    /**
+     * La última clase detectada por el entrenador ("none" si no hay detección).
+     * Se actualiza sola gracias al sondeo en segundo plano.
+     */
+    //% blockId=smartteam_mlbt_clase_actual
+    //% block="clase ML actual"
+    //% weight=80
+    export function claseActual(): string {
+        iniciar()
+        return claseActualInterna
+    }
+
+    /**
+     * Ejecuta el código cuando el entrenador detecta la clase indicada.
+     * Interna: la usa el bloque desplegable generado en clases.ts.
+     */
+    export function alDetectarClase(nombre: string, manejador: () => void): void {
+        iniciar()
+        nombres.push(limpiar(nombre))
+        manejadores.push(manejador)
+    }
+
+    /**
+     * Ejecuta el código cuando el entrenador deja de detectar (clase "none").
+     */
+    //% blockId=smartteam_mlbt_sin_deteccion
+    //% block="cuando no se detecta ninguna clase ML"
+    //% weight=60
+    export function cuandoNoHayDeteccion(manejador: () => void): void {
+        alDetectarClase(SIN_DETECCION, manejador)
+    }
+}
+
+// Auto-arranque: el servicio Bluetooth se inicia al encender la placa, así el
+// navegador puede verla y conectarse aunque el programa aún no use bloques.
+smartteamMLBT.iniciarServicio()

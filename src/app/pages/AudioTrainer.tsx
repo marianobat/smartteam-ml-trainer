@@ -9,6 +9,7 @@
 // viven dentro del transfer recognizer de speech-commands).
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Mic, MicOff, Circle, Play, Pause, Satellite } from "lucide-react";
 import type {
   SpeechCommandRecognizer,
   TransferSpeechCommandRecognizer,
@@ -370,7 +371,7 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
     ? classes.length < 2
       ? COPY.needTwoClasses
       : noiseCount < MIN_SAMPLES_PER_CLASS
-      ? `Grabá ${MIN_SAMPLES_PER_CLASS} muestras de "${BACKGROUND_NAME}" (el ruido normal del aula): así el modelo sabe cuándo nadie habla.`
+      ? `Graba ${MIN_SAMPLES_PER_CLASS} muestras de "${BACKGROUND_NAME}" (el ruido normal del salón): así el modelo sabe cuándo nadie habla.`
       : COPY.needSamples(MIN_SAMPLES_PER_CLASS)
     : null;
 
@@ -391,7 +392,7 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
     ? [
         {
           id: "tw",
-          icon: "🛰️",
+          icon: <Satellite size={14} aria-hidden="true" />,
           label: COPY.chipTurboWarp,
           tone:
             wsStatus === "open" ? "ok" : wsStatus === "error" ? "warn" : "off",
@@ -435,11 +436,16 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
             {selectedClass && (
               <div className="audio-stage-block">
                 <h3 className="audio-stage-title">
-                  {selectedIsNoise ? "🤫" : "🎤"} Grabá ejemplos para "{selectedClass.name}"
+                  {selectedIsNoise ? (
+                    <MicOff size={18} aria-hidden="true" />
+                  ) : (
+                    <Mic size={18} aria-hidden="true" />
+                  )}{" "}
+                  Graba ejemplos para "{selectedClass.name}"
                 </h3>
                 {selectedIsNoise && (
                   <p className="audio-stage-note">
-                    Quedate en silencio (o dejá el ruido normal del aula) mientras graba.
+                    Quédate en silencio (o deja el ruido normal del salón) mientras graba.
                   </p>
                 )}
                 <button
@@ -448,15 +454,20 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
                   onClick={() => void handleRecord(selectedClass.id)}
                   disabled={!ready || Boolean(recordingId) || isTraining || isListening}
                 >
-                  {isRecordingSelected
-                    ? "🔴 Grabando..."
-                    : selectedIsNoise
-                    ? "🎙 Grabar 2 segundos"
-                    : COPY.recordAudio}
+                  {isRecordingSelected ? (
+                    <>
+                      <Circle size={16} fill="currentColor" aria-hidden="true" /> Grabando...
+                    </>
+                  ) : (
+                    <>
+                      <Mic size={16} aria-hidden="true" />{" "}
+                      {selectedIsNoise ? "Grabar 2 segundos" : COPY.recordAudio}
+                    </>
+                  )}
                 </button>
                 {isListening && (
                   <p className="audio-stage-note">
-                    Para grabar más ejemplos, primero pausá la escucha en "Probalo".
+                    Para grabar más ejemplos, primero pausa la escucha en "Pruébalo".
                   </p>
                 )}
                 <SampleGrid
@@ -478,7 +489,15 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
                     className="try-pip"
                     onClick={() => void (isListening ? stopListening() : startListening())}
                   >
-                    {isListening ? "⏸ Pausar escucha" : "▶ Escuchar"}
+                    {isListening ? (
+                      <>
+                        <Pause size={14} aria-hidden="true" /> Pausar escucha
+                      </>
+                    ) : (
+                      <>
+                        <Play size={14} aria-hidden="true" /> Escuchar
+                      </>
+                    )}
                   </button>
                 )}
               </div>

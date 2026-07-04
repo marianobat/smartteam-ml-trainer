@@ -66,8 +66,11 @@
 }
 
 .home-card-icon {
-  font-size: 1.8rem;
-  letter-spacing: 0.1em;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  color: var(--color-primary);
 }
 
 .home-card-title {
@@ -81,6 +84,9 @@
 }
 
 .home-card-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   font-family: var(--font-display);
   font-size: 1.1rem;
   padding: 0.7em 1.5em;
@@ -114,6 +120,9 @@
 }
 
 .home-session-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 0.85rem;
   font-weight: 700;
   color: var(--color-ink-soft);

@@ -20,12 +20,21 @@ const getRoomFromQuery = () => {
 
 type ModelId = "hands" | "face" | "images" | "pose" | "text" | "audio";
 
+const MODEL_IDS: readonly ModelId[] = ["hands", "face", "images", "pose", "text", "audio"];
+
+/** Permite entrar directo a una modalidad con ?model= (p. ej. desde micro:bit). */
+const getModelFromQuery = (): ModelId | null => {
+  if (typeof window === "undefined") return null;
+  const value = new URLSearchParams(window.location.search).get("model");
+  return MODEL_IDS.find((id) => id === value) ?? null;
+};
+
 const trainerConfigs: Partial<Record<ModelId, TrainerConfig>> = {
   hands: {
     title: "Entrenador de manos",
     loadingText: "Preparando el detector de manos...",
     missingLabel: "Sin manos",
-    missingHint: "No veo tus manos 👀 Ponelas frente a la cámara",
+    missingHint: "No veo tus manos. Ponlas frente a la cámara",
     placeholderIcon: "✋",
     thumbnailSource: "overlay",
     storageKey: "hands",
@@ -35,7 +44,7 @@ const trainerConfigs: Partial<Record<ModelId, TrainerConfig>> = {
     title: "Entrenador de posturas",
     loadingText: "Preparando el detector de cuerpo...",
     missingLabel: "Sin cuerpo",
-    missingHint: "No te veo 👀 Alejate un poco de la cámara",
+    missingHint: "No te veo. Aléjate un poco de la cámara",
     placeholderIcon: "🧍",
     thumbnailSource: "overlay",
     storageKey: "pose",
@@ -45,17 +54,17 @@ const trainerConfigs: Partial<Record<ModelId, TrainerConfig>> = {
     title: "Entrenador de caras",
     loadingText: "Preparando el detector de caras...",
     missingLabel: "Sin cara",
-    missingHint: "No veo tu cara 👀 Acercate a la cámara",
+    missingHint: "No veo tu cara. Acércate a la cámara",
     placeholderIcon: "😀",
     thumbnailSource: "overlay",
     storageKey: "face",
     createExtractor: createFaceExtractor,
   },
   images: {
-    title: "Entrenador de imagenes",
-    loadingText: "Preparando el detector de imagenes...",
+    title: "Entrenador de imágenes",
+    loadingText: "Preparando el detector de imágenes...",
     missingLabel: "Sin imagen",
-    missingHint: "Mostrale algo a la cámara 📦",
+    missingHint: "Muéstrale algo a la cámara",
     placeholderIcon: "🖼️",
     thumbnailSource: "video",
     storageKey: "images",
@@ -67,7 +76,7 @@ export default function TrainerPage() {
   const baseUrl = import.meta.env.BASE_URL ?? "/";
   const room = getRoomFromQuery() || getRoom() || "";
   const publishToken = getToken() || "";
-  const [selectedModel, setSelectedModel] = useState<ModelId | null>(null);
+  const [selectedModel, setSelectedModel] = useState<ModelId | null>(getModelFromQuery);
 
   const models = [
     {
@@ -129,9 +138,9 @@ export default function TrainerPage() {
         <header className="trainer-select-header">
           <div>
             <div className="trainer-select-kicker">SmartTEAM IA</div>
-            <h1 className="trainer-select-title">¿Qué le querés enseñar?</h1>
+            <h1 className="trainer-select-title">¿Qué le quieres enseñar?</h1>
             <p className="trainer-select-subtitle">
-              Elegí una modalidad para entrenar tu modelo con ejemplos.
+              Elige una modalidad para entrenar tu modelo con ejemplos.
             </p>
           </div>
           {TURBOWARP_ENABLED && room && (
@@ -141,7 +150,7 @@ export default function TrainerPage() {
         {TURBOWARP_ENABLED && !room && (
           <div className="trainer-select-warning">
             Sin sesión de TurboWarp: podés entrenar y usar micro:bit igual. Para publicar a
-            TurboWarp, creá una sesión en el lobby.
+            TurboWarp, crea una sesión en el lobby.
           </div>
         )}
         <section className="trainer-select-grid">

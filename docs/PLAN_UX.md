@@ -1,5 +1,10 @@
 # Plan de mejora UX — SmartTEAM ML Trainer (estilo LEGO Coding Canvas)
 
+> ⚠️ **Documento histórico**: este plan ya fue ejecutado (con un rediseño de marca
+> posterior encima). Sirve como registro de decisiones de UX. El estado actual y la
+> arquitectura vigente están en [`ARQUITECTURA.md`](ARQUITECTURA.md).
+
+
 > **Cómo usar este documento con Cursor:** ejecutá las 7 etapas EN ORDEN, una por vez.
 > Para cada etapa, pegá en Cursor: el bloque "Contexto para cada prompt", las secciones
 > "Sistema de diseño" / "Arquitectura" / "Cambios de lógica" como referencia, y el texto

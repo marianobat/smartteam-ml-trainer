@@ -3,6 +3,7 @@
 // Grilla de muestras de la clase activa: miniaturas (esqueleto/foto) o texto,
 // tachito para borrar, y placeholders punteados hasta llegar al mínimo.
 
+import { Trash2 } from "lucide-react";
 import { COPY } from "../../copy";
 import "./SampleGrid.css";
 
@@ -44,7 +45,7 @@ export default function SampleGrid({ items, min, placeholderIcon, onDelete }: Sa
               aria-label={COPY.deleteSample}
               onClick={() => onDelete(item.id)}
             >
-              🗑
+              <Trash2 size={14} aria-hidden="true" />
             </button>
           )}
         </div>

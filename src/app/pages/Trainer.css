@@ -77,6 +77,23 @@
   padding: var(--space-4);
 }
 
+.preset-own-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  justify-self: start;
+  background: var(--color-surface);
+  color: var(--color-ink);
+  border: 1.5px dashed var(--color-outline);
+  font-size: 0.9rem;
+  min-height: 40px;
+}
+.preset-own-btn:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  transform: none;
+  box-shadow: none;
+}
+
 .class-detail {
   display: grid;
   gap: var(--space-3);
@@ -134,12 +151,33 @@
 }
 
 .try-pip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   background: var(--color-surface);
   color: var(--color-ink);
   border: 1.5px solid var(--color-outline);
   font-size: 0.85rem;
   min-height: 38px;
   padding: 0.3em 1em;
+}
+
+.try-program {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--color-primary);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-pill);
+  font-weight: 800;
+  font-size: 0.95rem;
+  min-height: 44px;
+  padding: 0.4em 1.2em;
+}
+.try-program:hover {
+  box-shadow: var(--shadow-card);
 }
 
 .trainer-microbit {
@@ -161,9 +199,9 @@
   border: 1.5px solid var(--color-outline);
 }
 .advanced-mode-btn.is-on {
-  background: var(--color-ink);
+  background: var(--color-primary);
   color: #fff;
-  border-color: var(--color-ink);
+  border-color: var(--color-primary);
 }
 
 .advanced-chart {

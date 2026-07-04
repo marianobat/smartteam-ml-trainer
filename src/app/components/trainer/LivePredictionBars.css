@@ -63,11 +63,13 @@
   display: block;
   height: 100%;
   border-radius: var(--radius-pill);
-  background: var(--color-primary-soft);
-  transition: width 150ms ease;
+  background: var(--bar-color, var(--color-primary));
+  opacity: 0.55;
+  transition: width 150ms ease, opacity 150ms ease, box-shadow 150ms ease;
 }
 .live-bars-fill.is-pass {
-  background: var(--color-success);
+  opacity: 1;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--bar-color, var(--color-primary)) 30%, transparent);
 }
 
 .live-bars-value {

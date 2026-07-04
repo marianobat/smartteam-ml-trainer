@@ -1,37 +1,17 @@
 // src/app/components/MicrobitPanel.tsx
 //
-// Panel "Conectar micro:bit" compartido por todos los entrenadores. Recibe la
-// etiqueta estable y su confianza; aplica el umbral y responde cada vez que el
-// micro:bit pide la clase actual ("ML?"), por USB (Web Serial) o por
-// Bluetooth (Web Bluetooth + UART). Nunca envía nada sin pedido, así el
-// buffer del micro:bit no puede llenarse.
+// Panel "Conectar micro:bit" compartido por todos los entrenadores. Es una
+// vista delgada sobre el store useMicrobit: muestra estado y botones de
+// conexión (USB / Bluetooth), aplica el umbral en modo avanzado y deja el log.
+// La lógica de conexión y de "responder a pedido" (ML?) vive en el store, así
+// que conectar desde la ventana flotante (PiP) funciona igual.
 
-import { useEffect, useRef, useState } from "react";
-import {
-  connectMicrobit,
-  disconnectMicrobit,
-  isWebSerialSupported,
-  sendMicrobitLabel,
-} from "../../core/microbit/serialConnection";
-import {
-  connectMicrobitBle,
-  disconnectMicrobitBle,
-  isWebBluetoothSupported,
-  sendMicrobitLabelBle,
-} from "../../core/microbit/bluetoothConnection";
-import {
-  clearMicrobitListeners,
-  setMicrobitListeners,
-  type MicrobitTransportKind,
-} from "../../core/microbit/transport";
-import { DEFAULT_CONFIDENCE_THRESHOLD, NONE_LABEL } from "../../core/microbit/protocol";
-
-const MAX_LOG_LINES = 6;
-
-type PanelStatus = "idle" | "connecting" | "open" | "disconnecting" | "error";
+import { useEffect } from "react";
+import { Usb, Bluetooth } from "lucide-react";
+import { useMicrobit } from "../hooks/useMicrobit";
 
 type MicrobitPanelProps = {
-  /** Etiqueta estable actual ("" o NONE_LABEL si no hay detección). */
+  /** Etiqueta estable actual ("" o "none" si no hay detección). */
   label: string;
   confidence: number;
   /** Modo avanzado: muestra umbral y log de mensajes. */
@@ -39,148 +19,39 @@ type MicrobitPanelProps = {
 };
 
 export default function MicrobitPanel({ label, confidence, advanced = false }: MicrobitPanelProps) {
-  const serialSupported = isWebSerialSupported();
-  const bleSupported = isWebBluetoothSupported();
-  const [status, setStatus] = useState<PanelStatus>("idle");
-  const [transport, setTransport] = useState<MicrobitTransportKind | null>(null);
-  const [deviceName, setDeviceName] = useState<string>("");
-  const [alias, setAlias] = useState<string>("");
-  const [error, setError] = useState<string | null>(null);
-  const [threshold, setThreshold] = useState(DEFAULT_CONFIDENCE_THRESHOLD);
-  const [log, setLog] = useState<string[]>([]);
-  const [requestCount, setRequestCount] = useState(0);
+  const mb = useMicrobit();
+  const { supported } = mb;
 
-  const statusRef = useRef<PanelStatus>(status);
-  statusRef.current = status;
-  const transportRef = useRef<MicrobitTransportKind | null>(transport);
-  transportRef.current = transport;
-
-  const labelToSendRef = useRef(NONE_LABEL);
-  labelToSendRef.current =
-    label && label !== NONE_LABEL && confidence >= threshold ? label : NONE_LABEL;
-
-  const pushLog = (line: string) => {
-    setLog((prev) => [line, ...prev].slice(0, MAX_LOG_LINES));
-  };
-
-  const respondRequest = async () => {
-    if (statusRef.current !== "open") return;
-    try {
-      const line =
-        transportRef.current === "bluetooth"
-          ? await sendMicrobitLabelBle(labelToSendRef.current)
-          : await sendMicrobitLabel(labelToSendRef.current);
-      setRequestCount((prev) => prev + 1);
-      pushLog(line);
-    } catch (err) {
-      setStatus("error");
-      setTransport(null);
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  };
-
-  // Responder cada "ML?" del micro:bit + alias + caída de conexión
+  // Empujamos la detección estable al store: alimenta el responder de "ML?".
+  // setCurrentDetection es una función estable del módulo (no recrea el efecto).
   useEffect(() => {
-    if (status !== "open") return;
-    setMicrobitListeners({
-      onRequest: () => {
-        void respondRequest();
-      },
-      onAlias: (incoming) => setAlias(incoming),
-      onDrop: () => {
-        setStatus("error");
-        setTransport(null);
-        setError("Se perdió la conexión con la placa. Acercala y volvé a conectar.");
-      },
-    });
-    return () => clearMicrobitListeners();
+    mb.setCurrentDetection(label, confidence);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status]);
+  }, [label, confidence]);
 
-  // Desconexión limpia al desmontar
+  // Desconexión limpia al desmontar (salir del entrenador).
   useEffect(() => {
     return () => {
-      clearMicrobitListeners();
-      void disconnectMicrobit();
-      void disconnectMicrobitBle();
+      void mb.disconnect();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const resetSession = () => {
-    setError(null);
-    setRequestCount(0);
-    setLog([]);
-    setAlias("");
-    setDeviceName("");
-  };
-
-  const handleConnectSerial = async () => {
-    resetSession();
-    setStatus("connecting");
-    try {
-      await connectMicrobit();
-      setTransport("serial");
-      setStatus("open");
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      // El usuario canceló el diálogo de puertos: no es un error
-      if (/no port selected/i.test(message)) {
-        setStatus("idle");
-        return;
-      }
-      setStatus("error");
-      setError(message);
-    }
-  };
-
-  const handleConnectBle = async () => {
-    resetSession();
-    setStatus("connecting");
-    try {
-      const name = await connectMicrobitBle();
-      setDeviceName(name);
-      setTransport("bluetooth");
-      setStatus("open");
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      // El usuario cerró el selector de dispositivos: no es un error
-      if (/user cancelled|cancelled the requestdevice|notfounderror/i.test(message)) {
-        setStatus("idle");
-        return;
-      }
-      setStatus("error");
-      setError(message);
-    }
-  };
-
-  const handleDisconnect = async () => {
-    setStatus("disconnecting");
-    try {
-      if (transportRef.current === "bluetooth") {
-        await disconnectMicrobitBle();
-      } else {
-        await disconnectMicrobit();
-      }
-    } finally {
-      setTransport(null);
-      setStatus("idle");
-      setError(null);
-    }
-  };
-
-  if (!serialSupported && !bleSupported) {
+  if (!supported.serial && !supported.bluetooth) {
     return (
       <div style={{ borderTop: "1px solid #eee", paddingTop: 10, display: "grid", gap: 8 }}>
         <div style={{ fontSize: 12, fontWeight: 600 }}>micro:bit</div>
         <div style={{ fontSize: 12, opacity: 0.75 }}>
           Conectar un micro:bit necesita Web Serial o Web Bluetooth, disponibles en Chrome o Edge.
-          En este navegador podés entrenar igual, pero sin micro:bit.
+          En este navegador puedes entrenar igual, pero sin micro:bit.
         </div>
       </div>
     );
   }
 
-  const transportLabel = transport === "bluetooth" ? "Bluetooth" : transport === "serial" ? "USB" : "";
+  const { status, transport, deviceName, alias, error, requestCount, threshold, log } = mb;
+  const transportLabel =
+    transport === "bluetooth" ? "Bluetooth" : transport === "serial" ? "USB" : "";
   const statusLabel =
     status === "open"
       ? `conectado por ${transportLabel}`
@@ -197,12 +68,20 @@ export default function MicrobitPanel({ label, confidence, advanced = false }: M
       ? [deviceName, alias].filter(Boolean).join(" · ")
       : "";
 
+  const buttonStyle = {
+    flex: 1,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  } as const;
+
   return (
     <div style={{ borderTop: "1px solid #eee", paddingTop: 10, display: "grid", gap: 8 }}>
       <div style={{ fontSize: 12, fontWeight: 600 }}>micro:bit</div>
       {status === "open" || status === "disconnecting" ? (
         <button
-          onClick={() => void handleDisconnect()}
+          onClick={() => void mb.disconnect()}
           disabled={status === "disconnecting"}
           style={{ flex: 1 }}
         >
@@ -210,22 +89,34 @@ export default function MicrobitPanel({ label, confidence, advanced = false }: M
         </button>
       ) : (
         <div style={{ display: "flex", gap: 8 }}>
-          {serialSupported && (
+          {supported.serial && (
             <button
-              onClick={() => void handleConnectSerial()}
+              onClick={() => void mb.connectUsb()}
               disabled={status === "connecting"}
-              style={{ flex: 1 }}
+              style={buttonStyle}
             >
-              {status === "connecting" ? "Conectando..." : "🔌 USB"}
+              {status === "connecting" ? (
+                "Conectando..."
+              ) : (
+                <>
+                  <Usb size={16} aria-hidden="true" /> USB
+                </>
+              )}
             </button>
           )}
-          {bleSupported && (
+          {supported.bluetooth && (
             <button
-              onClick={() => void handleConnectBle()}
+              onClick={() => void mb.connectBle()}
               disabled={status === "connecting"}
-              style={{ flex: 1 }}
+              style={buttonStyle}
             >
-              {status === "connecting" ? "Conectando..." : "📶 Bluetooth"}
+              {status === "connecting" ? (
+                "Conectando..."
+              ) : (
+                <>
+                  <Bluetooth size={16} aria-hidden="true" /> Bluetooth
+                </>
+              )}
             </button>
           )}
         </div>
@@ -256,7 +147,8 @@ export default function MicrobitPanel({ label, confidence, advanced = false }: M
             max={0.95}
             step={0.05}
             value={threshold}
-            onChange={(e) => setThreshold(Number(e.target.value))}
+            onChange={(e) => mb.setThreshold(Number(e.target.value))}
+            style={{ accentColor: "var(--color-secondary)" }}
           />
         </label>
       )}
@@ -275,8 +167,8 @@ export default function MicrobitPanel({ label, confidence, advanced = false }: M
       )}
       {error && <div style={{ fontSize: 12, color: "#b91c1c" }}>{error}</div>}
       <div style={{ fontSize: 11, opacity: 0.65 }}>
-        USB: extensión SmartTEAM ML / Bluetooth: extensión SmartTEAM ML Bluetooth. 
-        Si MakeCode está conectado a la placa en otra pestaña, desconectar antes.
+        USB: extensión SmartTEAM ML / Bluetooth: extensión SmartTEAM ML Bluetooth. Si MakeCode está
+        conectado a la placa en otra pestaña, desconectar antes.
       </div>
     </div>
   );

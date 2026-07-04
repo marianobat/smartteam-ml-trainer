@@ -34,6 +34,8 @@ export type SavedProject = {
   version: number;
   modality: SavedModality;
   savedAt: number;
+  /** Si el proyecto es (o nació de) un preset de fábrica, su id. */
+  presetId?: string;
   dataset: DatasetState;
   /** @deprecated v1: textos del TextTrainer; en v2 viven en Sample.note. */
   textsByClass?: Record<string, string[]>;

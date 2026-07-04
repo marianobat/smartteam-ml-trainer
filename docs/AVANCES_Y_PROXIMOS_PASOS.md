@@ -1,5 +1,8 @@
 # SmartTEAM ML Trainer — Avances y próximos pasos
 
+> ⚠️ **Documento histórico** (notas del MVP inicial de manos). El estado actual y la
+> arquitectura vigente están en [`ARQUITECTURA.md`](ARQUITECTURA.md).
+
 ## Contexto
 Este repo implementa un primer MVP de entrenamiento y testeo en navegador (tipo Teachable Machine) para reconocer gestos de manos (2 manos) y preparar el camino hacia integración posterior con Scratch (como extensión / bloques).
 

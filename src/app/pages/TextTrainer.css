@@ -24,6 +24,9 @@
 }
 
 .text-stage-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   margin: 0;
   font-size: 1.1rem;
 }

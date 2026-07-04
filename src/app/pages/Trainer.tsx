@@ -8,6 +8,7 @@
 
 import { useEffect, useMemo, useReducer, useRef, useState, type MouseEvent, type TouchEvent } from "react";
 import * as tf from "@tensorflow/tfjs";
+import { Sparkles, Save, Loader2, Satellite, Pin, Pencil, Trash2, Cpu } from "lucide-react";
 import {
   ResponsiveContainer,
   LineChart,
@@ -55,9 +56,11 @@ import {
   type SavedProject,
 } from "../../core/storage/projectStore";
 import { exportProjectZip, importProjectZip } from "../../core/export/projectZip";
+import { fetchPresetProject, presetClassIcon, PRESETS } from "../../core/presets/presets";
 import { COPY } from "../copy";
 import { useAdvancedMode } from "../hooks/useAdvancedMode";
 import MicrobitPanel from "../components/MicrobitPanel";
+import { microbitApi } from "../hooks/useMicrobit";
 import ProjectPanel, { type SaveStatus } from "../components/ProjectPanel";
 import { isPipSupported, openPipMonitor } from "../components/pipMonitor";
 import StepsBar from "../components/trainer/StepsBar";
@@ -205,6 +208,10 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
   const [pipOpen, setPipOpen] = useState(false);
   const pipCloseRef = useRef<(() => void) | null>(null);
 
+  // Clases pre-entrenadas de fábrica (pose/manos)
+  const preset = PRESETS[config.storageKey];
+  const [presetActive, setPresetActive] = useState(false);
+
   const counts = useMemo(() => countSamplesByClass(dataset), [dataset]);
   const wsUrl = useMemo(() => {
     if (!room || !publishToken) return "";
@@ -297,6 +304,7 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
         version: PROJECT_VERSION,
         modality: config.storageKey,
         savedAt: Date.now(),
+        presetId: presetActive && preset ? preset.id : undefined,
         dataset: datasetToSave,
         model: serializedModelRef.current ?? undefined,
       };
@@ -338,9 +346,10 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
     setSavedAt(saved.savedAt);
     setSaveStatus("saved");
     setProjectError(null);
+    setPresetActive(Boolean(saved.presetId));
   };
 
-  // Hidratar el proyecto guardado al montar
+  // Hidratar el proyecto guardado al montar (o el preset de fábrica si no hay)
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -348,6 +357,11 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
         const saved = await loadProject(config.storageKey);
         if (!cancelled && saved) {
           await applySavedProject(saved);
+        } else if (!cancelled && !saved && preset) {
+          const project = await fetchPresetProject(preset);
+          if (!cancelled && project) {
+            await applySavedProject(project);
+          }
         }
       } catch (err) {
         console.error(err);
@@ -430,12 +444,45 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
     setStableConfidence(0);
     setSavedAt(null);
     setSaveStatus("idle");
+    setPresetActive(false);
     try {
       await clearProject(config.storageKey);
     } catch (err) {
       console.error(err);
       setProjectError("No se pudo borrar el proyecto guardado.");
     }
+    // Volver al preset de fábrica (si la modalidad tiene uno)
+    if (preset) {
+      const project = await fetchPresetProject(preset);
+      if (project) {
+        await applySavedProject(project);
+      }
+    }
+  };
+
+  // El "+" de LEGO al revés: salir del preset y arrancar de cero
+  const handleCreateOwnClasses = () => {
+    setPresetActive(false);
+    dispatch({ type: "RESET_DATASET" });
+    serializedModelRef.current = null;
+    if (trainedRef.current?.kind === "ml") {
+      trainedRef.current.model.dispose();
+    }
+    trainedRef.current = null;
+    setTrainedModel(null);
+    trainedClassNamesRef.current = [];
+    setTrainedClassNames([]);
+    setTrainComplete(false);
+    setTriedIt(false);
+    prevProbsRef.current = null;
+    setLiveProbs([]);
+    setLiveLabel("");
+    setLiveConfidence(0);
+    stableLabelRef.current = "";
+    stableConfidenceRef.current = 0;
+    setStableLabel("");
+    setStableConfidence(0);
+    // el autosave persiste el proyecto vacío (sin presetId)
   };
 
   const handleTogglePip = async () => {
@@ -446,12 +493,20 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
     try {
       const close = await openPipMonitor({
         video: videoRef.current,
+        overlay: canvasRef.current,
+        dimmed: config.thumbnailSource !== "video",
         title: config.title,
         getLabel: () => stableLabelRef.current,
         getConfidence: () => stableConfidenceRef.current,
         isDetecting: () => hasSubjectRef.current,
         missingLabel,
         acceptThreshold: ACCEPT_THRESHOLD,
+        getRows: () =>
+          trainedClassNamesRef.current.map((name, idx) => {
+            const value = hasSubjectRef.current ? liveProbsStateRef.current[idx] ?? 0 : 0;
+            return { name, value, pass: value >= ACCEPT_THRESHOLD };
+          }),
+        microbit: microbitApi,
         onClose: () => {
           pipCloseRef.current = null;
           setPipOpen(false);
@@ -576,7 +631,7 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
           labelsArr.push(labelIdx);
         }
 
-        const knn = createKnnModel(classNames, samplesArr, labelsArr, { k: 3, featureDim });
+        const knn = createKnnModel(classNames, samplesArr, labelsArr, { k: 5, featureDim });
         const curve = computeKnnLearningCurve(samplesArr, labelsArr, classNames.length, {
           k: knn.k,
         });
@@ -642,10 +697,10 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
         setTrainError(null);
         const sampleCount = prepared.xs.shape[0];
         if (sampleCount < 30) {
-          setTrainNotice("Hay pocas muestras para validar. Sumá más ejemplos para mejorar el modelo.");
+          setTrainNotice("Hay pocas muestras para validar. Suma más ejemplos para mejorar el modelo.");
         } else if (result.meta.stoppedEarly) {
           setTrainNotice(
-            "Entrenamiento detenido por falta de mejora en validación. Sumá más muestras o balanceá clases."
+            "Entrenamiento detenido por falta de mejora en validación. Suma más muestras o balancea las clases."
           );
         } else {
           setTrainNotice(null);
@@ -915,9 +970,24 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
       : null;
 
   const chips: StatusChip[] = [
+    ...(presetActive && preset
+      ? [
+          {
+            id: "preset",
+            icon: <Sparkles size={14} aria-hidden="true" />,
+            label: preset.badge,
+            tone: "ok" as const,
+          },
+        ]
+      : []),
     {
       id: "save",
-      icon: saveStatus === "saving" ? "⏳" : "💾",
+      icon:
+        saveStatus === "saving" ? (
+          <Loader2 size={14} className="spin" aria-hidden="true" />
+        ) : (
+          <Save size={14} aria-hidden="true" />
+        ),
       label: saveStatus === "saving" ? COPY.chipSaving : COPY.chipSaved,
       tone: saveStatus === "saved" ? "ok" : saveStatus === "error" ? "warn" : "off",
     },
@@ -925,7 +995,7 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
       ? [
           {
             id: "tw",
-            icon: "🛰️",
+            icon: <Satellite size={14} aria-hidden="true" />,
             label: COPY.chipTurboWarp,
             tone:
               wsStatus === "open" ? ("ok" as const) : wsStatus === "error" ? ("warn" as const) : ("off" as const),
@@ -994,6 +1064,7 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
               name: c.name,
               count: counts[c.id] ?? 0,
               thumb: lastThumbByClass[c.id],
+              icon: presetClassIcon(c.name),
             }))}
             activeId={dataset.activeClassId}
             min={MIN_SAMPLES_PER_CLASS}
@@ -1001,6 +1072,16 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
             onSelect={(id) => dispatch({ type: "SET_ACTIVE_CLASS", id })}
             onAdd={() => dispatch({ type: "ADD_CLASS" })}
           />
+
+          {presetActive && (
+            <button
+              type="button"
+              className="preset-own-btn"
+              onClick={handleCreateOwnClasses}
+            >
+              <Pencil size={15} aria-hidden="true" /> Crear mis propias clases
+            </button>
+          )}
 
           {activeClass && (
             <div className="class-detail">
@@ -1021,7 +1102,7 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
                   disabled={dataset.classes.length <= 1}
                   onClick={() => dispatch({ type: "DELETE_CLASS", id: activeClass.id })}
                 >
-                  🗑
+                  <Trash2 size={16} aria-hidden="true" />
                 </button>
               </div>
               <SampleGrid
@@ -1048,11 +1129,19 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
               <h3>{COPY.tryTitle}</h3>
               {isPipSupported() && (
                 <button type="button" className="try-pip" onClick={() => void handleTogglePip()}>
-                  {pipOpen ? COPY.pipClose : COPY.pipOpen}
+                  <Pin size={14} aria-hidden="true" /> {pipOpen ? COPY.pipClose : COPY.pipOpen}
                 </button>
               )}
             </div>
             <LivePredictionBars rows={liveRows} seeing={seeing} hasModel={hasTrainedModel} />
+            {hasTrainedModel && (
+              <a
+                className="try-program"
+                href={`${import.meta.env.BASE_URL ?? "/"}microbit?model=${config.storageKey}`}
+              >
+                <Cpu size={16} aria-hidden="true" /> Programar micro:bit
+              </a>
+            )}
           </div>
 
           <div className="trainer-microbit">
@@ -1116,7 +1205,7 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
                   type="monotone"
                   dataKey="acc"
                   name="Precisión entrenamiento"
-                  stroke="#7C4DFF"
+                  stroke="#796eb0"
                   dot={false}
                   isAnimationActive={false}
                 />
@@ -1125,7 +1214,7 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
                     type="monotone"
                     dataKey="valAcc"
                     name="Precisión validación"
-                    stroke="#00BCD9"
+                    stroke="#35bfe9"
                     dot={false}
                     isAnimationActive={false}
                   />

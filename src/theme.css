@@ -5,12 +5,13 @@
 
 :root {
   /* ----- Paleta por rol ----- */
-  --color-primary: #7c4dff; /* violeta: marca, selección, foco */
-  --color-primary-soft: #ede7ff;
-  --color-secondary: #00bcd9; /* cian: info, conexiones */
+  --color-primary: #796eb0; /* violeta de marca: acción primaria, selección, foco */
+  --color-primary-soft: #ebe9f6;
+  --color-primary-strong: #5f5596; /* hover/active del primario */
+  --color-secondary: #35bfe9; /* cian: info, conexiones, sliders */
   --color-accent: #ff4d8d; /* rosa: highlights, clase activa */
-  --color-success: #2ec56b; /* verde: grabar, entrenar, tildes */
-  --color-success-soft: #e3f8ec;
+  --color-success: #59bb6a; /* verde: estado logrado (modelo entrenado, "Probalo") */
+  --color-success-soft: #e6f6ea;
   --color-warning: #ffc838; /* amarillo: chips de progreso */
   --color-warning-soft: #fff4d6;
   --color-danger: #ff5a5a;
@@ -23,11 +24,11 @@
 
   /* ----- Color por modalidad ----- */
   --mod-hands: #ff4d8d;
-  --mod-face: #7c4dff;
-  --mod-pose: #00bcd9;
+  --mod-face: #796eb0;
+  --mod-pose: #35bfe9;
   --mod-images: #ff8a3d;
   --mod-text: #4d7cfe;
-  --mod-audio: #2ec56b;
+  --mod-audio: #59bb6a;
 
   /* ----- Tipografía ----- */
   --font-display: "Fredoka", "Nunito", system-ui, sans-serif;

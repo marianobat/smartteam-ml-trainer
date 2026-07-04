@@ -1,6 +1,8 @@
 import Home from "./app/pages/Home";
 import Program from "./app/pages/Program";
 import TrainerPage from "./app/pages/TrainerPage";
+import LabPage from "./app/pages/LabPage";
+import MicrobitPage from "./app/pages/MicrobitPage";
 import { TURBOWARP_ENABLED } from "./core/bridge/features";
 
 const getRoute = () => {
@@ -11,6 +13,8 @@ const getRoute = () => {
     path = path.slice(base.length);
   }
   const normalized = path.replace(/\/+$/, "") || "/";
+  if (normalized.endsWith("/lab")) return "lab";
+  if (normalized.endsWith("/microbit")) return "microbit";
   if (normalized.endsWith("/trainer")) return "trainer";
   if (normalized.endsWith("/program")) return "program";
   if (!TURBOWARP_ENABLED) return "trainer";
@@ -19,6 +23,12 @@ const getRoute = () => {
 
 export default function App() {
   const route = getRoute();
+  if (route === "lab") {
+    return <LabPage />;
+  }
+  if (route === "microbit") {
+    return <MicrobitPage />;
+  }
   if (route === "trainer") {
     return <TrainerPage />;
   }

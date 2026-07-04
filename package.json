@@ -17,6 +17,7 @@
     "@tensorflow/tfjs": "^4.22.0",
     "file-saver": "^2.0.5",
     "jszip": "^3.10.1",
+    "lucide-react": "^1.18.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "recharts": "^2.15.4"
