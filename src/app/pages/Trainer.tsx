@@ -1244,6 +1244,7 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
               videoRef={videoRef}
               canvasRef={canvasRef}
               dimmed={config.thumbnailSource !== "video"}
+              focusBox={config.thumbnailSource === "video"}
               loading={cameraLoading}
               loadingText={status}
               hint={cameraHint}

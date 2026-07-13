@@ -34,11 +34,13 @@ import "./MicrobitPage.css";
 
 type ModelId = "hands" | "face" | "pose" | "images";
 
-const CONFIGS: Record<ModelId, EvalConfig & { label: string }> = {
+type PageConfig = EvalConfig & { label: string; focusBox?: boolean };
+
+const CONFIGS: Record<ModelId, PageConfig> = {
   hands: { label: "Manos", storageKey: "hands", missingLabel: "Sin manos", dimmed: true, createExtractor: createHandExtractor },
   face: { label: "Caras", storageKey: "face", missingLabel: "Sin cara", dimmed: true, createExtractor: createFaceExtractor },
   pose: { label: "Cuerpo", storageKey: "pose", missingLabel: "Sin cuerpo", dimmed: true, createExtractor: createPoseExtractor },
-  images: { label: "Imágenes", storageKey: "images", missingLabel: "Sin imagen", dimmed: false, createExtractor: createImageExtractor },
+  images: { label: "Imágenes", storageKey: "images", missingLabel: "Sin imagen", dimmed: false, focusBox: true, createExtractor: createImageExtractor },
 };
 
 const getInitialModel = (): ModelId => {
@@ -242,7 +244,7 @@ function MakeCodeController({ project }: { project: MakeCodeProject | null }) {
   );
 }
 
-function LiveEvalColumn({ config, baseUrl }: { config: EvalConfig; baseUrl: string }) {
+function LiveEvalColumn({ config, baseUrl }: { config: PageConfig; baseUrl: string }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const evaluation = useLiveEvaluation(videoRef, canvasRef, config);
@@ -258,6 +260,7 @@ function LiveEvalColumn({ config, baseUrl }: { config: EvalConfig; baseUrl: stri
         videoRef={videoRef}
         canvasRef={canvasRef}
         dimmed={config.dimmed}
+        focusBox={config.focusBox}
         loading={evaluation.loading}
         loadingText={evaluation.status}
         hint={cameraHint}

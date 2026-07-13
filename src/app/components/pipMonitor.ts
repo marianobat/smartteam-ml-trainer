@@ -237,7 +237,7 @@ export async function openPipMonitor(opts: PipMonitorOptions): Promise<() => voi
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
       }
-      ctx.filter = opts.dimmed ? "saturate(0.35) brightness(0.8) contrast(0.95)" : "none";
+      ctx.filter = opts.dimmed ? "saturate(0.35) brightness(0.8) contrast(0.95) blur(5px)" : "none";
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       ctx.filter = "none";
       const overlay = opts.overlay;

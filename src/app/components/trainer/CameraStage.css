@@ -17,8 +17,11 @@
   width: 100%;
   transform: scaleX(-1);
 }
+/* Modalidades con esqueleto: video atenuado y borroso (privacidad); el
+   esqueleto del canvas queda nítido encima. El blur es solo visual: el
+   extractor lee los píxeles crudos del <video>. */
 .camera-stage.is-dimmed .camera-stage-video {
-  filter: saturate(0.35) brightness(0.8) contrast(0.95);
+  filter: saturate(0.35) brightness(0.8) contrast(0.95) blur(5px);
 }
 
 .camera-stage-canvas {
@@ -88,4 +91,54 @@
   left: 50%;
   transform: translateX(-50%);
   max-width: 92%;
+}
+
+/* --- Recuadro de muestreo (imágenes): centro 4:3 nítido, resto borroso.
+   Geometría en variables --fb-* calculadas desde focusBoxRect (misma
+   definición que usa el extractor para recortar la muestra). --- */
+.camera-stage-focus {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.camera-stage-focus-blur {
+  position: absolute;
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+}
+.camera-stage-focus-blur.is-top {
+  left: 0;
+  right: 0;
+  top: 0;
+  height: var(--fb-top);
+}
+.camera-stage-focus-blur.is-bottom {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--fb-top);
+}
+.camera-stage-focus-blur.is-left {
+  left: 0;
+  top: var(--fb-top);
+  height: var(--fb-h);
+  width: var(--fb-left);
+}
+.camera-stage-focus-blur.is-right {
+  right: 0;
+  top: var(--fb-top);
+  height: var(--fb-h);
+  width: var(--fb-left);
+}
+
+.camera-stage-focus-frame {
+  position: absolute;
+  left: var(--fb-left);
+  top: var(--fb-top);
+  width: var(--fb-w);
+  height: var(--fb-h);
+  border: 3px solid var(--mod-images);
+  border-radius: 12px;
+  box-shadow: 0 0 0 2px rgba(22, 10, 96, 0.25);
 }
