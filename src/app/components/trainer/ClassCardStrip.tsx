@@ -5,6 +5,7 @@
 
 import { Check, Plus } from "lucide-react";
 import { COPY } from "../../copy";
+import GestureIcon from "./classIcons";
 import "./ClassCardStrip.css";
 
 export type ClassCardItem = {
@@ -52,9 +53,13 @@ export default function ClassCardStrip({
               {item.thumb ? (
                 <img src={item.thumb} alt="" />
               ) : item.icon ? (
-                <span className="class-strip-icon">{item.icon}</span>
+                <span className="class-strip-icon">
+                  <GestureIcon icon={item.icon} size={30} />
+                </span>
               ) : (
-                <span className="class-strip-placeholder">{placeholderIcon}</span>
+                <span className="class-strip-placeholder">
+                  <GestureIcon icon={placeholderIcon} size={30} />
+                </span>
               )}
             </span>
             <span className="class-strip-name">{item.name}</span>

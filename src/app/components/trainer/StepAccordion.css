@@ -1,0 +1,147 @@
+/* Acordeón guiado de pasos (handoff entrenador 1b). */
+
+.step-accordion {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+
+.step-acc-item {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+/* --- Header común --- */
+.step-acc-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 14px 16px;
+  width: 100%;
+}
+
+.step-acc-header-btn {
+  background: none;
+  border: none;
+  border-radius: 0;
+  min-height: var(--tap-min);
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  padding: 14px 16px;
+}
+.step-acc-header-btn:hover:not(:disabled) {
+  transform: none;
+  box-shadow: none;
+}
+
+.step-acc-tile {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-display);
+  font-weight: 700;
+}
+
+.step-acc-heading {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.step-acc-title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.step-acc-sub {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--color-ink-soft);
+}
+
+/* --- Paso activo (abierto) --- */
+.step-acc-item.is-open {
+  border: 2px solid var(--color-primary);
+  box-shadow: var(--ring-active);
+}
+.step-acc-item.is-open .step-acc-title {
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+.step-acc-item.is-active .step-acc-tile,
+.step-acc-item.is-open.is-active .step-acc-tile {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+/* Paso activo pero colapsado (el usuario reabrió otro paso para editar) */
+.step-acc-item.is-active:not(.is-open) {
+  border: 1.5px solid var(--color-outline);
+}
+
+/* Paso completado reabierto para editar: tile verde con check, anillo violeta */
+.step-acc-item.is-done .step-acc-tile {
+  background: var(--color-success);
+  color: #fff;
+}
+
+/* --- Paso completado (colapsado) --- */
+.step-acc-item.is-done:not(.is-open) {
+  border: 1.5px solid var(--color-success-soft);
+}
+
+.step-acc-action {
+  flex: none;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--color-success-strong);
+}
+
+/* --- Paso bloqueado --- */
+.step-acc-item.is-locked {
+  border: 1.5px dashed var(--color-outline-strong);
+}
+.step-acc-item.is-locked .step-acc-tile {
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+.step-acc-item.is-locked .step-acc-title {
+  color: var(--color-ink-faint);
+}
+
+/* --- Cuerpo --- */
+.step-acc-body {
+  padding: 0 16px 16px;
+  display: grid;
+  gap: var(--space-3);
+}
+.step-acc-body[hidden] {
+  display: none;
+}
+
+/* Nota guía dentro de un paso ("Junta al menos 5 ejemplos…") */
+.step-acc-note {
+  font-size: 0.8rem;
+  color: var(--color-ink-soft);
+  background: var(--color-primary-soft);
+  border-radius: var(--radius-sm);
+  padding: 9px 12px;
+  text-align: center;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .step-acc-item {
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+}

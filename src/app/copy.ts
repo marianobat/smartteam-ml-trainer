@@ -7,9 +7,57 @@
 
 export const COPY = {
   back: "← Volver",
+  modalities: "Modalidades",
   advanced: "Modo avanzado",
 
   steps: ["Enséñale ejemplos", "Entrena", "Pruébalo y conéctalo"] as const,
+
+  // --- Acordeón de pasos (Enseñar → Entrenar → Probar) ---
+  progressTitle: "Tu progreso",
+  stepTeachTitle: "Enséñale ejemplos",
+  stepTeachSubtitle: "Muéstrale ejemplos de cada clase",
+  stepTrainTitle: "Entrena tu modelo",
+  stepTrainSubtitle: "La compu aprende de tus ejemplos",
+  stepTestTitle: "Pruébalo y conéctalo",
+  stepTestSubtitle: "Ponlo a prueba y mira qué detecta",
+  stepTeachSummary: (classes: number, samples: number) =>
+    `${classes} clase${classes === 1 ? "" : "s"} · ${samples} ejemplo${samples === 1 ? "" : "s"}`,
+  stepTrainSummary: (hits: number) => `Reconoce ${hits} de cada 10`,
+  stepTrainSummaryReady: "Modelo entrenado",
+  stepEdit: "Editar",
+  stepRetrain: "Reentrenar",
+  lockNeedClass: "Agrega otra clase",
+  lockMissingSamples: (n: number, name: string) =>
+    n === 1 ? `Falta 1 ejemplo en "${name}"` : `Faltan ${n} ejemplos en "${name}"`,
+  lockOpensOnTrain: "Se abre al entrenar",
+  lockOpensAfterTrain: "Se abre al terminar de entrenar",
+  teachNote: (min: number) =>
+    `Junta al menos ${min} ejemplos en cada clase para poder entrenar.`,
+  trainGuide: (n: number) =>
+    `Tus ${n} clases están listas. Toca para que la computadora aprenda a reconocerlas.`,
+  trainCurveNote: "La gráfica de la derecha te muestra cómo va aprendiendo.",
+
+  // --- Curva de aprendizaje (escenario del paso 2) ---
+  curveTitle: "Cómo va aprendiendo",
+  curveSubtitle: "La línea sube a medida que tu modelo acierta más",
+  curveTraining: "Entrenando...",
+  curveDone: "Listo",
+  curveLegendTrain: "Aprendiendo",
+  curveLegendVal: "Probando",
+  curveXLabel: "Cantidad de ejemplos que fue viendo",
+  curveNote: "Si la línea se queda abajo, súmale más ejemplos a la clase que confunde.",
+  curveEmpty: "Toca ¡Entrenar modelo! para ver cómo aprende tu modelo.",
+  curveWait: "Tarda unos segundos. ¡No cierres la ventana!",
+
+  stageTestHint: "Muéstrale ejemplos a la cámara y mira cómo los reconoce",
+
+  programMicrobit: "Programar micro:bit",
+
+  // --- Selector de curso (pantalla intermedia de /microbit) ---
+  courseTitle: "¿En qué curso están?",
+  courseSubtitle: "Elige el curso para cargar los bloques adecuados en MakeCode.",
+  courseContinue: "Continuar",
+  courseChange: "Cambiar de curso",
 
   addClass: "Agregar",
   className: "Nombre de la clase",

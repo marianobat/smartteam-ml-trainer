@@ -1,0 +1,135 @@
+/* Tarjeta de curva de aprendizaje (escenario derecho durante el paso 2).
+   Comparte tamaño con la cámara: width 100%, min-height 480px, radio 28. */
+
+.curve-card {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 480px;
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline);
+  box-shadow: 0 14px 40px rgba(22, 10, 96, 0.12);
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  gap: var(--space-4);
+  padding: 26px 28px;
+}
+
+.curve-card-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.curve-card-tile {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 13px;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  display: grid;
+  place-items: center;
+}
+
+.curve-card-heading {
+  flex: 1;
+  min-width: 0;
+}
+
+.curve-card-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.35rem;
+  color: var(--color-ink);
+}
+
+.curve-card-subtitle {
+  color: var(--color-ink-soft);
+  font-size: 0.92rem;
+}
+
+.curve-card-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--color-success-soft);
+  color: var(--color-ink);
+  border-radius: var(--radius-pill);
+  padding: 7px 14px;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.curve-card-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--color-success);
+}
+.curve-card-chip.is-live .curve-card-dot {
+  animation: curve-pulse 1.2s ease-in-out infinite;
+}
+@keyframes curve-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.curve-card-legend {
+  display: flex;
+  gap: var(--space-5);
+}
+
+.curve-card-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  color: var(--color-ink-soft);
+}
+
+.curve-card-swatch {
+  width: 20px;
+  height: 4px;
+  border-radius: 2px;
+}
+
+.curve-card-chart {
+  min-height: 0;
+  align-self: stretch;
+}
+
+.curve-card-empty {
+  height: 100%;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  color: var(--color-ink-soft);
+  font-size: 0.95rem;
+  padding: var(--space-4);
+}
+
+.curve-card-note {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  background: var(--color-primary-soft);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  font-size: 0.9rem;
+  color: var(--color-ink);
+}
+
+.curve-card-note-tile {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--color-primary);
+  color: #fff;
+  display: grid;
+  place-items: center;
+}

@@ -16,6 +16,8 @@ type CameraStageProps = {
   loadingText: string;
   /** Mensaje cuando no se detecta el sujeto (null = no mostrar). */
   hint: string | null;
+  /** Píldora superior (p. ej. "Veo: Abierta 98%" durante el paso Probar). */
+  overlay?: ReactNode;
   children?: ReactNode;
 };
 
@@ -26,6 +28,7 @@ export default function CameraStage({
   loading,
   loadingText,
   hint,
+  overlay,
   children,
 }: CameraStageProps) {
   return (
@@ -38,6 +41,7 @@ export default function CameraStage({
           {loadingText}
         </div>
       )}
+      {!loading && overlay && <div className="camera-stage-overlay">{overlay}</div>}
       {!loading && hint && <div className="camera-stage-hint">{hint}</div>}
       {!loading && <div className="camera-stage-controls">{children}</div>}
     </div>

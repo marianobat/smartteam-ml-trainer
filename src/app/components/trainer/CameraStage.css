@@ -1,12 +1,16 @@
 .camera-stage {
   position: relative;
   width: 100%;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   overflow: hidden;
-  background: #14122a;
-  box-shadow: var(--shadow-card);
+  background: var(--color-ink);
+  box-shadow: var(--shadow-stage);
   min-height: 260px;
 }
+
+/* Nota: la altura la define el video (el canvas del esqueleto se alinea a la
+   caja del contenedor, así que no se fuerza height/object-fit). La tarjeta de
+   la curva usa min-height 480px para quedar en un tamaño equivalente. */
 
 .camera-stage-video {
   display: block;
@@ -75,4 +79,13 @@
   bottom: var(--space-4);
   left: 50%;
   transform: translateX(-50%);
+}
+
+/* Overlay superior (píldora "Veo: X %" durante el paso Probar) */
+.camera-stage-overlay {
+  position: absolute;
+  top: var(--space-3);
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 92%;
 }

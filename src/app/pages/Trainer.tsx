@@ -8,7 +8,7 @@
 
 import { useEffect, useMemo, useReducer, useRef, useState, type MouseEvent, type TouchEvent } from "react";
 import * as tf from "@tensorflow/tfjs";
-import { Sparkles, Save, Loader2, Satellite, Pin, Pencil, Trash2, Cpu } from "lucide-react";
+import { Sparkles, Save, Loader2, Satellite, Pin, Pencil, Trash2, Cpu, ChevronLeft } from "lucide-react";
 import {
   ResponsiveContainer,
   LineChart,
@@ -63,7 +63,8 @@ import MicrobitPanel from "../components/MicrobitPanel";
 import { microbitApi } from "../hooks/useMicrobit";
 import ProjectPanel, { type SaveStatus } from "../components/ProjectPanel";
 import { isPipSupported, openPipMonitor } from "../components/pipMonitor";
-import StepsBar from "../components/trainer/StepsBar";
+import StepAccordion from "../components/trainer/StepAccordion";
+import LearningCurveCard from "../components/trainer/LearningCurveCard";
 import ClassCardStrip from "../components/trainer/ClassCardStrip";
 import SampleGrid from "../components/trainer/SampleGrid";
 import CameraStage from "../components/trainer/CameraStage";
@@ -110,6 +111,7 @@ type TrainProgress = {
 
 type Mode = "examples" | "ml";
 type Trained = { kind: "knn"; model: KnnModel } | { kind: "ml"; model: tf.LayersModel };
+type StepId = "teach" | "train" | "test";
 
 const TRAIN_EPOCHS = 40;
 const PREDICT_INTERVAL_MS = 80; // faster stable response
@@ -225,6 +227,37 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
     (c) => (counts[c.id] ?? 0) >= MIN_SAMPLES_PER_CLASS
   );
   const canTrain = dataset.classes.length >= 2 && everyClassReady;
+  const canTest = trainComplete && trainedModel?.kind === (mode === "examples" ? "knn" : "ml");
+
+  // --- Acordeón guiado: un solo paso abierto; el gating se deriva del
+  // dataset/modelo (misma lógica de siempre), esto solo decide qué se ve. ---
+  const [openStep, setOpenStep] = useState<StepId>("teach");
+  const prevCanTrainRef = useRef(canTrain);
+  const prevCanTestRef = useRef(false);
+
+  // Al completarse un paso, colapsarlo y abrir el siguiente.
+  useEffect(() => {
+    if (canTrain && !prevCanTrainRef.current) {
+      setOpenStep((prev) => (prev === "teach" ? "train" : prev));
+    }
+    prevCanTrainRef.current = canTrain;
+  }, [canTrain]);
+
+  useEffect(() => {
+    if (canTest && !prevCanTestRef.current) {
+      setOpenStep("test");
+    }
+    prevCanTestRef.current = canTest;
+  }, [canTest]);
+
+  // Si el paso abierto quedó bloqueado (p. ej. se borró el proyecto), retroceder.
+  useEffect(() => {
+    if (openStep === "test" && !canTest) {
+      setOpenStep(canTrain ? "train" : "teach");
+    } else if (openStep === "train" && !canTrain) {
+      setOpenStep("teach");
+    }
+  }, [openStep, canTrain, canTest]);
 
   useEffect(() => {
     modeRef.current = mode;
@@ -944,11 +977,26 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
   const cameraLoading = status !== "Detectando...";
   const cameraHint = !cameraLoading && !hasSubject ? config.missingHint : null;
 
-  const steps = [
-    { label: COPY.steps[0], done: canTrain, active: !canTrain },
-    { label: COPY.steps[1], done: trainComplete, active: canTrain && !trainComplete },
-    { label: COPY.steps[2], done: triedIt, active: trainComplete && !triedIt },
-  ];
+  // Condición literal de desbloqueo del paso 2 (la más útil primero)
+  const missingClass = dataset.classes.find(
+    (c) => (counts[c.id] ?? 0) < MIN_SAMPLES_PER_CLASS
+  );
+  const trainLockHint =
+    dataset.classes.length < 2
+      ? COPY.lockNeedClass
+      : missingClass
+      ? COPY.lockMissingSamples(
+          MIN_SAMPLES_PER_CLASS - (counts[missingClass.id] ?? 0),
+          missingClass.name
+        )
+      : COPY.lockOpensOnTrain;
+  const teachSummary = COPY.stepTeachSummary(dataset.classes.length, dataset.samples.length);
+  // Con modelo hidratado de un guardado/preset no hay métricas: mostrar solo "entrenado"
+  const trainAccuracy = trainProgress.valAcc ?? trainProgress.acc ?? 0;
+  const trainSummary =
+    trainAccuracy > 0
+      ? COPY.stepTrainSummary(Math.max(0, Math.min(10, Math.round(trainAccuracy * 10))))
+      : COPY.stepTrainSummaryReady;
 
   const trainHint = !canTrain
     ? dataset.classes.length < 2
@@ -1025,8 +1073,14 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
   return (
     <div className="trainer-page">
       <header className="trainer-header">
+        <img
+          className="trainer-logo"
+          src={`${import.meta.env.BASE_URL ?? "/"}brand/smartteam-logo.svg`}
+          alt="SmartTEAM"
+        />
+        <span className="trainer-header-divider" aria-hidden="true" />
         <button type="button" className="trainer-back" onClick={onBack}>
-          {COPY.back}
+          <ChevronLeft size={18} aria-hidden="true" /> {COPY.modalities}
         </button>
         <h2 className="trainer-title">{config.title}</h2>
         <div className="trainer-header-right">
@@ -1034,124 +1088,210 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
         </div>
       </header>
 
-      <StepsBar steps={steps} />
-
       <div className="trainer-main">
-        <section className="trainer-stage">
-          <CameraStage
-            videoRef={videoRef}
-            canvasRef={canvasRef}
-            dimmed={config.thumbnailSource !== "video"}
-            loading={cameraLoading}
-            loadingText={status}
-            hint={cameraHint}
-          >
-            <CaptureControls
-              disabled={!dataset.activeClassId || cameraLoading}
-              burstMode={burstMode}
-              onToggleBurst={() => setBurstMode((prev) => !prev)}
-              onPressStart={startHold}
-              onPressEnd={endHold}
-            />
-          </CameraStage>
-          <div className="trainer-capture-hint">{COPY.captureHint}</div>
-        </section>
-
         <aside className="trainer-side">
-          <ClassCardStrip
-            items={dataset.classes.map((c) => ({
-              id: c.id,
-              name: c.name,
-              count: counts[c.id] ?? 0,
-              thumb: lastThumbByClass[c.id],
-              icon: presetClassIcon(c.name),
-            }))}
-            activeId={dataset.activeClassId}
-            min={MIN_SAMPLES_PER_CLASS}
-            placeholderIcon={config.placeholderIcon}
-            onSelect={(id) => dispatch({ type: "SET_ACTIVE_CLASS", id })}
-            onAdd={() => dispatch({ type: "ADD_CLASS" })}
+          <div className="trainer-progress-title">{COPY.progressTitle}</div>
+          <StepAccordion
+            openId={openStep}
+            onOpen={(id) => setOpenStep(id as StepId)}
+            steps={[
+              {
+                id: "teach",
+                title: COPY.stepTeachTitle,
+                subtitle: COPY.stepTeachSubtitle,
+                state: canTrain ? "done" : "active",
+                summary: teachSummary,
+                actionLabel: COPY.stepEdit,
+                body: (
+                  <>
+                    <ClassCardStrip
+                      items={dataset.classes.map((c) => ({
+                        id: c.id,
+                        name: c.name,
+                        count: counts[c.id] ?? 0,
+                        thumb: lastThumbByClass[c.id],
+                        icon: presetClassIcon(c.name),
+                      }))}
+                      activeId={dataset.activeClassId}
+                      min={MIN_SAMPLES_PER_CLASS}
+                      placeholderIcon={config.placeholderIcon}
+                      onSelect={(id) => dispatch({ type: "SET_ACTIVE_CLASS", id })}
+                      onAdd={() => dispatch({ type: "ADD_CLASS" })}
+                    />
+
+                    {presetActive && (
+                      <button
+                        type="button"
+                        className="preset-own-btn"
+                        onClick={handleCreateOwnClasses}
+                      >
+                        <Pencil size={15} aria-hidden="true" /> Crear mis propias clases
+                      </button>
+                    )}
+
+                    {activeClass && (
+                      <div className="class-detail">
+                        <div className="class-detail-header">
+                          <input
+                            className="class-detail-name"
+                            value={activeClass.name}
+                            aria-label={COPY.className}
+                            onChange={(e) =>
+                              dispatch({
+                                type: "RENAME_CLASS",
+                                id: activeClass.id,
+                                name: e.target.value,
+                              })
+                            }
+                          />
+                          <button
+                            type="button"
+                            className="class-detail-delete"
+                            title={COPY.deleteClass}
+                            aria-label={COPY.deleteClass}
+                            disabled={dataset.classes.length <= 1}
+                            onClick={() => dispatch({ type: "DELETE_CLASS", id: activeClass.id })}
+                          >
+                            <Trash2 size={16} aria-hidden="true" />
+                          </button>
+                        </div>
+                        <SampleGrid
+                          items={activeSamples}
+                          min={MIN_SAMPLES_PER_CLASS}
+                          placeholderIcon={config.placeholderIcon}
+                          onDelete={(id) => dispatch({ type: "REMOVE_SAMPLE", id })}
+                        />
+                      </div>
+                    )}
+
+                    <div className="step-acc-note">{COPY.teachNote(MIN_SAMPLES_PER_CLASS)}</div>
+                  </>
+                ),
+              },
+              {
+                id: "train",
+                title: COPY.stepTrainTitle,
+                subtitle: COPY.stepTrainSubtitle,
+                state: !canTrain ? "locked" : canTest ? "done" : "active",
+                summary: trainSummary,
+                lockHint: trainLockHint,
+                actionLabel: COPY.stepRetrain,
+                body: (
+                  <>
+                    <div className="step-acc-guide">
+                      {COPY.trainGuide(dataset.classes.length)}
+                    </div>
+                    <TrainPanel
+                      canTrain={canTrain}
+                      isTraining={isTraining}
+                      trainComplete={trainComplete && hasTrainedModel}
+                      progressPct={trainProgressPct}
+                      hint={trainHint}
+                      error={trainError}
+                      onTrain={() => void handleTrain()}
+                    />
+                    <div className="step-acc-guide is-center">{COPY.trainCurveNote}</div>
+                  </>
+                ),
+              },
+              {
+                id: "test",
+                title: COPY.stepTestTitle,
+                subtitle: COPY.stepTestSubtitle,
+                state: canTest ? "active" : "locked",
+                lockHint: isTraining ? COPY.lockOpensAfterTrain : COPY.lockOpensOnTrain,
+                body: (
+                  <>
+                    {isPipSupported() && (
+                      <div className="try-panel-header">
+                        <button
+                          type="button"
+                          className="try-pip"
+                          onClick={() => void handleTogglePip()}
+                        >
+                          <Pin size={14} aria-hidden="true" /> {pipOpen ? COPY.pipClose : COPY.pipOpen}
+                        </button>
+                      </div>
+                    )}
+                    <LivePredictionBars rows={liveRows} seeing={seeing} hasModel={hasTrainedModel} />
+                    {hasTrainedModel && (
+                      <a
+                        className="try-program"
+                        href={`${import.meta.env.BASE_URL ?? "/"}microbit?model=${config.storageKey}`}
+                      >
+                        <Cpu size={16} aria-hidden="true" /> {COPY.programMicrobit}
+                      </a>
+                    )}
+                    <div className="trainer-microbit">
+                      <MicrobitPanel
+                        label={microbitLabel}
+                        confidence={microbitConfidence}
+                        advanced={advanced}
+                      />
+                    </div>
+                  </>
+                ),
+              },
+            ]}
           />
-
-          {presetActive && (
-            <button
-              type="button"
-              className="preset-own-btn"
-              onClick={handleCreateOwnClasses}
-            >
-              <Pencil size={15} aria-hidden="true" /> Crear mis propias clases
-            </button>
-          )}
-
-          {activeClass && (
-            <div className="class-detail">
-              <div className="class-detail-header">
-                <input
-                  className="class-detail-name"
-                  value={activeClass.name}
-                  aria-label={COPY.className}
-                  onChange={(e) =>
-                    dispatch({ type: "RENAME_CLASS", id: activeClass.id, name: e.target.value })
-                  }
-                />
-                <button
-                  type="button"
-                  className="class-detail-delete"
-                  title={COPY.deleteClass}
-                  aria-label={COPY.deleteClass}
-                  disabled={dataset.classes.length <= 1}
-                  onClick={() => dispatch({ type: "DELETE_CLASS", id: activeClass.id })}
-                >
-                  <Trash2 size={16} aria-hidden="true" />
-                </button>
-              </div>
-              <SampleGrid
-                items={activeSamples}
-                min={MIN_SAMPLES_PER_CLASS}
-                placeholderIcon={config.placeholderIcon}
-                onDelete={(id) => dispatch({ type: "REMOVE_SAMPLE", id })}
-              />
-            </div>
-          )}
-
-          <TrainPanel
-            canTrain={canTrain}
-            isTraining={isTraining}
-            trainComplete={trainComplete && hasTrainedModel}
-            progressPct={trainProgressPct}
-            hint={trainHint}
-            error={trainError}
-            onTrain={() => void handleTrain()}
-          />
-
-          <div className="try-panel">
-            <div className="try-panel-header">
-              <h3>{COPY.tryTitle}</h3>
-              {isPipSupported() && (
-                <button type="button" className="try-pip" onClick={() => void handleTogglePip()}>
-                  <Pin size={14} aria-hidden="true" /> {pipOpen ? COPY.pipClose : COPY.pipOpen}
-                </button>
-              )}
-            </div>
-            <LivePredictionBars rows={liveRows} seeing={seeing} hasModel={hasTrainedModel} />
-            {hasTrainedModel && (
-              <a
-                className="try-program"
-                href={`${import.meta.env.BASE_URL ?? "/"}microbit?model=${config.storageKey}`}
-              >
-                <Cpu size={16} aria-hidden="true" /> Programar micro:bit
-              </a>
-            )}
-          </div>
-
-          <div className="trainer-microbit">
-            <MicrobitPanel
-              label={microbitLabel}
-              confidence={microbitConfidence}
-              advanced={advanced}
-            />
-          </div>
         </aside>
+
+        <section className="trainer-stage">
+          {/* La cámara queda SIEMPRE montada (el loop de captura/predicción vive
+              sobre estos refs); en el paso 2 solo se oculta con CSS. */}
+          <div className={`trainer-stage-camera ${openStep === "train" ? "is-offstage" : ""}`}>
+            <CameraStage
+              videoRef={videoRef}
+              canvasRef={canvasRef}
+              dimmed={config.thumbnailSource !== "video"}
+              loading={cameraLoading}
+              loadingText={status}
+              hint={cameraHint}
+              overlay={
+                openStep === "test" && hasTrainedModel ? (
+                  <span className="stage-seeing">
+                    <span className="stage-seeing-dot" aria-hidden="true" />
+                    {seeing ? (
+                      <>
+                        {COPY.see} <strong>{seeing.label}</strong>
+                        <span className="stage-seeing-pct">
+                          {Math.round(seeing.confidence * 100)}%
+                        </span>
+                      </>
+                    ) : (
+                      COPY.seeNothing
+                    )}
+                  </span>
+                ) : undefined
+              }
+            >
+              {openStep === "teach" ? (
+                <CaptureControls
+                  disabled={!dataset.activeClassId || cameraLoading}
+                  burstMode={burstMode}
+                  onToggleBurst={() => setBurstMode((prev) => !prev)}
+                  onPressStart={startHold}
+                  onPressEnd={endHold}
+                />
+              ) : null}
+            </CameraStage>
+            <div className="trainer-capture-hint">
+              {openStep === "teach" ? COPY.captureHint : COPY.stageTestHint}
+            </div>
+          </div>
+
+          {openStep === "train" && (
+            <div className="trainer-stage-curve">
+              <LearningCurveCard
+                data={lineData}
+                isTraining={isTraining}
+                trainComplete={trainComplete && hasTrainedModel}
+                xLabel={mode === "examples" ? COPY.curveXLabel : "Épocas de entrenamiento"}
+              />
+              <div className="trainer-capture-hint">{COPY.curveWait}</div>
+            </div>
+          )}
+        </section>
       </div>
 
       <AdvancedDrawer open={advanced} onToggle={toggleAdvanced}>

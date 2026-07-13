@@ -9,7 +9,7 @@
 // El modelo se lee de IndexedDB por modalidad (?model=hands|face|pose|images).
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Bluetooth, Usb, ArrowLeft } from "lucide-react";
+import { Bluetooth, Usb, ArrowLeft, GraduationCap } from "lucide-react";
 import { createHandExtractor } from "../../core/extractors/handExtractor";
 import { createPoseExtractor } from "../../core/extractors/poseExtractor";
 import { createFaceExtractor } from "../../core/extractors/faceExtractor";
@@ -17,6 +17,14 @@ import { createImageExtractor } from "../../core/extractors/imageExtractor";
 import { loadProject, type SavedModality } from "../../core/storage/projectStore";
 import { MAKECODE_FORK_URL } from "../../core/bridge/config";
 import { buildMakeCodeProject, type MakeCodeProject } from "../../core/makecode/project";
+import {
+  COURSE_IDS,
+  COURSES,
+  isCourseId,
+  LAST_COURSE_STORAGE_KEY,
+  type CourseId,
+} from "../../core/makecode/courses";
+import { COPY } from "../copy";
 import { resolveControllerUrl, useMakeCodeController } from "../../core/makecode/controller";
 import CameraStage from "../components/trainer/CameraStage";
 import LivePredictionBars from "../components/trainer/LivePredictionBars";
@@ -39,6 +47,23 @@ const getInitialModel = (): ModelId => {
   return param && param in CONFIGS ? (param as ModelId) : "hands";
 };
 
+/** Curso desde ?curso= (null → se muestra el selector de curso). */
+const getInitialCourse = (): CourseId | null => {
+  if (typeof window === "undefined") return null;
+  const param = new URLSearchParams(window.location.search).get("curso");
+  return isCourseId(param) ? param : null;
+};
+
+const getLastCourse = (): CourseId | null => {
+  if (typeof window === "undefined") return null;
+  try {
+    const stored = window.localStorage.getItem(LAST_COURSE_STORAGE_KEY);
+    return isCourseId(stored) ? stored : null;
+  } catch {
+    return null;
+  }
+};
+
 /** URL del fork: ?mk= (query) tiene prioridad sobre VITE_MAKECODE_FORK_URL. */
 const resolveForkUrl = (): string => {
   if (typeof window !== "undefined") {
@@ -57,19 +82,55 @@ async function loadClassNames(modality: SavedModality): Promise<string[]> {
 export default function MicrobitPage() {
   const [model] = useState<ModelId>(getInitialModel);
   const baseUrl = import.meta.env.BASE_URL ?? "/";
+  const [course, setCourse] = useState<CourseId | null>(getInitialCourse);
   const [project, setProject] = useState<MakeCodeProject | null>(null);
+
+  // El curso vive en la URL (?curso=): compartible y compatible con "volver".
+  useEffect(() => {
+    const onPopState = () => setCourse(getInitialCourse());
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  const selectCourse = (id: CourseId) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("curso", id);
+    window.history.pushState({}, "", url);
+    try {
+      window.localStorage.setItem(LAST_COURSE_STORAGE_KEY, id);
+    } catch {
+      // sin localStorage (modo privado): solo no se recuerda la elección
+    }
+    setCourse(id);
+  };
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const classes = await loadClassNames(CONFIGS[model].storageKey);
       if (cancelled) return;
-      setProject(buildMakeCodeProject({ classes, transport: "bluetooth", name: `SmartTEAM ML ${CONFIGS[model].label}` }));
+      setProject(
+        buildMakeCodeProject({
+          classes,
+          transport: "bluetooth",
+          name: `SmartTEAM ML ${CONFIGS[model].label}`,
+          course: course ?? undefined,
+        })
+      );
     })();
     return () => {
       cancelled = true;
     };
-  }, [model]);
+  }, [model, course]);
+
+  if (!course) {
+    return (
+      <CourseSelect
+        backHref={`${baseUrl}trainer?model=${model}`}
+        onSelect={selectCourse}
+      />
+    );
+  }
 
   return (
     <div className="mb-page">
@@ -77,7 +138,21 @@ export default function MicrobitPage() {
         <a className="mb-back" href={`${baseUrl}trainer?model=${model}`}>
           <ArrowLeft size={16} aria-hidden="true" /> Entrenador
         </a>
-        <h1 className="mb-title">Programar micro:bit — {CONFIGS[model].label}</h1>
+        <h1 className="mb-title">
+          Programar micro:bit — {CONFIGS[model].label} · {COURSES[course].label}
+        </h1>
+        <button
+          type="button"
+          className="mb-course-change"
+          onClick={() => {
+            const url = new URL(window.location.href);
+            url.searchParams.delete("curso");
+            window.history.pushState({}, "", url);
+            setCourse(null);
+          }}
+        >
+          <GraduationCap size={15} aria-hidden="true" /> {COPY.courseChange}
+        </button>
       </header>
 
       <div className="mb-main">
@@ -85,8 +160,48 @@ export default function MicrobitPage() {
           <LiveEvalColumn key={model} config={CONFIGS[model]} baseUrl={baseUrl} />
         </section>
         <section className="mb-editor">
-          <MakeCodeController project={project} />
+          <MakeCodeController key={course} project={project} />
         </section>
+      </div>
+    </div>
+  );
+}
+
+function CourseSelect({
+  backHref,
+  onSelect,
+}: {
+  backHref: string;
+  onSelect: (id: CourseId) => void;
+}) {
+  const last = getLastCourse();
+
+  return (
+    <div className="mb-page mb-course-page">
+      <header className="mb-header">
+        <a className="mb-back" href={backHref}>
+          <ArrowLeft size={16} aria-hidden="true" /> Entrenador
+        </a>
+        <h1 className="mb-title">{COPY.courseTitle}</h1>
+      </header>
+
+      <p className="mb-course-subtitle">{COPY.courseSubtitle}</p>
+
+      <div className="mb-course-grid">
+        {COURSE_IDS.map((id) => (
+          <button
+            key={id}
+            type="button"
+            className={`mb-course-card ${last === id ? "is-last" : ""}`}
+            onClick={() => onSelect(id)}
+          >
+            <span className="mb-course-num" aria-hidden="true">
+              {id}
+            </span>
+            <span className="mb-course-label">{COURSES[id].longLabel}</span>
+            {last === id && <span className="mb-course-hint">La última vez</span>}
+          </button>
+        ))}
       </div>
     </div>
   );

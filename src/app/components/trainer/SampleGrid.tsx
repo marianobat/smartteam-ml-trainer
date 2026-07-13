@@ -5,6 +5,7 @@
 
 import { Trash2 } from "lucide-react";
 import { COPY } from "../../copy";
+import GestureIcon from "./classIcons";
 import "./SampleGrid.css";
 
 export type SampleItem = {
@@ -34,7 +35,7 @@ export default function SampleGrid({ items, min, placeholderIcon, onDelete }: Sa
             <span className="sample-card-text">{item.content}</span>
           ) : (
             <span className="sample-card-icon" aria-hidden="true">
-              {placeholderIcon}
+              <GestureIcon icon={placeholderIcon} size={22} />
             </span>
           )}
           {onDelete && (
@@ -54,7 +55,9 @@ export default function SampleGrid({ items, min, placeholderIcon, onDelete }: Sa
       {Array.from({ length: placeholders }, (_, i) => (
         <div key={`ph-${i}`} className="sample-card sample-card-placeholder" aria-hidden="true">
           {i === 0 && <span className="sample-card-next">{items.length + 1}</span>}
-          <span className="sample-card-icon">{placeholderIcon}</span>
+          <span className="sample-card-icon">
+            <GestureIcon icon={placeholderIcon} size={22} />
+          </span>
         </div>
       ))}
     </div>

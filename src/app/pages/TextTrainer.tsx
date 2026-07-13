@@ -7,7 +7,7 @@
 
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import * as tf from "@tensorflow/tfjs";
-import { Save, Loader2, Satellite, Pencil, Trash2 } from "lucide-react";
+import { Save, Loader2, Satellite, Pencil, Trash2, ChevronLeft } from "lucide-react";
 import {
   ResponsiveContainer,
   LineChart,
@@ -57,7 +57,8 @@ import { COPY } from "../copy";
 import { useAdvancedMode } from "../hooks/useAdvancedMode";
 import MicrobitPanel from "../components/MicrobitPanel";
 import ProjectPanel, { type SaveStatus } from "../components/ProjectPanel";
-import StepsBar from "../components/trainer/StepsBar";
+import StepAccordion from "../components/trainer/StepAccordion";
+import LearningCurveCard from "../components/trainer/LearningCurveCard";
 import ClassCardStrip from "../components/trainer/ClassCardStrip";
 import SampleGrid from "../components/trainer/SampleGrid";
 import TrainPanel from "../components/trainer/TrainPanel";
@@ -82,6 +83,7 @@ type TrainProgress = {
 
 type Mode = "examples" | "ml";
 type Trained = { kind: "knn"; model: KnnModel } | { kind: "ml"; model: tf.LayersModel };
+type StepId = "teach" | "train" | "test";
 
 const TRAIN_EPOCHS = 40;
 const ACCEPT_THRESHOLD = 0.7;
@@ -152,6 +154,34 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
     (c) => (counts[c.id] ?? 0) >= MIN_SAMPLES_PER_CLASS
   );
   const canTrain = dataset.classes.length >= 2 && everyClassReady;
+  const canTest = trainComplete && trainedModel?.kind === (mode === "examples" ? "knn" : "ml");
+
+  // --- Acordeón guiado: un solo paso abierto; gating derivado del dataset/modelo ---
+  const [openStep, setOpenStep] = useState<StepId>("teach");
+  const prevCanTrainRef = useRef(canTrain);
+  const prevCanTestRef = useRef(false);
+
+  useEffect(() => {
+    if (canTrain && !prevCanTrainRef.current) {
+      setOpenStep((prev) => (prev === "teach" ? "train" : prev));
+    }
+    prevCanTrainRef.current = canTrain;
+  }, [canTrain]);
+
+  useEffect(() => {
+    if (canTest && !prevCanTestRef.current) {
+      setOpenStep("test");
+    }
+    prevCanTestRef.current = canTest;
+  }, [canTest]);
+
+  useEffect(() => {
+    if (openStep === "test" && !canTest) {
+      setOpenStep(canTrain ? "train" : "teach");
+    } else if (openStep === "train" && !canTrain) {
+      setOpenStep("teach");
+    }
+  }, [openStep, canTrain, canTest]);
 
   // Carga del embedder
   useEffect(() => {
@@ -592,11 +622,26 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
     }));
   }, [trainHistory]);
 
-  const steps = [
-    { label: COPY.steps[0], done: canTrain, active: !canTrain },
-    { label: COPY.steps[1], done: trainComplete, active: canTrain && !trainComplete },
-    { label: COPY.steps[2], done: triedIt, active: trainComplete && !triedIt },
-  ];
+  // Condición literal de desbloqueo del paso 2 (la más útil primero)
+  const missingClass = dataset.classes.find(
+    (c) => (counts[c.id] ?? 0) < MIN_SAMPLES_PER_CLASS
+  );
+  const trainLockHint =
+    dataset.classes.length < 2
+      ? COPY.lockNeedClass
+      : missingClass
+      ? COPY.lockMissingSamples(
+          MIN_SAMPLES_PER_CLASS - (counts[missingClass.id] ?? 0),
+          missingClass.name
+        )
+      : COPY.lockOpensOnTrain;
+  const teachSummary = COPY.stepTeachSummary(dataset.classes.length, dataset.samples.length);
+  // Con modelo hidratado de un guardado no hay métricas: mostrar solo "entrenado"
+  const trainAccuracy = trainProgress.valAcc ?? trainProgress.acc ?? 0;
+  const trainSummary =
+    trainAccuracy > 0
+      ? COPY.stepTrainSummary(Math.max(0, Math.min(10, Math.round(trainAccuracy * 10))))
+      : COPY.stepTrainSummaryReady;
 
   const trainHint = !canTrain
     ? dataset.classes.length < 2
@@ -659,8 +704,14 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
   return (
     <div className="trainer-page">
       <header className="trainer-header">
+        <img
+          className="trainer-logo"
+          src={`${import.meta.env.BASE_URL ?? "/"}brand/smartteam-logo.svg`}
+          alt="SmartTEAM"
+        />
+        <span className="trainer-header-divider" aria-hidden="true" />
         <button type="button" className="trainer-back" onClick={onBack}>
-          {COPY.back}
+          <ChevronLeft size={18} aria-hidden="true" /> {COPY.modalities}
         </button>
         <h2 className="trainer-title">Entrenador de textos</h2>
         <div className="trainer-header-right">
@@ -668,118 +719,186 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
         </div>
       </header>
 
-      <StepsBar steps={steps} />
-
       <div className="trainer-main">
-        <section className="trainer-stage">
-          <div className="text-stage">
-            {!ready && <div className="text-stage-loading">{status}</div>}
-
-            <div className="text-stage-block">
-              <h3 className="text-stage-title">
-                <Pencil size={18} aria-hidden="true" /> Enséñale con frases{" "}
-                {activeClass ? `a "${activeClass.name}"` : ""}
-              </h3>
-              <textarea
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    void handleAddSample();
-                  }
-                }}
-                placeholder={COPY.addTextPlaceholder}
-                rows={2}
-                disabled={!ready}
-              />
-              <button
-                type="button"
-                className="text-stage-add"
-                onClick={() => void handleAddSample()}
-                disabled={!ready || !inputText.trim() || !dataset.activeClassId || isEmbedding}
-              >
-                {isEmbedding ? "Agregando..." : COPY.addTextButton}
-              </button>
-            </div>
-
-            <div className="text-stage-block">
-              <h3 className="text-stage-title">{COPY.tryTitle}</h3>
-              <textarea
-                value={testText}
-                onChange={(e) => setTestText(e.target.value)}
-                placeholder={COPY.testTextPlaceholder}
-                rows={2}
-                disabled={!hasTrainedModel}
-              />
-              <LivePredictionBars rows={liveRows} seeing={seeing} hasModel={hasTrainedModel} />
-            </div>
-          </div>
-        </section>
-
         <aside className="trainer-side">
-          <ClassCardStrip
-            items={dataset.classes.map((c) => ({
-              id: c.id,
-              name: c.name,
-              count: counts[c.id] ?? 0,
-            }))}
-            activeId={dataset.activeClassId}
-            min={MIN_SAMPLES_PER_CLASS}
-            placeholderIcon={PLACEHOLDER_ICON}
-            onSelect={(id) => dispatch({ type: "SET_ACTIVE_CLASS", id })}
-            onAdd={() => dispatch({ type: "ADD_CLASS" })}
-          />
+          <div className="trainer-progress-title">{COPY.progressTitle}</div>
+          <StepAccordion
+            openId={openStep}
+            onOpen={(id) => setOpenStep(id as StepId)}
+            steps={[
+              {
+                id: "teach",
+                title: COPY.stepTeachTitle,
+                subtitle: "Escríbele frases de ejemplo para cada clase",
+                state: canTrain ? "done" : "active",
+                summary: teachSummary,
+                actionLabel: COPY.stepEdit,
+                body: (
+                  <>
+                    <ClassCardStrip
+                      items={dataset.classes.map((c) => ({
+                        id: c.id,
+                        name: c.name,
+                        count: counts[c.id] ?? 0,
+                      }))}
+                      activeId={dataset.activeClassId}
+                      min={MIN_SAMPLES_PER_CLASS}
+                      placeholderIcon={PLACEHOLDER_ICON}
+                      onSelect={(id) => dispatch({ type: "SET_ACTIVE_CLASS", id })}
+                      onAdd={() => dispatch({ type: "ADD_CLASS" })}
+                    />
 
-          {activeClass && (
-            <div className="class-detail">
-              <div className="class-detail-header">
-                <input
-                  className="class-detail-name"
-                  value={activeClass.name}
-                  aria-label={COPY.className}
-                  onChange={(e) =>
-                    dispatch({ type: "RENAME_CLASS", id: activeClass.id, name: e.target.value })
-                  }
+                    {activeClass && (
+                      <div className="class-detail">
+                        <div className="class-detail-header">
+                          <input
+                            className="class-detail-name"
+                            value={activeClass.name}
+                            aria-label={COPY.className}
+                            onChange={(e) =>
+                              dispatch({
+                                type: "RENAME_CLASS",
+                                id: activeClass.id,
+                                name: e.target.value,
+                              })
+                            }
+                          />
+                          <button
+                            type="button"
+                            className="class-detail-delete"
+                            title={COPY.deleteClass}
+                            aria-label={COPY.deleteClass}
+                            disabled={dataset.classes.length <= 1}
+                            onClick={() => dispatch({ type: "DELETE_CLASS", id: activeClass.id })}
+                          >
+                            <Trash2 size={16} aria-hidden="true" />
+                          </button>
+                        </div>
+                        <SampleGrid
+                          items={activeSamples}
+                          min={MIN_SAMPLES_PER_CLASS}
+                          placeholderIcon={PLACEHOLDER_ICON}
+                          onDelete={(id) => dispatch({ type: "REMOVE_SAMPLE", id })}
+                        />
+                      </div>
+                    )}
+
+                    <div className="step-acc-note">{COPY.teachNote(MIN_SAMPLES_PER_CLASS)}</div>
+                  </>
+                ),
+              },
+              {
+                id: "train",
+                title: COPY.stepTrainTitle,
+                subtitle: COPY.stepTrainSubtitle,
+                state: !canTrain ? "locked" : canTest ? "done" : "active",
+                summary: trainSummary,
+                lockHint: trainLockHint,
+                actionLabel: COPY.stepRetrain,
+                body: (
+                  <>
+                    <div className="step-acc-guide">
+                      {COPY.trainGuide(dataset.classes.length)}
+                    </div>
+                    <TrainPanel
+                      canTrain={canTrain && ready}
+                      isTraining={isTraining}
+                      trainComplete={trainComplete && hasTrainedModel}
+                      progressPct={trainProgressPct}
+                      hint={trainHint}
+                      error={trainError}
+                      onTrain={() => void handleTrain()}
+                    />
+                    <div className="step-acc-guide is-center">{COPY.trainCurveNote}</div>
+                  </>
+                ),
+              },
+              {
+                id: "test",
+                title: COPY.stepTestTitle,
+                subtitle: "Escribe algo y mira qué clase detecta",
+                state: canTest ? "active" : "locked",
+                lockHint: isTraining ? COPY.lockOpensAfterTrain : COPY.lockOpensOnTrain,
+                body: (
+                  <>
+                    <LivePredictionBars rows={liveRows} seeing={seeing} hasModel={hasTrainedModel} />
+                    <div className="trainer-microbit">
+                      <MicrobitPanel
+                        label={liveLabel && liveConfidence >= ACCEPT_THRESHOLD ? liveLabel : "none"}
+                        confidence={
+                          liveLabel && liveConfidence >= ACCEPT_THRESHOLD ? liveConfidence : 0
+                        }
+                        advanced={advanced}
+                      />
+                    </div>
+                  </>
+                ),
+              },
+            ]}
+          />
+        </aside>
+
+        <section className="trainer-stage">
+          {openStep === "teach" && (
+            <div className="text-stage">
+              {!ready && <div className="text-stage-loading">{status}</div>}
+              <div className="text-stage-block">
+                <h3 className="text-stage-title">
+                  <Pencil size={18} aria-hidden="true" /> Enséñale con frases{" "}
+                  {activeClass ? `a "${activeClass.name}"` : ""}
+                </h3>
+                <textarea
+                  value={inputText}
+                  onChange={(e) => setInputText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      void handleAddSample();
+                    }
+                  }}
+                  placeholder={COPY.addTextPlaceholder}
+                  rows={2}
+                  disabled={!ready}
                 />
                 <button
                   type="button"
-                  className="class-detail-delete"
-                  title={COPY.deleteClass}
-                  aria-label={COPY.deleteClass}
-                  disabled={dataset.classes.length <= 1}
-                  onClick={() => dispatch({ type: "DELETE_CLASS", id: activeClass.id })}
+                  className="text-stage-add"
+                  onClick={() => void handleAddSample()}
+                  disabled={!ready || !inputText.trim() || !dataset.activeClassId || isEmbedding}
                 >
-                  <Trash2 size={16} aria-hidden="true" />
+                  {isEmbedding ? "Agregando..." : COPY.addTextButton}
                 </button>
               </div>
-              <SampleGrid
-                items={activeSamples}
-                min={MIN_SAMPLES_PER_CLASS}
-                placeholderIcon={PLACEHOLDER_ICON}
-                onDelete={(id) => dispatch({ type: "REMOVE_SAMPLE", id })}
-              />
             </div>
           )}
 
-          <TrainPanel
-            canTrain={canTrain && ready}
-            isTraining={isTraining}
-            trainComplete={trainComplete && hasTrainedModel}
-            progressPct={trainProgressPct}
-            hint={trainHint}
-            error={trainError}
-            onTrain={() => void handleTrain()}
-          />
+          {openStep === "train" && (
+            <div className="trainer-stage-curve">
+              <LearningCurveCard
+                data={lineData}
+                isTraining={isTraining}
+                trainComplete={trainComplete && hasTrainedModel}
+                xLabel={mode === "examples" ? COPY.curveXLabel : "Épocas de entrenamiento"}
+              />
+              <div className="trainer-capture-hint">{COPY.curveWait}</div>
+            </div>
+          )}
 
-          <div className="trainer-microbit">
-            <MicrobitPanel
-              label={liveLabel && liveConfidence >= ACCEPT_THRESHOLD ? liveLabel : "none"}
-              confidence={liveLabel && liveConfidence >= ACCEPT_THRESHOLD ? liveConfidence : 0}
-              advanced={advanced}
-            />
-          </div>
-        </aside>
+          {openStep === "test" && (
+            <div className="text-stage">
+              <div className="text-stage-block">
+                <h3 className="text-stage-title">{COPY.tryTitle}</h3>
+                <textarea
+                  value={testText}
+                  onChange={(e) => setTestText(e.target.value)}
+                  placeholder={COPY.testTextPlaceholder}
+                  rows={2}
+                  disabled={!hasTrainedModel}
+                />
+              </div>
+            </div>
+          )}
+        </section>
       </div>
 
       <AdvancedDrawer open={advanced} onToggle={toggleAdvanced}>
