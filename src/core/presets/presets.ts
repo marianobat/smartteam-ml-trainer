@@ -48,22 +48,13 @@ export const HAND_PRESET_CLASSES: PresetClass[] = [
   { name: "paz", icon: "✌️" },
 ];
 
-export const PRESETS: Partial<Record<SavedModality, Preset>> = {
-  pose: {
-    id: "pose-basico",
-    modality: "pose",
-    badge: "Poses listas",
-    classes: POSE_PRESET_CLASSES,
-    projectPath: "presets/pose-basico.json",
-  },
-  hands: {
-    id: "manos-basico",
-    modality: "hands",
-    badge: "Gestos listos",
-    classes: HAND_PRESET_CLASSES,
-    projectPath: "presets/manos-basico.json",
-  },
-};
+// Presets DESACTIVADOS por ahora (decisión de producto: todos los entrenadores
+// arrancan en cero). Para reactivarlos, restaurar las entradas de pose/manos:
+//   pose:  { id: "pose-basico",  modality: "pose",  badge: "Poses listas",
+//            classes: POSE_PRESET_CLASSES, projectPath: "presets/pose-basico.json" },
+//   hands: { id: "manos-basico", modality: "hands", badge: "Gestos listos",
+//            classes: HAND_PRESET_CLASSES, projectPath: "presets/manos-basico.json" },
+export const PRESETS: Partial<Record<SavedModality, Preset>> = {};
 
 /** Ícono por nombre de clase canónico (sirve también para clases propias que casualmente coincidan). */
 export function presetClassIcon(name: string): string | undefined {

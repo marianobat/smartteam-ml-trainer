@@ -12,6 +12,7 @@
 
 import { generateClassesFile, type BlocksTransport } from "./codegen";
 import bleExtensionSource from "./extensions/smartteam-ml-bluetooth.ts.txt?raw";
+import { COURSES, type CourseId } from "./courses";
 
 /** Mapa nombre-de-archivo → contenido (formato pxt.workspace.Project.text). */
 export type ProjectText = Record<string, string>;
@@ -25,6 +26,8 @@ export interface BuildProjectOptions {
   transport?: BlocksTransport;
   /** Clases del modelo entrenado → se exponen como desplegable en `clases.ts`. */
   classes?: string[];
+  /** Curso (3.º–9.º): define qué extensión se embebe (ver courses.ts). */
+  course?: CourseId;
 }
 
 /** Archivo del proyecto con la fuente inline de la extensión BLE. */
@@ -45,6 +48,10 @@ export function buildMakeCodeProject(options: BuildProjectOptions = {}): MakeCod
   const name = options.name ?? "SmartTEAM ML";
   const transport = options.transport ?? "bluetooth";
   const classesSource = generateClassesFile({ transport, classes: options.classes ?? [] });
+  // Extensión según curso; sin curso se embebe la BLE base (comportamiento actual).
+  const extension = options.course
+    ? COURSES[options.course].extension
+    : { file: BLE_EXTENSION_FILE, source: bleExtensionSource };
 
   const config = {
     name,
@@ -67,7 +74,7 @@ export function buildMakeCodeProject(options: BuildProjectOptions = {}): MakeCod
         },
       },
     },
-    files: ["main.blocks", "main.ts", BLE_EXTENSION_FILE, CLASSES_FILE],
+    files: ["main.blocks", "main.ts", extension.file, CLASSES_FILE],
     preferredEditor: "blocksprj",
   };
 
@@ -76,7 +83,7 @@ export function buildMakeCodeProject(options: BuildProjectOptions = {}): MakeCod
       "pxt.json": JSON.stringify(config, null, 4),
       "main.blocks": EMPTY_BLOCKS,
       "main.ts": "",
-      [BLE_EXTENSION_FILE]: bleExtensionSource,
+      [extension.file]: extension.source,
       [CLASSES_FILE]: classesSource,
     },
   };

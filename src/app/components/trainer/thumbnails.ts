@@ -2,7 +2,10 @@
 //
 // Miniaturas de muestras. Para modalidades con esqueleto (manos/cuerpo/cara)
 // se rasteriza el canvas de overlay sobre fondo blanco — no se guarda la foto
-// del chico (privacidad). Para imágenes se recorta el video.
+// del chico (privacidad). Para imágenes se recorta la ventana 4:3 central
+// (focusBox): la miniatura muestra exactamente lo que el modelo tomó.
+
+import { focusBoxRect } from "../../../core/extractors/focusBox";
 
 export function captureSkeletonThumbnail(
   overlay: HTMLCanvasElement,
@@ -44,9 +47,11 @@ export function captureVideoThumbnail(
 
   const vw = video.videoWidth || 640;
   const vh = video.videoHeight || 480;
-  const side = Math.min(vw, vh);
-  const sx = (vw - side) / 2;
-  const sy = (vh - side) / 2;
+  // Cuadrado central DENTRO de la ventana 4:3 de muestreo (sin distorsión)
+  const rect = focusBoxRect(vw, vh);
+  const side = Math.min(rect.width, rect.height);
+  const sx = rect.x + (rect.width - side) / 2;
+  const sy = rect.y + (rect.height - side) / 2;
 
   if (mirror) {
     ctx.translate(size, 0);

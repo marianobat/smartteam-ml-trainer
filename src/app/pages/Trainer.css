@@ -1,24 +1,49 @@
-/* Layout de página de los entrenadores (video, texto y audio). */
+/* Layout de página de los entrenadores (video, texto y audio).
+   Acordeón de pasos a la IZQUIERDA, escenario (cámara/curva) a la DERECHA. */
 
 .trainer-page {
   display: grid;
   gap: var(--space-4);
   padding: var(--space-4) clamp(12px, 3vw, 40px) var(--space-6);
-  max-width: 1500px;
+  width: 100%;
+  max-width: 1320px;
   margin: 0 auto;
 }
 
+/* --- Barra superior: logo + Modalidades + título + chips --- */
 .trainer-header {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-4);
   flex-wrap: wrap;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-outline);
+  border-radius: var(--radius-lg);
+  padding: 12px var(--space-5);
+  box-shadow: var(--shadow-card);
+}
+
+.trainer-logo {
+  height: 30px;
+  width: auto;
+  display: block;
+}
+
+.trainer-header-divider {
+  width: 1px;
+  height: 26px;
+  background: var(--color-outline);
 }
 
 .trainer-back {
-  background: var(--color-surface);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--color-bg);
   color: var(--color-ink);
-  border: 1.5px solid var(--color-outline);
+  border: none;
+  font-weight: 500;
+  font-size: 0.95rem;
 }
 .trainer-back:hover:not(:disabled) {
   box-shadow: var(--shadow-card);
@@ -26,7 +51,8 @@
 
 .trainer-title {
   margin: 0;
-  font-size: clamp(1.3rem, 2.6vw, 1.8rem);
+  font-size: clamp(1.2rem, 2.4vw, 1.35rem);
+  font-weight: 600;
   flex: 1;
   min-width: 200px;
 }
@@ -37,44 +63,97 @@
   gap: var(--space-2);
 }
 
+/* --- Cuerpo: acordeón izquierda / escenario derecha --- */
 .trainer-main {
   display: grid;
-  grid-template-columns: minmax(0, 1.5fr) minmax(340px, 1fr);
-  gap: var(--space-4);
+  grid-template-columns: minmax(380px, 1fr) minmax(0, 1.5fr);
+  gap: var(--space-5);
   align-items: start;
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 900px) {
   .trainer-main {
     grid-template-columns: 1fr;
   }
 }
 
+.trainer-side {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.trainer-progress-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: var(--color-ink-soft);
+}
+
+/* Texto guía dentro de un paso del acordeón */
+.step-acc-guide {
+  font-size: 0.85rem;
+  color: var(--color-ink-soft);
+}
+.step-acc-guide.is-center {
+  text-align: center;
+  font-size: 0.8rem;
+}
+
+/* --- Escenario derecho (cámara o curva; mismo contenedor fluido) --- */
 .trainer-stage {
   display: grid;
   gap: var(--space-2);
   position: sticky;
   top: var(--space-3);
 }
-@media (max-width: 1100px) {
+@media (max-width: 900px) {
   .trainer-stage {
     position: static;
   }
 }
 
+.trainer-stage-camera,
+.trainer-stage-curve {
+  display: grid;
+  gap: var(--space-2);
+}
+
+/* La cámara sigue montada (loop de captura vivo); solo se oculta en el paso 2 */
+.trainer-stage-camera.is-offstage {
+  display: none;
+}
+
 .trainer-capture-hint {
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   color: var(--color-ink-soft);
   text-align: center;
 }
 
-.trainer-side {
-  display: grid;
-  gap: var(--space-4);
-  background: var(--color-surface);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-card);
-  padding: var(--space-4);
+/* Píldora "Veo: X %" sobre la cámara durante el paso Probar */
+.stage-seeing {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.94);
+  border-radius: var(--radius-md);
+  padding: 10px 16px;
+  box-shadow: 0 8px 24px rgba(22, 10, 96, 0.25);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: var(--color-ink);
+}
+.stage-seeing strong {
+  color: var(--color-primary);
+}
+.stage-seeing-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--color-accent);
+}
+.stage-seeing-pct {
+  color: var(--color-success-strong);
 }
 
 .preset-own-btn {
@@ -84,7 +163,7 @@
   justify-self: start;
   background: var(--color-surface);
   color: var(--color-ink);
-  border: 1.5px dashed var(--color-outline);
+  border: 1.5px dashed var(--color-outline-strong);
   font-size: 0.9rem;
   min-height: 40px;
 }
@@ -108,35 +187,28 @@
 .class-detail-name {
   flex: 1;
   min-width: 0;
-  font-weight: 700;
+  font-weight: 600;
   font-family: var(--font-display);
-  font-size: 1.05rem;
+  font-size: 1rem;
 }
 
 .class-detail-delete {
   width: var(--tap-min);
   height: var(--tap-min);
   padding: 0;
-  border-radius: 50%;
-  background: var(--color-surface);
-  border: 1.5px solid var(--color-outline);
-  color: var(--color-ink);
+  border-radius: var(--radius-sm);
+  background: var(--color-danger-soft);
+  border: none;
+  color: var(--color-danger);
   font-size: 16px;
   display: grid;
   place-items: center;
 }
 .class-detail-delete:hover:not(:disabled) {
-  background: var(--color-danger-soft);
-  border-color: var(--color-danger);
+  background: var(--color-danger);
+  color: #fff;
   transform: none;
   box-shadow: none;
-}
-
-.try-panel {
-  display: grid;
-  gap: var(--space-3);
-  border-top: 1.5px solid var(--color-outline);
-  padding-top: var(--space-4);
 }
 
 .try-panel-header {
@@ -145,9 +217,8 @@
   justify-content: space-between;
   gap: var(--space-2);
 }
-.try-panel-header h3 {
-  margin: 0;
-  font-size: 1.1rem;
+.try-panel-header .try-pip {
+  margin-left: auto;
 }
 
 .try-pip {
@@ -167,16 +238,18 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  background: var(--color-primary);
+  background: var(--color-ink);
   color: #fff;
   border: none;
   border-radius: var(--radius-pill);
-  font-weight: 800;
-  font-size: 0.95rem;
-  min-height: 44px;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.98rem;
+  min-height: 48px;
   padding: 0.4em 1.2em;
 }
 .try-program:hover {
+  color: #fff;
   box-shadow: var(--shadow-card);
 }
 

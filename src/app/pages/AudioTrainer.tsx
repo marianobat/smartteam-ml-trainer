@@ -9,7 +9,7 @@
 // viven dentro del transfer recognizer de speech-commands).
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Mic, MicOff, Circle, Play, Pause, Satellite } from "lucide-react";
+import { Mic, MicOff, Circle, Play, Pause, Satellite, ChevronLeft } from "lucide-react";
 import type {
   SpeechCommandRecognizer,
   TransferSpeechCommandRecognizer,
@@ -28,7 +28,8 @@ import { MIN_SAMPLES_PER_CLASS } from "../../core/dataset/datasetStore";
 import { COPY } from "../copy";
 import { useAdvancedMode } from "../hooks/useAdvancedMode";
 import MicrobitPanel from "../components/MicrobitPanel";
-import StepsBar from "../components/trainer/StepsBar";
+import StepAccordion from "../components/trainer/StepAccordion";
+import LearningCurveCard from "../components/trainer/LearningCurveCard";
 import ClassCardStrip from "../components/trainer/ClassCardStrip";
 import SampleGrid from "../components/trainer/SampleGrid";
 import TrainPanel from "../components/trainer/TrainPanel";
@@ -45,6 +46,7 @@ const ACCEPT_THRESHOLD = 0.7;
 const PLACEHOLDER_ICON = "🔊";
 
 type AudioClass = { id: string; name: string };
+type StepId = "teach" | "train" | "test";
 
 function uid() {
   return `w_${Math.random().toString(16).slice(2)}_${Date.now().toString(16)}`;
@@ -121,6 +123,36 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
   const samplesReady =
     classes.length >= 2 && everyClassHasExamples && noiseCount >= MIN_SAMPLES_PER_CLASS;
   const canTrain = ready && samplesReady && !isTraining && !recordingId;
+  const canTest = trainComplete;
+
+  // --- Acordeón guiado: un solo paso abierto; gating derivado de ejemplos/modelo ---
+  const [openStep, setOpenStep] = useState<StepId>("teach");
+  // Historial de precisión por época (solo para la curva del paso 2)
+  const [trainCurve, setTrainCurve] = useState<Array<{ step: number; acc?: number }>>([]);
+  const prevSamplesReadyRef = useRef(samplesReady);
+  const prevCanTestRef = useRef(false);
+
+  useEffect(() => {
+    if (samplesReady && !prevSamplesReadyRef.current) {
+      setOpenStep((prev) => (prev === "teach" ? "train" : prev));
+    }
+    prevSamplesReadyRef.current = samplesReady;
+  }, [samplesReady]);
+
+  useEffect(() => {
+    if (canTest && !prevCanTestRef.current) {
+      setOpenStep("test");
+    }
+    prevCanTestRef.current = canTest;
+  }, [canTest]);
+
+  useEffect(() => {
+    if (openStep === "test" && !canTest) {
+      setOpenStep(samplesReady ? "train" : "teach");
+    } else if (openStep === "train" && !samplesReady) {
+      setOpenStep("teach");
+    }
+  }, [openStep, samplesReady, canTest]);
 
   // Carga del modelo base
   useEffect(() => {
@@ -305,6 +337,7 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
     setTrainError(null);
     setTrainComplete(false);
     setTrainProgress({ epoch: 0, total: TRAIN_EPOCHS });
+    setTrainCurve([]);
 
     try {
       await transfer.train({
@@ -313,6 +346,7 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
           onEpochEnd: async (epoch, logs) => {
             const accValue = (logs?.acc ?? logs?.accuracy) as number | undefined;
             setTrainProgress({ epoch: epoch + 1, total: TRAIN_EPOCHS, acc: accValue });
+            setTrainCurve((prev) => [...prev, { step: epoch + 1, acc: accValue }]);
           },
         },
       });
@@ -361,11 +395,27 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
   const selectedCount = selectedClass ? counts[selectedClass.id] ?? 0 : 0;
   const isRecordingSelected = recordingId === selectedClass?.id;
 
-  const steps = [
-    { label: COPY.steps[0], done: samplesReady, active: !samplesReady },
-    { label: COPY.steps[1], done: trainComplete, active: samplesReady && !trainComplete },
-    { label: COPY.steps[2], done: triedIt, active: trainComplete && !triedIt },
-  ];
+  // Condición literal de desbloqueo del paso 2 (la más útil primero)
+  const missingAudioClass = classes.find((c) => (counts[c.id] ?? 0) < MIN_SAMPLES_PER_CLASS);
+  const trainLockHint =
+    classes.length < 2
+      ? COPY.lockNeedClass
+      : noiseCount < MIN_SAMPLES_PER_CLASS
+      ? COPY.lockMissingSamples(MIN_SAMPLES_PER_CLASS - noiseCount, BACKGROUND_NAME)
+      : missingAudioClass
+      ? COPY.lockMissingSamples(
+          MIN_SAMPLES_PER_CLASS - (counts[missingAudioClass.id] ?? 0),
+          missingAudioClass.name
+        )
+      : COPY.lockOpensOnTrain;
+  const totalSamples = Object.values(counts).reduce((a, b) => a + b, 0);
+  const teachSummary = COPY.stepTeachSummary(classes.length + 1, totalSamples);
+  const trainSummary =
+    (trainProgress.acc ?? 0) > 0
+      ? COPY.stepTrainSummary(
+          Math.max(0, Math.min(10, Math.round((trainProgress.acc ?? 0) * 10)))
+        )
+      : COPY.stepTrainSummaryReady;
 
   const trainHint = !samplesReady
     ? classes.length < 2
@@ -417,8 +467,14 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
   return (
     <div className="trainer-page">
       <header className="trainer-header">
+        <img
+          className="trainer-logo"
+          src={`${import.meta.env.BASE_URL ?? "/"}brand/smartteam-logo.svg`}
+          alt="SmartTEAM"
+        />
+        <span className="trainer-header-divider" aria-hidden="true" />
         <button type="button" className="trainer-back" onClick={onBack}>
-          {COPY.back}
+          <ChevronLeft size={18} aria-hidden="true" /> {COPY.modalities}
         </button>
         <h2 className="trainer-title">Entrenador de sonidos</h2>
         <div className="trainer-header-right">
@@ -426,161 +482,227 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
         </div>
       </header>
 
-      <StepsBar steps={steps} />
-
       <div className="trainer-main">
+        <aside className="trainer-side">
+          <div className="trainer-progress-title">{COPY.progressTitle}</div>
+          <StepAccordion
+            openId={openStep}
+            onOpen={(id) => setOpenStep(id as StepId)}
+            steps={[
+              {
+                id: "teach",
+                title: COPY.stepTeachTitle,
+                subtitle: "Grábale ejemplos de cada sonido",
+                state: samplesReady ? "done" : "active",
+                summary: teachSummary,
+                actionLabel: COPY.stepEdit,
+                body: (
+                  <>
+                    <ClassCardStrip
+                      items={[
+                        {
+                          id: BACKGROUND_LABEL,
+                          name: BACKGROUND_NAME,
+                          count: noiseCount,
+                        },
+                        ...classes.map((c) => ({
+                          id: c.id,
+                          name: c.name,
+                          count: counts[c.id] ?? 0,
+                        })),
+                      ]}
+                      activeId={selectedId}
+                      min={MIN_SAMPLES_PER_CLASS}
+                      placeholderIcon={PLACEHOLDER_ICON}
+                      onSelect={(id) => setSelectedId(id)}
+                      onAdd={() => {
+                        const id = uid();
+                        setClasses((prev) => [...prev, { id, name: `Clase ${prev.length + 1}` }]);
+                        setSelectedId(id);
+                      }}
+                      addDisabled={isTraining || Boolean(recordingId)}
+                    />
+
+                    {selectedClass && !selectedIsNoise && (
+                      <div className="class-detail">
+                        <div className="class-detail-header">
+                          <input
+                            className="class-detail-name"
+                            value={selectedClass.name}
+                            aria-label={COPY.className}
+                            onChange={(e) =>
+                              setClasses((prev) =>
+                                prev.map((c) =>
+                                  c.id === selectedClass.id ? { ...c, name: e.target.value } : c
+                                )
+                              )
+                            }
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="step-acc-note">{COPY.teachNote(MIN_SAMPLES_PER_CLASS)}</div>
+                  </>
+                ),
+              },
+              {
+                id: "train",
+                title: COPY.stepTrainTitle,
+                subtitle: COPY.stepTrainSubtitle,
+                state: !samplesReady ? "locked" : canTest ? "done" : "active",
+                summary: trainSummary,
+                lockHint: trainLockHint,
+                actionLabel: COPY.stepRetrain,
+                body: (
+                  <>
+                    <div className="step-acc-guide">{COPY.trainGuide(classes.length)}</div>
+                    <TrainPanel
+                      canTrain={canTrain}
+                      isTraining={isTraining}
+                      trainComplete={trainComplete}
+                      progressPct={
+                        trainProgress.total > 0
+                          ? Math.round((trainProgress.epoch / trainProgress.total) * 100)
+                          : null
+                      }
+                      hint={trainHint}
+                      error={trainError}
+                      onTrain={() => void handleTrain()}
+                    />
+                    <div className="step-acc-guide is-center">{COPY.trainCurveNote}</div>
+                  </>
+                ),
+              },
+              {
+                id: "test",
+                title: COPY.stepTestTitle,
+                subtitle: "Habla o haz sonidos y mira qué detecta",
+                state: canTest ? "active" : "locked",
+                lockHint: isTraining ? COPY.lockOpensAfterTrain : COPY.lockOpensOnTrain,
+                body: (
+                  <>
+                    <LivePredictionBars rows={liveRows} seeing={seeing} hasModel={trainComplete} />
+                    <div className="trainer-microbit">
+                      <MicrobitPanel
+                        label={
+                          liveRawLabel &&
+                          liveRawLabel !== BACKGROUND_LABEL &&
+                          liveConfidence >= ACCEPT_THRESHOLD
+                            ? liveLabel
+                            : "none"
+                        }
+                        confidence={
+                          liveRawLabel &&
+                          liveRawLabel !== BACKGROUND_LABEL &&
+                          liveConfidence >= ACCEPT_THRESHOLD
+                            ? liveConfidence
+                            : 0
+                        }
+                        advanced={advanced}
+                      />
+                    </div>
+                  </>
+                ),
+              },
+            ]}
+          />
+        </aside>
+
         <section className="trainer-stage">
-          <div className="audio-stage">
-            {!ready && status && <div className="audio-stage-loading">{status}</div>}
+          {openStep === "teach" && (
+            <div className="audio-stage">
+              {!ready && status && <div className="audio-stage-loading">{status}</div>}
 
-            {selectedClass && (
-              <div className="audio-stage-block">
-                <h3 className="audio-stage-title">
-                  {selectedIsNoise ? (
-                    <MicOff size={18} aria-hidden="true" />
-                  ) : (
-                    <Mic size={18} aria-hidden="true" />
-                  )}{" "}
-                  Graba ejemplos para "{selectedClass.name}"
-                </h3>
-                {selectedIsNoise && (
-                  <p className="audio-stage-note">
-                    Quédate en silencio (o deja el ruido normal del salón) mientras graba.
-                  </p>
-                )}
-                <button
-                  type="button"
-                  className="audio-record"
-                  onClick={() => void handleRecord(selectedClass.id)}
-                  disabled={!ready || Boolean(recordingId) || isTraining || isListening}
-                >
-                  {isRecordingSelected ? (
-                    <>
-                      <Circle size={16} fill="currentColor" aria-hidden="true" /> Grabando...
-                    </>
-                  ) : (
-                    <>
-                      <Mic size={16} aria-hidden="true" />{" "}
-                      {selectedIsNoise ? "Grabar 2 segundos" : COPY.recordAudio}
-                    </>
+              {selectedClass && (
+                <div className="audio-stage-block">
+                  <h3 className="audio-stage-title">
+                    {selectedIsNoise ? (
+                      <MicOff size={18} aria-hidden="true" />
+                    ) : (
+                      <Mic size={18} aria-hidden="true" />
+                    )}{" "}
+                    Graba ejemplos para "{selectedClass.name}"
+                  </h3>
+                  {selectedIsNoise && (
+                    <p className="audio-stage-note">
+                      Quédate en silencio (o deja el ruido normal del salón) mientras graba.
+                    </p>
                   )}
-                </button>
-                {isListening && (
-                  <p className="audio-stage-note">
-                    Para grabar más ejemplos, primero pausa la escucha en "Pruébalo".
-                  </p>
-                )}
-                <SampleGrid
-                  items={Array.from({ length: selectedCount }, (_, i) => ({
-                    id: `${selectedClass.id}-${i}`,
-                  }))}
-                  min={MIN_SAMPLES_PER_CLASS}
-                  placeholderIcon={PLACEHOLDER_ICON}
-                />
-              </div>
-            )}
-
-            <div className="audio-stage-block">
-              <div className="try-panel-header">
-                <h3 className="audio-stage-title">{COPY.tryTitle}</h3>
-                {trainComplete && (
                   <button
                     type="button"
-                    className="try-pip"
-                    onClick={() => void (isListening ? stopListening() : startListening())}
+                    className="audio-record"
+                    onClick={() => void handleRecord(selectedClass.id)}
+                    disabled={!ready || Boolean(recordingId) || isTraining || isListening}
                   >
-                    {isListening ? (
+                    {isRecordingSelected ? (
                       <>
-                        <Pause size={14} aria-hidden="true" /> Pausar escucha
+                        <Circle size={16} fill="currentColor" aria-hidden="true" /> Grabando...
                       </>
                     ) : (
                       <>
-                        <Play size={14} aria-hidden="true" /> Escuchar
+                        <Mic size={16} aria-hidden="true" />{" "}
+                        {selectedIsNoise ? "Grabar 2 segundos" : COPY.recordAudio}
                       </>
                     )}
                   </button>
-                )}
-              </div>
-              <LivePredictionBars rows={liveRows} seeing={seeing} hasModel={trainComplete} />
-            </div>
-          </div>
-        </section>
-
-        <aside className="trainer-side">
-          <ClassCardStrip
-            items={[
-              {
-                id: BACKGROUND_LABEL,
-                name: BACKGROUND_NAME,
-                count: noiseCount,
-              },
-              ...classes.map((c) => ({
-                id: c.id,
-                name: c.name,
-                count: counts[c.id] ?? 0,
-              })),
-            ]}
-            activeId={selectedId}
-            min={MIN_SAMPLES_PER_CLASS}
-            placeholderIcon={PLACEHOLDER_ICON}
-            onSelect={(id) => setSelectedId(id)}
-            onAdd={() => {
-              const id = uid();
-              setClasses((prev) => [...prev, { id, name: `Clase ${prev.length + 1}` }]);
-              setSelectedId(id);
-            }}
-            addDisabled={isTraining || Boolean(recordingId)}
-          />
-
-          {selectedClass && !selectedIsNoise && (
-            <div className="class-detail">
-              <div className="class-detail-header">
-                <input
-                  className="class-detail-name"
-                  value={selectedClass.name}
-                  aria-label={COPY.className}
-                  onChange={(e) =>
-                    setClasses((prev) =>
-                      prev.map((c) =>
-                        c.id === selectedClass.id ? { ...c, name: e.target.value } : c
-                      )
-                    )
-                  }
-                />
-              </div>
+                  {isListening && (
+                    <p className="audio-stage-note">
+                      Para grabar más ejemplos, primero pausa la escucha en "Pruébalo".
+                    </p>
+                  )}
+                  <SampleGrid
+                    items={Array.from({ length: selectedCount }, (_, i) => ({
+                      id: `${selectedClass.id}-${i}`,
+                    }))}
+                    min={MIN_SAMPLES_PER_CLASS}
+                    placeholderIcon={PLACEHOLDER_ICON}
+                  />
+                </div>
+              )}
             </div>
           )}
 
-          <TrainPanel
-            canTrain={canTrain}
-            isTraining={isTraining}
-            trainComplete={trainComplete}
-            progressPct={
-              trainProgress.total > 0
-                ? Math.round((trainProgress.epoch / trainProgress.total) * 100)
-                : null
-            }
-            hint={trainHint}
-            error={trainError}
-            onTrain={() => void handleTrain()}
-          />
+          {openStep === "train" && (
+            <div className="trainer-stage-curve">
+              <LearningCurveCard
+                data={trainCurve}
+                isTraining={isTraining}
+                trainComplete={trainComplete}
+                xLabel="Épocas de entrenamiento"
+              />
+              <div className="trainer-capture-hint">{COPY.curveWait}</div>
+            </div>
+          )}
 
-          <div className="trainer-microbit">
-            <MicrobitPanel
-              label={
-                liveRawLabel && liveRawLabel !== BACKGROUND_LABEL && liveConfidence >= ACCEPT_THRESHOLD
-                  ? liveLabel
-                  : "none"
-              }
-              confidence={
-                liveRawLabel && liveRawLabel !== BACKGROUND_LABEL && liveConfidence >= ACCEPT_THRESHOLD
-                  ? liveConfidence
-                  : 0
-              }
-              advanced={advanced}
-            />
-          </div>
-        </aside>
+          {openStep === "test" && (
+            <div className="audio-stage">
+              <div className="audio-stage-block">
+                <div className="try-panel-header">
+                  <h3 className="audio-stage-title">{COPY.tryTitle}</h3>
+                  {trainComplete && (
+                    <button
+                      type="button"
+                      className="try-pip"
+                      onClick={() => void (isListening ? stopListening() : startListening())}
+                    >
+                      {isListening ? (
+                        <>
+                          <Pause size={14} aria-hidden="true" /> Pausar escucha
+                        </>
+                      ) : (
+                        <>
+                          <Play size={14} aria-hidden="true" /> Escuchar
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+                <LivePredictionBars rows={liveRows} seeing={seeing} hasModel={trainComplete} />
+              </div>
+            </div>
+          )}
+        </section>
       </div>
 
       <AdvancedDrawer open={advanced} onToggle={toggleAdvanced}>

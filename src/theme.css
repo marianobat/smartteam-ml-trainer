@@ -1,29 +1,34 @@
-/* src/theme.css — design tokens del rediseño UX (estilo LEGO Coding Canvas).
+/* src/theme.css — design tokens de marca SmartTEAM (handoff entrenador 1b).
    Única fuente de verdad de colores, tipografías y geometría. */
 
-@import url("https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Livvic:wght@400;500;600;700;900&family=Lexend+Deca:wght@300;400;500;600;700&display=swap");
 
 :root {
   /* ----- Paleta por rol ----- */
   --color-primary: #796eb0; /* violeta de marca: acción primaria, selección, foco */
-  --color-primary-soft: #ebe9f6;
-  --color-primary-strong: #5f5596; /* hover/active del primario */
+  --color-primary-soft: #ece9f4;
+  --color-primary-strong: #6457a0; /* hover/active del primario */
   --color-secondary: #35bfe9; /* cian: info, conexiones, sliders */
-  --color-accent: #ff4d8d; /* rosa: highlights, clase activa */
+  --color-accent: #ef506d; /* coral: highlights, clase activa */
   --color-success: #59bb6a; /* verde: estado logrado (modelo entrenado, "Probalo") */
-  --color-success-soft: #e6f6ea;
-  --color-warning: #ffc838; /* amarillo: chips de progreso */
-  --color-warning-soft: #fff4d6;
-  --color-danger: #ff5a5a;
-  --color-danger-soft: #ffe9e9;
-  --color-ink: #2d2a45; /* texto principal (AA sobre blanco y amarillo) */
-  --color-ink-soft: rgba(45, 42, 69, 0.65);
-  --color-bg: #f6f4ff; /* lavanda muy claro */
+  --color-success-strong: #45a156;
+  --color-success-soft: #e4f4e7;
+  --color-warning: #ffb800; /* ámbar: chips de progreso */
+  --color-warning-strong: #f0a500;
+  --color-warning-soft: #fff3d6;
+  --color-danger: #da3656;
+  --color-danger-soft: #fde4e9;
+  --color-ink: #160a60; /* texto principal */
+  --color-ink-soft: #6d6e71; /* texto secundario */
+  --color-ink-faint: #9a9ba0; /* texto deshabilitado/bloqueado */
+  --color-bg: #f3f7fd;
   --color-surface: #ffffff;
-  --color-outline: rgba(45, 42, 69, 0.12);
+  --color-sunken: #f2f4f7; /* fondos hundidos (tracks, grillas) */
+  --color-outline: #e7e9ed; /* hairline */
+  --color-outline-strong: #d7dade; /* bordes punteados/bloqueados */
 
   /* ----- Color por modalidad ----- */
-  --mod-hands: #ff4d8d;
+  --mod-hands: #ef506d;
   --mod-face: #796eb0;
   --mod-pose: #35bfe9;
   --mod-images: #ff8a3d;
@@ -31,17 +36,21 @@
   --mod-audio: #59bb6a;
 
   /* ----- Tipografía ----- */
-  --font-display: "Fredoka", "Nunito", system-ui, sans-serif;
-  --font-body: "Nunito", system-ui, sans-serif;
+  --font-display: "Livvic", system-ui, sans-serif;
+  --font-body: "Lexend Deca", system-ui, sans-serif;
   --font-mono: "Space Mono", ui-monospace, monospace;
 
   /* ----- Geometría ----- */
-  --radius-sm: 10px;
+  --radius-sm: 12px;
   --radius-md: 16px;
-  --radius-lg: 24px;
+  --radius-lg: 20px; /* tarjeta / paso del acordeón */
+  --radius-xl: 28px; /* panel / feature / escenario */
   --radius-pill: 999px;
-  --shadow-card: 0 6px 20px rgba(70, 50, 140, 0.1);
-  --shadow-pop: 0 12px 32px rgba(70, 50, 140, 0.18);
+  --shadow-card: 0 10px 30px rgba(22, 10, 96, 0.08);
+  --shadow-pop: 0 24px 70px rgba(22, 10, 96, 0.16);
+  --shadow-stage: 0 14px 40px rgba(22, 10, 96, 0.18);
+  --shadow-primary: 0 10px 24px rgba(121, 110, 176, 0.4);
+  --ring-active: 0 0 0 4px var(--color-primary-soft); /* anillo de paso/tarjeta activa */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
