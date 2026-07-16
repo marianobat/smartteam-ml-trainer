@@ -10,6 +10,9 @@ import { useEffect } from "react";
 import { Usb, Bluetooth } from "lucide-react";
 import { useMicrobit } from "../hooks/useMicrobit";
 
+/** USB queda en el código pero oculto: por ahora solo ofrecemos Bluetooth. */
+const SHOW_USB_CONNECT = false;
+
 type MicrobitPanelProps = {
   /** Etiqueta estable actual ("" o "none" si no hay detección). */
   label: string;
@@ -39,10 +42,10 @@ export default function MicrobitPanel({ label, confidence, advanced = false }: M
 
   if (!supported.serial && !supported.bluetooth) {
     return (
-      <div style={{ borderTop: "1px solid #eee", paddingTop: 10, display: "grid", gap: 8 }}>
+      <div style={{ paddingTop: 10, display: "grid", gap: 8 }}>
         <div style={{ fontSize: 12, fontWeight: 600 }}>micro:bit</div>
         <div style={{ fontSize: 12, opacity: 0.75 }}>
-          Conectar un micro:bit necesita Web Serial o Web Bluetooth, disponibles en Chrome o Edge.
+          Conectar un micro:bit necesita Web Bluetooth, disponible en Chrome o Edge.
           En este navegador puedes entrenar igual, pero sin micro:bit.
         </div>
       </div>
@@ -77,19 +80,19 @@ export default function MicrobitPanel({ label, confidence, advanced = false }: M
   } as const;
 
   return (
-    <div style={{ borderTop: "1px solid #eee", paddingTop: 10, display: "grid", gap: 8 }}>
+    <div style={{ paddingTop: 10, display: "grid", gap: 8 }}>
       <div style={{ fontSize: 12, fontWeight: 600 }}>micro:bit</div>
       {status === "open" || status === "disconnecting" ? (
         <button
           onClick={() => void mb.disconnect()}
           disabled={status === "disconnecting"}
-          style={{ flex: 1 }}
+          style={{ width: "100%" }}
         >
           {status === "disconnecting" ? "Desconectando..." : "Desconectar micro:bit"}
         </button>
       ) : (
         <div style={{ display: "flex", gap: 8 }}>
-          {supported.serial && (
+          {SHOW_USB_CONNECT && supported.serial && (
             <button
               onClick={() => void mb.connectUsb()}
               disabled={status === "connecting"}
@@ -108,7 +111,7 @@ export default function MicrobitPanel({ label, confidence, advanced = false }: M
             <button
               onClick={() => void mb.connectBle()}
               disabled={status === "connecting"}
-              style={buttonStyle}
+              style={{ ...buttonStyle, width: "100%" }}
             >
               {status === "connecting" ? (
                 "Conectando..."
@@ -167,8 +170,8 @@ export default function MicrobitPanel({ label, confidence, advanced = false }: M
       )}
       {error && <div style={{ fontSize: 12, color: "#b91c1c" }}>{error}</div>}
       <div style={{ fontSize: 11, opacity: 0.65 }}>
-        USB: extensión SmartTEAM ML / Bluetooth: extensión SmartTEAM ML Bluetooth. Si MakeCode está
-        conectado a la placa en otra pestaña, desconectar antes.
+        Bluetooth: extensión SmartTEAM AI. Si MakeCode está conectado a la placa en otra pestaña,
+        desconectar antes.
       </div>
     </div>
   );
