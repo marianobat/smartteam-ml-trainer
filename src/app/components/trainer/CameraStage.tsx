@@ -72,17 +72,20 @@ export default function CameraStage({
 
   return (
     <div className={`camera-stage ${dimmed ? "is-dimmed" : ""}`}>
-      <video ref={videoRef} className="camera-stage-video" playsInline muted />
-      <canvas ref={canvasRef} className="camera-stage-canvas" />
-      {focusBox && !loading && (
-        <div className="camera-stage-focus" style={focusBoxCssVars(frame.w, frame.h)} aria-hidden="true">
-          <span className="camera-stage-focus-blur is-top" />
-          <span className="camera-stage-focus-blur is-bottom" />
-          <span className="camera-stage-focus-blur is-left" />
-          <span className="camera-stage-focus-blur is-right" />
-          <span className="camera-stage-focus-frame" />
-        </div>
-      )}
+      {/* Frame = tamaño del video; canvas y focus box se alinean a ese box. */}
+      <div className="camera-stage-frame">
+        <video ref={videoRef} className="camera-stage-video" playsInline muted />
+        <canvas ref={canvasRef} className="camera-stage-canvas" />
+        {focusBox && !loading && (
+          <div className="camera-stage-focus" style={focusBoxCssVars(frame.w, frame.h)} aria-hidden="true">
+            <span className="camera-stage-focus-blur is-top" />
+            <span className="camera-stage-focus-blur is-bottom" />
+            <span className="camera-stage-focus-blur is-left" />
+            <span className="camera-stage-focus-blur is-right" />
+            <span className="camera-stage-focus-frame" />
+          </div>
+        )}
+      </div>
       {loading && (
         <div className="camera-stage-loading" role="status">
           <span className="camera-stage-spinner" aria-hidden="true" />

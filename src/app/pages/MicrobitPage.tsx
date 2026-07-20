@@ -32,6 +32,9 @@ import { useLiveEvaluation, type EvalConfig } from "../hooks/useLiveEvaluation";
 import { useMicrobit } from "../hooks/useMicrobit";
 import "./MicrobitPage.css";
 
+/** USB queda en el código pero oculto: por ahora solo ofrecemos Bluetooth. */
+const SHOW_USB_CONNECT = false;
+
 type ModelId = "hands" | "face" | "pose" | "images";
 
 type PageConfig = EvalConfig & { label: string; focusBox?: boolean };
@@ -287,7 +290,7 @@ function LiveEvalColumn({ config, baseUrl }: { config: PageConfig; baseUrl: stri
                 <Bluetooth size={16} aria-hidden="true" /> {connecting ? "Conectando..." : "Bluetooth"}
               </button>
             )}
-            {mb.supported.serial && (
+            {SHOW_USB_CONNECT && mb.supported.serial && (
               <button type="button" className="mb-mb-connect" disabled={connecting} onClick={() => void mb.connectUsb()}>
                 <Usb size={16} aria-hidden="true" /> {connecting ? "Conectando..." : "USB"}
               </button>
