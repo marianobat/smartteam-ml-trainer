@@ -129,22 +129,6 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
   const [openStep, setOpenStep] = useState<StepId>("teach");
   // Historial de precisión por época (solo para la curva del paso 2)
   const [trainCurve, setTrainCurve] = useState<Array<{ step: number; acc?: number }>>([]);
-  const prevSamplesReadyRef = useRef(samplesReady);
-  const prevCanTestRef = useRef(false);
-
-  useEffect(() => {
-    if (samplesReady && !prevSamplesReadyRef.current) {
-      setOpenStep((prev) => (prev === "teach" ? "train" : prev));
-    }
-    prevSamplesReadyRef.current = samplesReady;
-  }, [samplesReady]);
-
-  useEffect(() => {
-    if (canTest && !prevCanTestRef.current) {
-      setOpenStep("test");
-    }
-    prevCanTestRef.current = canTest;
-  }, [canTest]);
 
   useEffect(() => {
     if (openStep === "test" && !canTest) {

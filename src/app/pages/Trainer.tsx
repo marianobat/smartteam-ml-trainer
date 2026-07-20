@@ -232,23 +232,6 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
   // --- Acordeón guiado: un solo paso abierto; el gating se deriva del
   // dataset/modelo (misma lógica de siempre), esto solo decide qué se ve. ---
   const [openStep, setOpenStep] = useState<StepId>("teach");
-  const prevCanTrainRef = useRef(canTrain);
-  const prevCanTestRef = useRef(false);
-
-  // Al completarse un paso, colapsarlo y abrir el siguiente.
-  useEffect(() => {
-    if (canTrain && !prevCanTrainRef.current) {
-      setOpenStep((prev) => (prev === "teach" ? "train" : prev));
-    }
-    prevCanTrainRef.current = canTrain;
-  }, [canTrain]);
-
-  useEffect(() => {
-    if (canTest && !prevCanTestRef.current) {
-      setOpenStep("test");
-    }
-    prevCanTestRef.current = canTest;
-  }, [canTest]);
 
   // Si el paso abierto quedó bloqueado (p. ej. se borró el proyecto), retroceder.
   useEffect(() => {
