@@ -158,22 +158,6 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
 
   // --- Acordeón guiado: un solo paso abierto; gating derivado del dataset/modelo ---
   const [openStep, setOpenStep] = useState<StepId>("teach");
-  const prevCanTrainRef = useRef(canTrain);
-  const prevCanTestRef = useRef(false);
-
-  useEffect(() => {
-    if (canTrain && !prevCanTrainRef.current) {
-      setOpenStep((prev) => (prev === "teach" ? "train" : prev));
-    }
-    prevCanTrainRef.current = canTrain;
-  }, [canTrain]);
-
-  useEffect(() => {
-    if (canTest && !prevCanTestRef.current) {
-      setOpenStep("test");
-    }
-    prevCanTestRef.current = canTest;
-  }, [canTest]);
 
   useEffect(() => {
     if (openStep === "test" && !canTest) {
