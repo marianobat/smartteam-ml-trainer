@@ -1,0 +1,63 @@
+diff --git a/libs/blocksprj/pxt.json b/libs/blocksprj/pxt.json
+index 4c6ab6e8..109f2f61 100644
+--- a/libs/blocksprj/pxt.json
++++ b/libs/blocksprj/pxt.json
+@@ -3,7 +3,10 @@
+     "dependencies": {
+         "core": "file:../core",
+         "radio": "file:../radio",
+-        "microphone": "file:../microphone"
++        "microphone": "file:../microphone",
++        "smartteam-core": "file:../smartteam-core",
++        "smartteam-outputs": "file:../smartteam-outputs",
++        "smartteam-motors": "file:../smartteam-motors"
+     },
+     "description": "",
+     "files": [
+diff --git a/libs/smartteam-course-config/course-config.json b/libs/smartteam-course-config/course-config.json
+index 5a018d85..7b6cf855 100644
+--- a/libs/smartteam-course-config/course-config.json
++++ b/libs/smartteam-course-config/course-config.json
+@@ -24,6 +24,7 @@
+                             "led": "hidden",
+                             "light": "hidden",
+                             "pins": "hidden",
++                            "loops": "hidden",
+                             "functions": "hidden",
+                             "logic": "hidden",
+                             "Math": "hidden",
+@@ -35,7 +36,8 @@
+                             "serial": "hidden",
+                             "smartteamDigitalInputs": "hidden",
+                             "smartteamAnalogInputs": "hidden",
+-                            "smartteamDisplay": "hidden"
++                            "smartteamDisplay": "hidden",
++                            "smartteamShield": "hidden"
+                         },
+                         "blocks": {
+                             "pxt-on-start": "hidden",
+@@ -85,6 +87,7 @@
+     ],
+     "notes": [
+         "The filter only controls toolbox visibility; it does not remove APIs or dependencies.",
+-        "Some SmartTEAM block IDs referenced here are expected IDs from the SmartTEAM package design and may become active when those packages are present on this branch."
++        "The grade1 toolbox is intentionally limited to SmartTEAM Control, Salidas, and Motores blocks.",
++        "Courses beyond grade1 are not configured in detail yet."
+     ]
+ }
+diff --git a/libs/tsprj/pxt.json b/libs/tsprj/pxt.json
+index f9b42142..448fc91e 100644
+--- a/libs/tsprj/pxt.json
++++ b/libs/tsprj/pxt.json
+@@ -3,7 +3,10 @@
+     "dependencies": {
+         "core": "file:../core",
+         "radio": "file:../radio",
+-        "microphone": "file:../microphone"
++        "microphone": "file:../microphone",
++        "smartteam-core": "file:../smartteam-core",
++        "smartteam-outputs": "file:../smartteam-outputs",
++        "smartteam-motors": "file:../smartteam-motors"
+     },
+     "description": "",
+     "files": [
