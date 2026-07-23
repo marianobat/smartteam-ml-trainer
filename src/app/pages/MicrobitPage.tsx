@@ -25,7 +25,7 @@ import {
   type CourseId,
 } from "../../core/makecode/courses";
 import { COPY } from "../copy";
-import { resolveControllerUrl, useMakeCodeController } from "../../core/makecode/controller";
+import { resolveControllerUrl, useMakeCodeController, type ImportGuard } from "../../core/makecode/controller";
 import CameraStage from "../components/trainer/CameraStage";
 import LivePredictionBars from "../components/trainer/LivePredictionBars";
 import { useLiveEvaluation, type EvalConfig } from "../hooks/useLiveEvaluation";
@@ -34,6 +34,11 @@ import "./MicrobitPage.css";
 
 /** USB queda en el código pero oculto: por ahora solo ofrecemos Bluetooth. */
 const SHOW_USB_CONNECT = false;
+
+// Preservar el trabajo del alumno: si ya está en true, no re-inyectamos el
+// proyecto en cada carga (el editor reabre lo que el chico venía armando).
+// Poner en false vuelve al comportamiento clásico (importar siempre).
+const PRESERVE_STUDENT_WORK = true;
 
 type ModelId = "hands" | "face" | "pose" | "images";
 
@@ -89,6 +94,9 @@ export default function MicrobitPage() {
   const baseUrl = import.meta.env.BASE_URL ?? "/";
   const [course, setCourse] = useState<CourseId | null>(getInitialCourse);
   const [project, setProject] = useState<MakeCodeProject | null>(null);
+  // Firma del contenido inyectable (clases entrenadas): si no cambia, no se
+  // re-inyecta el proyecto y se preserva lo que el alumno editó (ver ImportGuard).
+  const [contentSig, setContentSig] = useState<string>("");
 
   // El curso vive en la URL (?curso=): compartible y compatible con "volver".
   useEffect(() => {
@@ -122,6 +130,8 @@ export default function MicrobitPage() {
           course: course ?? undefined,
         })
       );
+      // Firma estable de las clases; si cambian, se fuerza la re-inyección.
+      setContentSig(classes.join(""));
     })();
     return () => {
       cancelled = true;
@@ -165,7 +175,15 @@ export default function MicrobitPage() {
           <LiveEvalColumn key={model} config={CONFIGS[model]} baseUrl={baseUrl} />
         </section>
         <section className="mb-editor">
-          <MakeCodeController key={course} project={project} />
+          <MakeCodeController
+            key={course}
+            project={project}
+            importGuard={
+              PRESERVE_STUDENT_WORK
+                ? { persistId: `${model}-${course}`, contentSig }
+                : null
+            }
+          />
         </section>
       </div>
     </div>
@@ -212,10 +230,16 @@ function CourseSelect({
   );
 }
 
-function MakeCodeController({ project }: { project: MakeCodeProject | null }) {
+function MakeCodeController({
+  project,
+  importGuard,
+}: {
+  project: MakeCodeProject | null;
+  importGuard: ImportGuard | null;
+}) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const resolved = useMemo(() => resolveControllerUrl(resolveForkUrl()), []);
-  const { state } = useMakeCodeController(iframeRef, resolved?.origin ?? null, project);
+  const { state } = useMakeCodeController(iframeRef, resolved?.origin ?? null, project, importGuard);
 
   if (!resolved) {
     return (
