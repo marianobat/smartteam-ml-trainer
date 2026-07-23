@@ -460,7 +460,7 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
         <button type="button" className="trainer-back" onClick={onBack}>
           <ChevronLeft size={18} aria-hidden="true" /> {COPY.modalities}
         </button>
-        <h2 className="trainer-title">Entrenador de sonidos</h2>
+        <h2 className="trainer-title">Sonidos</h2>
         <div className="trainer-header-right">
           <StatusChips chips={chips} />
         </div>

@@ -33,23 +33,13 @@ type LivePredictionBarsProps = {
   hasModel: boolean;
 };
 
-export default function LivePredictionBars({ rows, seeing, hasModel }: LivePredictionBarsProps) {
+export default function LivePredictionBars({ rows, hasModel }: LivePredictionBarsProps) {
   if (!hasModel) {
     return <div className="live-bars-empty">{COPY.liveEmpty}</div>;
   }
 
   return (
     <div className="live-bars">
-      <div className="live-bars-seeing" aria-live="polite">
-        {seeing ? (
-          <>
-            {COPY.see} <strong>{seeing.label}</strong>
-            <span className="live-bars-pct">{Math.round(seeing.confidence * 100)}%</span>
-          </>
-        ) : (
-          <span className="live-bars-unsure">{COPY.seeNothing}</span>
-        )}
-      </div>
       <div className="live-bars-list">
         {rows.map((row, idx) => (
           <div key={row.name} className="live-bars-row">

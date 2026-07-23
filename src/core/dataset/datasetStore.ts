@@ -52,7 +52,7 @@ export function createInitialDatasetState(featureDim: number): DatasetState {
   const firstId = uid("c");
   return {
     featureDim,
-    classes: [{ id: firstId, name: "Clase 1" }],
+    classes: [{ id: firstId, name: "" }],
     samples: [],
     activeClassId: firstId,
     thumbnailsByClass: {},
@@ -63,8 +63,7 @@ export function datasetReducer(state: DatasetState, action: DatasetAction): Data
   switch (action.type) {
     case "ADD_CLASS": {
       const id = uid("c");
-      const n = state.classes.length + 1;
-      const name = action.name?.trim() || `Clase ${n}`;
+      const name = action.name?.trim() ?? "";
       return {
         ...state,
         classes: [...state.classes, { id, name }],
@@ -80,6 +79,15 @@ export function datasetReducer(state: DatasetState, action: DatasetAction): Data
     }
 
     case "DELETE_CLASS": {
+      // Última clase: no la eliminamos (quedaría el dataset sin clases), la
+      // reseteamos —nombre vacío y sin muestras— para "empezar de nuevo".
+      if (state.classes.length <= 1) {
+        return {
+          ...state,
+          classes: state.classes.map((c) => (c.id === action.id ? { ...c, name: "" } : c)),
+          samples: state.samples.filter((s) => s.classId !== action.id),
+        };
+      }
       const classes = state.classes.filter((c) => c.id !== action.id);
       const samples = state.samples.filter((s) => s.classId !== action.id);
 

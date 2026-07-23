@@ -8,7 +8,7 @@
 
 import { useEffect, useMemo, useReducer, useRef, useState, type MouseEvent, type TouchEvent } from "react";
 import * as tf from "@tensorflow/tfjs";
-import { Sparkles, Save, Loader2, Satellite, Pin, Pencil, Trash2, Cpu, ChevronLeft } from "lucide-react";
+import { Sparkles, Save, Loader2, Satellite, Pencil, Trash2, Cpu, ChevronLeft } from "lucide-react";
 import {
   ResponsiveContainer,
   LineChart,
@@ -60,9 +60,7 @@ import { fetchPresetProject, presetClassIcon, PRESETS } from "../../core/presets
 import { COPY } from "../copy";
 import { useAdvancedMode } from "../hooks/useAdvancedMode";
 import MicrobitPanel from "../components/MicrobitPanel";
-import { microbitApi } from "../hooks/useMicrobit";
 import ProjectPanel, { type SaveStatus } from "../components/ProjectPanel";
-import { isPipSupported, openPipMonitor } from "../components/pipMonitor";
 import StepAccordion from "../components/trainer/StepAccordion";
 import LearningCurveCard from "../components/trainer/LearningCurveCard";
 import ClassCardStrip from "../components/trainer/ClassCardStrip";
@@ -206,9 +204,6 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
   const skipAutosaveRef = useRef(false);
   const serializedModelRef = useRef<SavedModel | null>(null);
 
-  // Ventana flotante de monitoreo (Document PiP)
-  const [pipOpen, setPipOpen] = useState(false);
-  const pipCloseRef = useRef<(() => void) | null>(null);
 
   // Clases pre-entrenadas de fábrica (pose/manos)
   const preset = PRESETS[config.storageKey];
@@ -501,46 +496,6 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
     // el autosave persiste el proyecto vacío (sin presetId)
   };
 
-  const handleTogglePip = async () => {
-    if (pipCloseRef.current) {
-      pipCloseRef.current();
-      return;
-    }
-    try {
-      const close = await openPipMonitor({
-        video: videoRef.current,
-        overlay: canvasRef.current,
-        dimmed: config.thumbnailSource !== "video",
-        title: config.title,
-        getLabel: () => stableLabelRef.current,
-        getConfidence: () => stableConfidenceRef.current,
-        isDetecting: () => hasSubjectRef.current,
-        missingLabel,
-        acceptThreshold: ACCEPT_THRESHOLD,
-        getRows: () =>
-          trainedClassNamesRef.current.map((name, idx) => {
-            const value = hasSubjectRef.current ? liveProbsStateRef.current[idx] ?? 0 : 0;
-            return { name, value, pass: value >= ACCEPT_THRESHOLD };
-          }),
-        microbit: microbitApi,
-        onClose: () => {
-          pipCloseRef.current = null;
-          setPipOpen(false);
-        },
-      });
-      pipCloseRef.current = close;
-      setPipOpen(true);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  // Cerrar la ventana PiP al desmontar
-  useEffect(() => {
-    return () => {
-      pipCloseRef.current?.();
-    };
-  }, []);
 
   const clearHoldTimers = () => {
     if (holdStartTimerRef.current) {
@@ -1118,6 +1073,7 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
                           <input
                             className="class-detail-name"
                             value={activeClass.name}
+                            placeholder={COPY.classNamePlaceholder}
                             aria-label={COPY.className}
                             onChange={(e) =>
                               dispatch({
@@ -1132,8 +1088,16 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
                             className="class-detail-delete"
                             title={COPY.deleteClass}
                             aria-label={COPY.deleteClass}
-                            disabled={dataset.classes.length <= 1}
-                            onClick={() => dispatch({ type: "DELETE_CLASS", id: activeClass.id })}
+                            onClick={() => {
+                              // Con una sola clase, borrar = reset (pide confirmación).
+                              if (
+                                dataset.classes.length <= 1 &&
+                                !window.confirm(COPY.classResetConfirm)
+                              ) {
+                                return;
+                              }
+                              dispatch({ type: "DELETE_CLASS", id: activeClass.id });
+                            }}
                           >
                             <Trash2 size={16} aria-hidden="true" />
                           </button>
@@ -1161,9 +1125,6 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
                 actionLabel: COPY.stepRetrain,
                 body: (
                   <>
-                    <div className="step-acc-guide">
-                      {COPY.trainGuide(dataset.classes.length)}
-                    </div>
                     <TrainPanel
                       canTrain={canTrain}
                       isTraining={isTraining}
@@ -1173,7 +1134,6 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
                       error={trainError}
                       onTrain={() => void handleTrain()}
                     />
-                    <div className="step-acc-guide is-center">{COPY.trainCurveNote}</div>
                   </>
                 ),
               },
@@ -1185,25 +1145,17 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
                 lockHint: isTraining ? COPY.lockOpensAfterTrain : COPY.lockOpensOnTrain,
                 body: (
                   <>
-                    {isPipSupported() && (
-                      <div className="try-panel-header">
-                        <button
-                          type="button"
-                          className="try-pip"
-                          onClick={() => void handleTogglePip()}
-                        >
-                          <Pin size={14} aria-hidden="true" /> {pipOpen ? COPY.pipClose : COPY.pipOpen}
-                        </button>
-                      </div>
-                    )}
                     <LivePredictionBars rows={liveRows} seeing={seeing} hasModel={hasTrainedModel} />
                     {hasTrainedModel && (
-                      <a
-                        className="try-program"
-                        href={`${import.meta.env.BASE_URL ?? "/"}microbit?model=${config.storageKey}`}
-                      >
-                        <Cpu size={16} aria-hidden="true" /> {COPY.programMicrobit}
-                      </a>
+                      <>
+                        <hr className="try-divider" />
+                        <a
+                          className="try-program"
+                          href={`${import.meta.env.BASE_URL ?? "/"}microbit?model=${config.storageKey}`}
+                        >
+                          <Cpu size={16} aria-hidden="true" /> {COPY.programMicrobit}
+                        </a>
+                      </>
                     )}
                     <div className="trainer-microbit">
                       <MicrobitPanel

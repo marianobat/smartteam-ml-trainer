@@ -253,7 +253,13 @@
   box-shadow: var(--shadow-card);
 }
 
-.trainer-microbit {
+.try-divider {
+  border: none;
+  border-top: 1.5px solid var(--color-outline);
+  margin: var(--space-3) 0 0;
+}
+
+.trainer-microbit:not(:empty) {
   border-top: 1.5px solid var(--color-outline);
   padding-top: var(--space-3);
 }

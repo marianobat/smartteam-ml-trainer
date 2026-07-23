@@ -40,6 +40,11 @@ export default function MicrobitPanel({ label, confidence, advanced = false }: M
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // El panel de conexión (Bluetooth/estado) vive solo en modo avanzado. Los
+  // efectos de arriba (empujar la detección al store, desconectar al desmontar)
+  // corren igual, así la conexión persiste aunque se cierre el modo avanzado.
+  if (!advanced) return null;
+
   if (!supported.serial && !supported.bluetooth) {
     return (
       <div style={{ paddingTop: 10, display: "grid", gap: 8 }}>
@@ -169,10 +174,6 @@ export default function MicrobitPanel({ label, confidence, advanced = false }: M
         </div>
       )}
       {error && <div style={{ fontSize: 12, color: "#b91c1c" }}>{error}</div>}
-      <div style={{ fontSize: 11, opacity: 0.65 }}>
-        Bluetooth: extensión SmartTEAM AI. Si MakeCode está conectado a la placa en otra pestaña,
-        desconectar antes.
-      </div>
     </div>
   );
 }

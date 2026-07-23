@@ -697,7 +697,7 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
         <button type="button" className="trainer-back" onClick={onBack}>
           <ChevronLeft size={18} aria-hidden="true" /> {COPY.modalities}
         </button>
-        <h2 className="trainer-title">Entrenador de textos</h2>
+        <h2 className="trainer-title">Textos</h2>
         <div className="trainer-header-right">
           <StatusChips chips={chips} />
         </div>

@@ -7,19 +7,19 @@
 
 export const COPY = {
   back: "← Volver",
-  modalities: "Modalidades",
+  modalities: "Modelos",
   advanced: "Modo avanzado",
 
   steps: ["Enséñale ejemplos", "Entrena", "Pruébalo y conéctalo"] as const,
 
   // --- Acordeón de pasos (Enseñar → Entrenar → Probar) ---
   progressTitle: "Tu progreso",
-  stepTeachTitle: "Enséñale ejemplos",
-  stepTeachSubtitle: "Muéstrale ejemplos de cada clase",
+  stepTeachTitle: "Clasificar y cargar muestras",
+  stepTeachSubtitle: "",
   stepTrainTitle: "Entrena tu modelo",
-  stepTrainSubtitle: "La compu aprende de tus ejemplos",
-  stepTestTitle: "Pruébalo y conéctalo",
-  stepTestSubtitle: "Ponlo a prueba y mira qué detecta",
+  stepTrainSubtitle: "",
+  stepTestTitle: "Probar modelo",
+  stepTestSubtitle: "",
   stepTeachSummary: (classes: number, samples: number) =>
     `${classes} clase${classes === 1 ? "" : "s"} · ${samples} ejemplo${samples === 1 ? "" : "s"}`,
   stepTrainSummary: (hits: number) => `Reconoce ${hits} de cada 10`,
@@ -51,16 +51,18 @@ export const COPY = {
 
   stageTestHint: "Muéstrale ejemplos a la cámara y mira cómo los reconoce",
 
-  programMicrobit: "Programar micro:bit",
+  programMicrobit: "Implementar modelo",
 
   // --- Selector de curso (pantalla intermedia de /microbit) ---
-  courseTitle: "¿En qué curso están?",
-  courseSubtitle: "Elige el curso para cargar los bloques adecuados en MakeCode.",
+  courseTitle: "Seleccionar curso",
+  courseSubtitle: "Elige el curso para programar tu micro:bit con el modelo entrenado.",
   courseContinue: "Continuar",
   courseChange: "Cambiar de curso",
 
   addClass: "Agregar",
   className: "Nombre de la clase",
+  classNamePlaceholder: "Nombra la clase",
+  classResetConfirm: "¿Empezar de nuevo? Se borran las muestras y el nombre de esta clase.",
   deleteClass: "Eliminar clase",
   deleteSample: "Borrar ejemplo",
   examplesCount: (n: number) => `${n} ejemplo${n === 1 ? "" : "s"}`,
@@ -70,7 +72,7 @@ export const COPY = {
   captureBurst: "Ráfaga",
   recordAudio: "Grabar 1 segundo",
 
-  train: "¡Entrenar modelo!",
+  train: "Realizar entrenamiento",
   training: "Aprendiendo...",
   trained: "¡Tu modelo ya aprendió! Pruébalo",
   needTwoClasses: "Crea al menos 2 clases para poder entrenar",

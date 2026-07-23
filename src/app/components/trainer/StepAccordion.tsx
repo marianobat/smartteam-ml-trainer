@@ -9,7 +9,7 @@
 // dentro (p. ej. MicrobitPanel enviando la detección al micro:bit).
 
 import type { ReactNode } from "react";
-import { Check, ChevronDown, ChevronUp, Lock } from "lucide-react";
+import { ChevronDown, ChevronUp, Lock } from "lucide-react";
 import "./StepAccordion.css";
 
 export type StepState = "active" | "done" | "locked";
@@ -77,15 +77,17 @@ export default function StepAccordion({ steps, openId, onOpen }: StepAccordionPr
               onClick={() => onOpen(step.id)}
             >
               <span className="step-acc-tile" aria-hidden="true">
-                {step.state === "done" ? <Check size={18} strokeWidth={3} aria-hidden="true" /> : number}
+                {number}
               </span>
               <span className="step-acc-heading">
                 <span className="step-acc-title">
                   {open || step.state === "active" ? step.title : `${number} · ${step.title}`}
                 </span>
-                <span className="step-acc-sub">
-                  {open ? step.subtitle : step.summary ?? step.subtitle}
-                </span>
+                {(open ? step.subtitle : step.summary ?? step.subtitle) ? (
+                  <span className="step-acc-sub">
+                    {open ? step.subtitle : step.summary ?? step.subtitle}
+                  </span>
+                ) : null}
               </span>
               {step.state === "done" && !open && step.actionLabel ? (
                 <span className="step-acc-action">{step.actionLabel}</span>
