@@ -56,14 +56,30 @@
 }
 
 .mb-eval {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: var(--space-3);
-  align-content: start;
   background: var(--color-surface);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-card);
   padding: var(--space-4);
   overflow: auto;
+  min-height: 0;
+}
+
+.mb-brand {
+  margin-top: auto;
+  padding-top: var(--space-4);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.mb-brand-logo {
+  display: block;
+  width: min(140px, 70%);
+  height: auto;
+  opacity: 0.92;
 }
 
 .mb-no-model {

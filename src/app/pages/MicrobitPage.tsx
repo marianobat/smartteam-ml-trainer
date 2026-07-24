@@ -329,6 +329,14 @@ function LiveEvalColumn({ config, baseUrl }: { config: PageConfig; baseUrl: stri
             : "micro:bit desconectado"}
         </div>
       </div>
+
+      <div className="mb-brand">
+        <img
+          className="mb-brand-logo"
+          src={`${baseUrl}brand/smartteam-logo.svg`}
+          alt="SmartTEAM"
+        />
+      </div>
     </>
   );
 }
