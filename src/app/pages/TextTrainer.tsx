@@ -5,9 +5,9 @@
 // y embeddings de MiniLM en lugar de cámara. Los textos de ejemplo viven en
 // Sample.note.
 
-import { useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { useEffect, useMemo, useReducer, useRef, useState, type ChangeEvent } from "react";
 import * as tf from "@tensorflow/tfjs";
-import { Save, Loader2, Satellite, Pencil, Trash2, ChevronLeft } from "lucide-react";
+import { Save, Loader2, Satellite, Pencil, Trash2, ChevronLeft, Upload } from "lucide-react";
 import {
   ResponsiveContainer,
   LineChart,
@@ -39,9 +39,11 @@ import {
   createInitialDatasetState,
   datasetReducer,
   countSamplesByClass,
+  createClassId,
   MIN_SAMPLES_PER_CLASS,
   type DatasetState,
 } from "../../core/dataset/datasetStore";
+import { parseTextSamplesCsv } from "../../core/text/parseTextSamplesCsv";
 import {
   clearProject,
   deserializeMlModel,
@@ -106,6 +108,11 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
 
   const [inputText, setInputText] = useState("");
   const [isEmbedding, setIsEmbedding] = useState(false);
+  const [csvNotice, setCsvNotice] = useState<string | null>(null);
+  const [csvImportProgress, setCsvImportProgress] = useState<{ done: number; total: number } | null>(
+    null
+  );
+  const csvInputRef = useRef<HTMLInputElement>(null);
   const [testText, setTestText] = useState("");
   const [triedIt, setTriedIt] = useState(false);
 
@@ -467,6 +474,98 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
     }
   };
 
+  const handleImportCsvFile = async (file: File) => {
+    if (!ready || isEmbedding || csvImportProgress) return;
+
+    setCsvNotice(null);
+    let raw: string;
+    try {
+      raw = await file.text();
+    } catch {
+      setCsvNotice("No se pudo leer el archivo.");
+      return;
+    }
+
+    const parsed = parseTextSamplesCsv(raw);
+    if (parsed.rows.length === 0) {
+      setCsvNotice(parsed.errors[0] ?? "No hay ejemplos válidos en el CSV.");
+      return;
+    }
+
+    // Mapa clase → id (case-insensitive). Reutiliza clases vacías antes de crear.
+    const classByName = new Map<string, string>();
+    const emptyClassIds: string[] = [];
+    for (const c of dataset.classes) {
+      const key = c.name.trim().toLowerCase();
+      if (key) classByName.set(key, c.id);
+      else emptyClassIds.push(c.id);
+    }
+
+    const ensureClassId = (clase: string): string => {
+      const key = clase.toLowerCase();
+      const existing = classByName.get(key);
+      if (existing) return existing;
+      const emptyId = emptyClassIds.shift();
+      if (emptyId) {
+        dispatch({ type: "RENAME_CLASS", id: emptyId, name: clase });
+        classByName.set(key, emptyId);
+        return emptyId;
+      }
+      const id = createClassId();
+      dispatch({ type: "ADD_CLASS", id, name: clase });
+      classByName.set(key, id);
+      return id;
+    };
+
+    setIsEmbedding(true);
+    setCsvImportProgress({ done: 0, total: parsed.rows.length });
+    let added = 0;
+    const rowErrors = [...parsed.errors];
+
+    try {
+      for (let i = 0; i < parsed.rows.length; i++) {
+        const row = parsed.rows[i];
+        try {
+          const classId = ensureClassId(row.clase);
+          const vec = await embedText(row.texto);
+          dispatch({
+            type: "ADD_SAMPLE",
+            classId,
+            x: Array.from(vec),
+            note: row.texto,
+          });
+          added += 1;
+        } catch (err) {
+          rowErrors.push(
+            `Fila ${row.line}: ${err instanceof Error ? err.message : String(err)}`
+          );
+        }
+        setCsvImportProgress({ done: i + 1, total: parsed.rows.length });
+      }
+    } finally {
+      setIsEmbedding(false);
+      setCsvImportProgress(null);
+    }
+
+    const skipNote =
+      rowErrors.length > 0
+        ? ` · ${rowErrors.length} fila${rowErrors.length === 1 ? "" : "s"} omitida${
+            rowErrors.length === 1 ? "" : "s"
+          }`
+        : "";
+    setCsvNotice(
+      added > 0
+        ? `Se agregaron ${added} ejemplo${added === 1 ? "" : "s"}${skipNote}.`
+        : `No se pudo importar ningún ejemplo.${rowErrors[0] ? ` ${rowErrors[0]}` : ""}`
+    );
+  };
+
+  const onCsvInputChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (file) void handleImportCsvFile(file);
+  };
+
   const handleTrain = async () => {
     if (!canTrain || isTraining) return;
 
@@ -609,21 +708,6 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
   }, [trainHistory]);
 
   // Condición literal de desbloqueo del paso 2 (la más útil primero)
-  const unnamedClass = dataset.classes.find((c) => !c.name.trim());
-  const missingClass = dataset.classes.find(
-    (c) => (counts[c.id] ?? 0) < MIN_SAMPLES_PER_CLASS
-  );
-  const trainLockHint =
-    dataset.classes.length < 2
-      ? COPY.lockNeedClass
-      : unnamedClass
-      ? COPY.lockNeedClassName
-      : missingClass
-      ? COPY.lockMissingSamples(
-          MIN_SAMPLES_PER_CLASS - (counts[missingClass.id] ?? 0),
-          missingClass.name
-        )
-      : COPY.lockOpensOnTrain;
   const teachSummary = COPY.stepTeachSummary(dataset.classes.length, dataset.samples.length);
   // Con modelo hidratado de un guardado no hay métricas: mostrar solo "entrenado"
   const trainAccuracy = trainProgress.valAcc ?? trainProgress.acc ?? 0;
@@ -712,7 +796,6 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
 
       <div className="trainer-main">
         <aside className="trainer-side">
-          <div className="trainer-progress-title">{COPY.progressTitle}</div>
           <StepAccordion
             openId={openStep}
             onOpen={(id) => setOpenStep(id as StepId)}
@@ -778,7 +861,6 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
                       </div>
                     )}
 
-                    <div className="step-acc-note">{COPY.teachNote(MIN_SAMPLES_PER_CLASS)}</div>
                   </>
                 ),
               },
@@ -788,7 +870,6 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
                 subtitle: COPY.stepTrainSubtitle,
                 state: !canTrain ? "locked" : canTest ? "done" : "active",
                 summary: trainSummary,
-                lockHint: trainLockHint,
                 actionLabel: COPY.stepRetrain,
                 body: (
                   <>
@@ -813,7 +894,6 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
                 title: COPY.stepTestTitle,
                 subtitle: "Escribe algo y mira qué clase detecta",
                 state: canTest ? "active" : "locked",
-                lockHint: isTraining ? COPY.lockOpensAfterTrain : COPY.lockOpensOnTrain,
                 body: (
                   <>
                     <LivePredictionBars rows={liveRows} seeing={seeing} hasModel={hasTrainedModel} />
@@ -871,8 +951,32 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
                     isEmbedding
                   }
                 >
-                  {isEmbedding ? "Agregando..." : COPY.addTextButton}
+                  {isEmbedding && !csvImportProgress
+                    ? "Agregando..."
+                    : COPY.addTextButton}
                 </button>
+                <div className="text-stage-csv">
+                  <input
+                    ref={csvInputRef}
+                    type="file"
+                    accept=".csv,text/csv,text/plain"
+                    hidden
+                    onChange={onCsvInputChange}
+                  />
+                  <button
+                    type="button"
+                    className="text-stage-csv-btn"
+                    onClick={() => csvInputRef.current?.click()}
+                    disabled={!ready || isEmbedding}
+                  >
+                    <Upload size={16} aria-hidden="true" />
+                    {csvImportProgress
+                      ? `${COPY.importCsvImporting} ${csvImportProgress.done}/${csvImportProgress.total}`
+                      : COPY.importCsvButton}
+                  </button>
+                  <p className="text-stage-csv-hint">{COPY.importCsvHint}</p>
+                  {csvNotice && <p className="text-stage-csv-notice">{csvNotice}</p>}
+                </div>
               </div>
             </div>
           )}

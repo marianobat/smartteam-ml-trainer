@@ -30,7 +30,7 @@ export type DatasetState = {
 };
 
 export type DatasetAction =
-  | { type: "ADD_CLASS"; name?: string }
+  | { type: "ADD_CLASS"; name?: string; id?: string }
   | { type: "RENAME_CLASS"; id: string; name: string }
   | { type: "DELETE_CLASS"; id: string }
   | { type: "SET_ACTIVE_CLASS"; id: string | null }
@@ -43,13 +43,18 @@ function uid(prefix = "c") {
   return `${prefix}_${Math.random().toString(16).slice(2)}_${Date.now().toString(16)}`;
 }
 
+/** Id único para clases (útil al importar CSV sin esperar al reducer). */
+export function createClassId(): string {
+  return uid("c");
+}
+
 /** Id único para muestras (expuesto para la migración de proyectos v1). */
 export function createSampleId(): string {
   return uid("s");
 }
 
 export function createInitialDatasetState(featureDim: number): DatasetState {
-  const firstId = uid("c");
+  const firstId = createClassId();
   return {
     featureDim,
     classes: [{ id: firstId, name: "" }],
@@ -62,8 +67,12 @@ export function createInitialDatasetState(featureDim: number): DatasetState {
 export function datasetReducer(state: DatasetState, action: DatasetAction): DatasetState {
   switch (action.type) {
     case "ADD_CLASS": {
-      const id = uid("c");
+      const id = action.id?.trim() || uid("c");
       const name = action.name?.trim() ?? "";
+      if (state.classes.some((c) => c.id === id)) {
+        console.warn("Ignoring ADD_CLASS with duplicate id", id);
+        return state;
+      }
       return {
         ...state,
         classes: [...state.classes, { id, name }],
@@ -152,8 +161,11 @@ export function datasetReducer(state: DatasetState, action: DatasetAction): Data
     case "RESET_DATASET":
       return createInitialDatasetState(state.featureDim);
 
-    default:
+    default: {
+      const _exhaustive: never = action;
+      void _exhaustive;
       return state;
+    }
   }
 }
 

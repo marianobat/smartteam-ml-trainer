@@ -22,8 +22,6 @@ export type AccordionStep = {
   state: StepState;
   /** Resumen mostrado cuando el paso está completado y colapsado. */
   summary?: string;
-  /** Condición literal de desbloqueo (pasos bloqueados). */
-  lockHint?: string;
   /** Acción del paso completado ("Editar" / "Reentrenar"): reabre el paso. */
   actionLabel?: string;
   body: ReactNode;
@@ -54,7 +52,6 @@ export default function StepAccordion({ steps, openId, onOpen }: StepAccordionPr
                   <div className="step-acc-title">
                     {number} · {step.title}
                   </div>
-                  {step.lockHint && <div className="step-acc-sub">{step.lockHint}</div>}
                 </div>
               </div>
               <div hidden>{step.body}</div>

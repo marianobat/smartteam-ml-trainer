@@ -13,7 +13,6 @@ export const COPY = {
   steps: ["Enséñale ejemplos", "Entrena", "Pruébalo y conéctalo"] as const,
 
   // --- Acordeón de pasos (Enseñar → Entrenar → Probar) ---
-  progressTitle: "Tu progreso",
   stepTeachTitle: "Clasificar y cargar muestras",
   stepTeachSubtitle: "",
   stepTrainTitle: "Entrenar modelo",
@@ -98,4 +97,7 @@ export const COPY = {
   testTextPlaceholder: "Escribe algo y mira qué clase detecta...",
   addTextPlaceholder: "Escribe un ejemplo para esta clase y presiona Enter...",
   addTextButton: "Agregar ejemplo",
+  importCsvButton: "Cargar CSV",
+  importCsvHint: "Formato UTF-8: clase,texto (primera fila = encabezado)",
+  importCsvImporting: "Importando…",
 };

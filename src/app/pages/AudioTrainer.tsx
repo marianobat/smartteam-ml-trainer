@@ -387,22 +387,6 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
   const selectedCount = selectedClass ? counts[selectedClass.id] ?? 0 : 0;
   const isRecordingSelected = recordingId === selectedClass?.id;
 
-  // Condición literal de desbloqueo del paso 2 (la más útil primero)
-  const unnamedAudioClass = classes.find((c) => !c.name.trim());
-  const missingAudioClass = classes.find((c) => (counts[c.id] ?? 0) < MIN_SAMPLES_PER_CLASS);
-  const trainLockHint =
-    classes.length < 2
-      ? COPY.lockNeedClass
-      : unnamedAudioClass
-      ? COPY.lockNeedClassName
-      : noiseCount < MIN_SAMPLES_PER_CLASS
-      ? COPY.lockMissingSamples(MIN_SAMPLES_PER_CLASS - noiseCount, BACKGROUND_NAME)
-      : missingAudioClass
-      ? COPY.lockMissingSamples(
-          MIN_SAMPLES_PER_CLASS - (counts[missingAudioClass.id] ?? 0),
-          missingAudioClass.name
-        )
-      : COPY.lockOpensOnTrain;
   const totalSamples = Object.values(counts).reduce((a, b) => a + b, 0);
   const teachSummary = COPY.stepTeachSummary(classes.length + 1, totalSamples);
   const trainSummary =
@@ -481,7 +465,6 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
 
       <div className="trainer-main">
         <aside className="trainer-side">
-          <div className="trainer-progress-title">{COPY.progressTitle}</div>
           <StepAccordion
             openId={openStep}
             onOpen={(id) => setOpenStep(id as StepId)}
@@ -543,7 +526,6 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
                       </div>
                     )}
 
-                    <div className="step-acc-note">{COPY.teachNote(MIN_SAMPLES_PER_CLASS)}</div>
                   </>
                 ),
               },
@@ -553,7 +535,6 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
                 subtitle: COPY.stepTrainSubtitle,
                 state: !samplesReady ? "locked" : canTest ? "done" : "active",
                 summary: trainSummary,
-                lockHint: trainLockHint,
                 actionLabel: COPY.stepRetrain,
                 body: (
                   <>
@@ -580,7 +561,6 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
                 title: COPY.stepTestTitle,
                 subtitle: "Habla o haz sonidos y mira qué detecta",
                 state: canTest ? "active" : "locked",
-                lockHint: isTraining ? COPY.lockOpensAfterTrain : COPY.lockOpensOnTrain,
                 body: (
                   <>
                     <LivePredictionBars rows={liveRows} seeing={seeing} hasModel={trainComplete} />

@@ -917,22 +917,6 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
 
   const cameraLoading = status !== "Detectando...";
 
-  // Condición literal de desbloqueo del paso 2 (la más útil primero)
-  const unnamedClass = dataset.classes.find((c) => !c.name.trim());
-  const missingClass = dataset.classes.find(
-    (c) => (counts[c.id] ?? 0) < MIN_SAMPLES_PER_CLASS
-  );
-  const trainLockHint =
-    dataset.classes.length < 2
-      ? COPY.lockNeedClass
-      : unnamedClass
-      ? COPY.lockNeedClassName
-      : missingClass
-      ? COPY.lockMissingSamples(
-          MIN_SAMPLES_PER_CLASS - (counts[missingClass.id] ?? 0),
-          missingClass.name
-        )
-      : COPY.lockOpensOnTrain;
   const teachSummary = COPY.stepTeachSummary(dataset.classes.length, dataset.samples.length);
   // Con modelo hidratado de un guardado/preset no hay métricas: mostrar solo "entrenado"
   const trainAccuracy = trainProgress.valAcc ?? trainProgress.acc ?? 0;
@@ -1035,7 +1019,6 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
 
       <div className="trainer-main">
         <aside className="trainer-side">
-          <div className="trainer-progress-title">{COPY.progressTitle}</div>
           <StepAccordion
             openId={openStep}
             onOpen={(id) => setOpenStep(id as StepId)}
@@ -1121,7 +1104,6 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
                       </div>
                     )}
 
-                    <div className="step-acc-note">{COPY.teachNote(MIN_SAMPLES_PER_CLASS)}</div>
                   </>
                 ),
               },
@@ -1131,7 +1113,6 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
                 subtitle: COPY.stepTrainSubtitle,
                 state: !canTrain ? "locked" : canTest ? "done" : "active",
                 summary: trainSummary,
-                lockHint: trainLockHint,
                 actionLabel: COPY.stepRetrain,
                 body: (
                   <>
@@ -1152,7 +1133,6 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
                 title: COPY.stepTestTitle,
                 subtitle: COPY.stepTestSubtitle,
                 state: canTest ? "active" : "locked",
-                lockHint: isTraining ? COPY.lockOpensAfterTrain : COPY.lockOpensOnTrain,
                 body: (
                   <>
                     <LivePredictionBars rows={liveRows} seeing={seeing} hasModel={hasTrainedModel} />
