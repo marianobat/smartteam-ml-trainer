@@ -117,11 +117,15 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
   }, [room, publishToken]);
 
   const noiseCount = counts[BACKGROUND_LABEL] ?? 0;
+  const everyClassNamed = classes.every((c) => c.name.trim().length > 0);
   const everyClassHasExamples = classes.every(
     (c) => (counts[c.id] ?? 0) >= MIN_SAMPLES_PER_CLASS
   );
   const samplesReady =
-    classes.length >= 2 && everyClassHasExamples && noiseCount >= MIN_SAMPLES_PER_CLASS;
+    classes.length >= 2 &&
+    everyClassNamed &&
+    everyClassHasExamples &&
+    noiseCount >= MIN_SAMPLES_PER_CLASS;
   const canTrain = ready && samplesReady && !isTraining && !recordingId;
   const canTest = trainComplete;
 
@@ -260,6 +264,10 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
   const handleRecord = async (classId: string) => {
     const transfer = transferRef.current;
     if (!transfer || !ready || recordingId || isTraining || listeningRef.current) return;
+    if (classId !== BACKGROUND_LABEL) {
+      const named = classes.find((c) => c.id === classId)?.name.trim();
+      if (!named) return;
+    }
 
     setRecordingId(classId);
     setTrainError(null);
@@ -380,10 +388,13 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
   const isRecordingSelected = recordingId === selectedClass?.id;
 
   // Condición literal de desbloqueo del paso 2 (la más útil primero)
+  const unnamedAudioClass = classes.find((c) => !c.name.trim());
   const missingAudioClass = classes.find((c) => (counts[c.id] ?? 0) < MIN_SAMPLES_PER_CLASS);
   const trainLockHint =
     classes.length < 2
       ? COPY.lockNeedClass
+      : unnamedAudioClass
+      ? COPY.lockNeedClassName
       : noiseCount < MIN_SAMPLES_PER_CLASS
       ? COPY.lockMissingSamples(MIN_SAMPLES_PER_CLASS - noiseCount, BACKGROUND_NAME)
       : missingAudioClass
@@ -404,6 +415,8 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
   const trainHint = !samplesReady
     ? classes.length < 2
       ? COPY.needTwoClasses
+      : !everyClassNamed
+      ? COPY.needClassNames
       : noiseCount < MIN_SAMPLES_PER_CLASS
       ? `Graba ${MIN_SAMPLES_PER_CLASS} muestras de "${BACKGROUND_NAME}" (el ruido normal del salón): así el modelo sabe cuándo nadie habla.`
       : COPY.needSamples(MIN_SAMPLES_PER_CLASS)
@@ -513,7 +526,11 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
                           <input
                             className="class-detail-name"
                             value={selectedClass.name}
+                            placeholder={COPY.classNamePlaceholder}
                             aria-label={COPY.className}
+                            aria-required="true"
+                            aria-invalid={!selectedClass.name.trim()}
+                            required
                             onChange={(e) =>
                               setClasses((prev) =>
                                 prev.map((c) =>
@@ -606,7 +623,9 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
                     ) : (
                       <Mic size={18} aria-hidden="true" />
                     )}{" "}
-                    Graba ejemplos para "{selectedClass.name}"
+                    {selectedClass.name.trim()
+                      ? `Graba ejemplos para "${selectedClass.name.trim()}"`
+                      : COPY.nameClassToCapture}
                   </h3>
                   {selectedIsNoise && (
                     <p className="audio-stage-note">
@@ -617,7 +636,13 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
                     type="button"
                     className="audio-record"
                     onClick={() => void handleRecord(selectedClass.id)}
-                    disabled={!ready || Boolean(recordingId) || isTraining || isListening}
+                    disabled={
+                      !ready ||
+                      Boolean(recordingId) ||
+                      isTraining ||
+                      isListening ||
+                      (!selectedIsNoise && !selectedClass.name.trim())
+                    }
                   >
                     {isRecordingSelected ? (
                       <>
@@ -655,7 +680,6 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
                 trainComplete={trainComplete}
                 xLabel="Épocas de entrenamiento"
               />
-              <div className="trainer-capture-hint">{COPY.curveWait}</div>
             </div>
           )}
 

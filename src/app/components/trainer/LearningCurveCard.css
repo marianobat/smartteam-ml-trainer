@@ -10,9 +10,8 @@
   border: 1px solid var(--color-outline);
   box-shadow: 0 14px 40px rgba(22, 10, 96, 0.12);
   display: grid;
-  /* Una sola fila: el chart (header/leyenda/nota se sacaron del TSX). */
-  grid-template-rows: 1fr;
-  gap: var(--space-4);
+  grid-template-rows: auto 1fr;
+  gap: var(--space-3);
   padding: 26px 28px;
 }
 

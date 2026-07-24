@@ -150,10 +150,11 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
     return `${WS_BASE}?${params.toString()}`;
   }, [room, publishToken]);
 
+  const everyClassNamed = dataset.classes.every((c) => c.name.trim().length > 0);
   const everyClassReady = dataset.classes.every(
     (c) => (counts[c.id] ?? 0) >= MIN_SAMPLES_PER_CLASS
   );
-  const canTrain = dataset.classes.length >= 2 && everyClassReady;
+  const canTrain = dataset.classes.length >= 2 && everyClassNamed && everyClassReady;
   const canTest = trainComplete && trainedModel?.kind === (mode === "examples" ? "knn" : "ml");
 
   // --- Acordeón guiado: un solo paso abierto; gating derivado del dataset/modelo ---
@@ -446,7 +447,8 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
   const handleAddSample = async () => {
     const text = inputText.trim();
     const activeClassId = dataset.activeClassId;
-    if (!text || !activeClassId || !ready || isEmbedding) return;
+    const named = dataset.classes.find((c) => c.id === activeClassId)?.name.trim();
+    if (!text || !activeClassId || !named || !ready || isEmbedding) return;
 
     setIsEmbedding(true);
     try {
@@ -607,12 +609,15 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
   }, [trainHistory]);
 
   // Condición literal de desbloqueo del paso 2 (la más útil primero)
+  const unnamedClass = dataset.classes.find((c) => !c.name.trim());
   const missingClass = dataset.classes.find(
     (c) => (counts[c.id] ?? 0) < MIN_SAMPLES_PER_CLASS
   );
   const trainLockHint =
     dataset.classes.length < 2
       ? COPY.lockNeedClass
+      : unnamedClass
+      ? COPY.lockNeedClassName
       : missingClass
       ? COPY.lockMissingSamples(
           MIN_SAMPLES_PER_CLASS - (counts[missingClass.id] ?? 0),
@@ -630,6 +635,8 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
   const trainHint = !canTrain
     ? dataset.classes.length < 2
       ? COPY.needTwoClasses
+      : !everyClassNamed
+      ? COPY.needClassNames
       : COPY.needSamples(MIN_SAMPLES_PER_CLASS)
     : null;
   const trainProgressPct =
@@ -738,7 +745,11 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
                           <input
                             className="class-detail-name"
                             value={activeClass.name}
+                            placeholder={COPY.classNamePlaceholder}
                             aria-label={COPY.className}
+                            aria-required="true"
+                            aria-invalid={!activeClass.name.trim()}
+                            required
                             onChange={(e) =>
                               dispatch({
                                 type: "RENAME_CLASS",
@@ -829,7 +840,7 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
               <div className="text-stage-block">
                 <h3 className="text-stage-title">
                   <Pencil size={18} aria-hidden="true" /> Enséñale con frases{" "}
-                  {activeClass ? `a "${activeClass.name}"` : ""}
+                  {activeClass?.name.trim() ? `a "${activeClass.name.trim()}"` : ""}
                 </h3>
                 <textarea
                   value={inputText}
@@ -840,15 +851,25 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
                       void handleAddSample();
                     }
                   }}
-                  placeholder={COPY.addTextPlaceholder}
+                  placeholder={
+                    activeClass && !activeClass.name.trim()
+                      ? COPY.nameClassToCapture
+                      : COPY.addTextPlaceholder
+                  }
                   rows={2}
-                  disabled={!ready}
+                  disabled={!ready || !activeClass?.name.trim()}
                 />
                 <button
                   type="button"
                   className="text-stage-add"
                   onClick={() => void handleAddSample()}
-                  disabled={!ready || !inputText.trim() || !dataset.activeClassId || isEmbedding}
+                  disabled={
+                    !ready ||
+                    !inputText.trim() ||
+                    !dataset.activeClassId ||
+                    !activeClass?.name.trim() ||
+                    isEmbedding
+                  }
                 >
                   {isEmbedding ? "Agregando..." : COPY.addTextButton}
                 </button>
@@ -864,7 +885,6 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
                 trainComplete={trainComplete && hasTrainedModel}
                 xLabel={mode === "examples" ? COPY.curveXLabel : "Épocas de entrenamiento"}
               />
-              <div className="trainer-capture-hint">{COPY.curveWait}</div>
             </div>
           )}
 

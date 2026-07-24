@@ -154,7 +154,7 @@ export default function MicrobitPage() {
           <ArrowLeft size={16} aria-hidden="true" /> Entrenador
         </a>
         <h1 className="mb-title">
-          Programar micro:bit — {CONFIGS[model].label} · {COURSES[course].label}
+          Implementar modelo — {CONFIGS[model].label} · {COURSES[course].label}
         </h1>
         <button
           type="button"

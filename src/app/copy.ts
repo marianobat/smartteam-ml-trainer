@@ -16,7 +16,7 @@ export const COPY = {
   progressTitle: "Tu progreso",
   stepTeachTitle: "Clasificar y cargar muestras",
   stepTeachSubtitle: "",
-  stepTrainTitle: "Entrena tu modelo",
+  stepTrainTitle: "Entrenar modelo",
   stepTrainSubtitle: "",
   stepTestTitle: "Probar modelo",
   stepTestSubtitle: "",
@@ -27,8 +27,11 @@ export const COPY = {
   stepEdit: "Editar",
   stepRetrain: "Reentrenar",
   lockNeedClass: "Agrega otra clase",
-  lockMissingSamples: (n: number, name: string) =>
-    n === 1 ? `Falta 1 ejemplo en "${name}"` : `Faltan ${n} ejemplos en "${name}"`,
+  lockNeedClassName: "Ponle nombre a cada clase",
+  lockMissingSamples: (n: number, name: string) => {
+    const label = name.trim() || "sin nombre";
+    return n === 1 ? `Falta 1 ejemplo en "${label}"` : `Faltan ${n} ejemplos en "${label}"`;
+  },
   lockOpensOnTrain: "Se abre al entrenar",
   lockOpensAfterTrain: "Se abre al terminar de entrenar",
   teachNote: (min: number) =>
@@ -47,7 +50,6 @@ export const COPY = {
   curveXLabel: "Cantidad de ejemplos que fue viendo",
   curveNote: "Si la línea se queda abajo, súmale más ejemplos a la clase que confunde.",
   curveEmpty: "Toca ¡Entrenar modelo! para ver cómo aprende tu modelo.",
-  curveWait: "Tarda unos segundos. ¡No cierres la ventana!",
 
   stageTestHint: "Muéstrale ejemplos a la cámara y mira cómo los reconoce",
 
@@ -76,11 +78,14 @@ export const COPY = {
   training: "Aprendiendo...",
   trained: "¡Tu modelo ya aprendió! Pruébalo",
   needTwoClasses: "Crea al menos 2 clases para poder entrenar",
+  needClassNames: "Ponle nombre a cada clase antes de entrenar",
   needSamples: (min: number) => `Cada clase necesita ${min} ejemplos para entrenar`,
+  nameClassToCapture: "Ponle nombre a la clase para cargar ejemplos",
 
   tryTitle: "Pruébalo",
   see: "Veo:",
-  seeNothing: "No estoy seguro todavía...",
+  seeNothing: "Ninguna clase",
+  noneClass: "Ninguna clase",
   liveEmpty: "Cuando entrenes tu modelo, aquí vas a ver qué detecta en vivo.",
   pipOpen: "Ventana flotante",
   pipClose: "Cerrar ventana",

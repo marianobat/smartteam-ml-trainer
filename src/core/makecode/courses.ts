@@ -33,7 +33,7 @@ export type CoursePackage = {
 
 export type Course = {
   id: CourseId;
-  /** Etiqueta corta, p. ej. "3.º". */
+  /** Etiqueta corta, p. ej. "3º". */
   label: string;
   /** Etiqueta larga para la tarjeta, p. ej. "3er grado". */
   longLabel: string;
@@ -71,7 +71,7 @@ export const COURSES: Record<CourseId, Course> = Object.fromEntries(
     id,
     {
       id,
-      label: `${id}.º`,
+      label: `${id}º`,
       longLabel: ORDINALS[id],
       package: COURSE_PACKAGES[id],
     },

@@ -129,7 +129,7 @@
   text-align: center;
 }
 
-/* Píldora "Veo: X %" sobre la cámara durante el paso Probar */
+/* Píldora de clase detectada sobre la cámara (paso Probar) */
 .stage-seeing {
   display: inline-flex;
   align-items: center;
@@ -144,16 +144,14 @@
   color: var(--color-ink);
 }
 .stage-seeing strong {
-  color: var(--color-primary);
+  color: inherit;
+  font-weight: 700;
 }
 .stage-seeing-dot {
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  background: var(--color-accent);
-}
-.stage-seeing-pct {
-  color: var(--color-success-strong);
+  background: var(--color-ink-faint);
 }
 
 .preset-own-btn {
@@ -190,6 +188,10 @@
   font-weight: 600;
   font-family: var(--font-display);
   font-size: 1rem;
+}
+.class-detail-name[aria-invalid="true"] {
+  border-color: var(--color-danger);
+  box-shadow: 0 0 0 2px var(--color-danger-soft);
 }
 
 .class-detail-delete {

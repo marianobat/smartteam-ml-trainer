@@ -23,7 +23,8 @@ const BAR_COLORS = [
   "var(--mod-text)", // azul
 ];
 
-const barColor = (index: number) => BAR_COLORS[index % BAR_COLORS.length];
+/** Color de clase por índice (barras en vivo y píldora del stage). */
+export const classBarColor = (index: number) => BAR_COLORS[index % BAR_COLORS.length];
 
 type LivePredictionBarsProps = {
   rows: PredictionRow[];
@@ -50,7 +51,7 @@ export default function LivePredictionBars({ rows, hasModel }: LivePredictionBar
                 style={
                   {
                     width: `${Math.round(Math.max(0, Math.min(1, row.value)) * 100)}%`,
-                    "--bar-color": barColor(idx),
+                    "--bar-color": classBarColor(idx),
                   } as CSSProperties
                 }
               />

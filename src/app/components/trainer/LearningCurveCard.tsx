@@ -1,9 +1,7 @@
 // src/app/components/trainer/LearningCurveCard.tsx
 //
-// Tarjeta "Cómo va aprendiendo": la curva de precisión (entrenamiento violeta,
-// validación cyan) que ocupa el escenario derecho mientras el paso 2 está
-// activo. Sin textos de apoyo: solo la(s) línea(s) que crecen en vivo durante
-// el entrenamiento (decisión de diseño: menos ruido para los chicos).
+// Tarjeta "Cómo va aprendiendo": curva de precisión en el escenario del paso 2.
+// Datos mínimos: leyenda de series + algunos números en la grilla.
 
 import {
   ResponsiveContainer,
@@ -13,6 +11,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { COPY } from "../../copy";
 import "./LearningCurveCard.css";
 
 export type CurvePoint = {
@@ -24,9 +23,7 @@ export type CurvePoint = {
 type LearningCurveCardProps = {
   data: CurvePoint[];
   isTraining: boolean;
-  /** Hay un modelo entrenado. */
   trainComplete: boolean;
-  /** Etiqueta del eje X (se mantiene por compatibilidad; ya no se muestra). */
   xLabel?: string;
 };
 
@@ -36,16 +33,44 @@ export default function LearningCurveCard({ data }: LearningCurveCardProps) {
 
   return (
     <div className="curve-card">
+      <div className="curve-card-legend">
+        <span className="curve-card-legend-item">
+          <span className="curve-card-swatch" style={{ background: "var(--color-primary)" }} />
+          {COPY.curveLegendTrain}
+        </span>
+        {hasVal && (
+          <span className="curve-card-legend-item">
+            <span className="curve-card-swatch" style={{ background: "var(--color-secondary)" }} />
+            {COPY.curveLegendVal}
+          </span>
+        )}
+      </div>
+
       <div className="curve-card-chart">
         {hasData ? (
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={data} margin={{ top: 12, right: 12, bottom: 12, left: 12 }}>
+            <LineChart data={data} margin={{ top: 8, right: 16, bottom: 8, left: 4 }}>
               <CartesianGrid stroke="var(--color-sunken)" vertical={false} />
-              <XAxis dataKey="step" hide />
-              <YAxis domain={[0, 1]} hide />
+              <XAxis
+                dataKey="step"
+                tickLine={false}
+                axisLine={false}
+                tick={{ fill: "var(--color-ink-faint)", fontSize: 12 }}
+                minTickGap={28}
+              />
+              <YAxis
+                domain={[0, 1]}
+                ticks={[0, 0.5, 1]}
+                tickLine={false}
+                axisLine={false}
+                width={40}
+                tick={{ fill: "var(--color-ink-faint)", fontSize: 12 }}
+                tickFormatter={(v: number) => `${Math.round(v * 100)}%`}
+              />
               <Line
                 type="monotone"
                 dataKey="acc"
+                name={COPY.curveLegendTrain}
                 stroke="var(--color-primary)"
                 strokeWidth={4.5}
                 strokeLinecap="round"
@@ -56,6 +81,7 @@ export default function LearningCurveCard({ data }: LearningCurveCardProps) {
                 <Line
                   type="monotone"
                   dataKey="valAcc"
+                  name={COPY.curveLegendVal}
                   stroke="var(--color-secondary)"
                   strokeWidth={4.5}
                   strokeLinecap="round"
@@ -66,7 +92,7 @@ export default function LearningCurveCard({ data }: LearningCurveCardProps) {
             </LineChart>
           </ResponsiveContainer>
         ) : (
-          <div className="curve-card-empty" />
+          <div className="curve-card-empty">{COPY.curveEmpty}</div>
         )}
       </div>
     </div>

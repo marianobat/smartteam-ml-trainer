@@ -68,7 +68,7 @@ import SampleGrid from "../components/trainer/SampleGrid";
 import CameraStage from "../components/trainer/CameraStage";
 import CaptureControls from "../components/trainer/CaptureControls";
 import TrainPanel from "../components/trainer/TrainPanel";
-import LivePredictionBars from "../components/trainer/LivePredictionBars";
+import LivePredictionBars, { classBarColor } from "../components/trainer/LivePredictionBars";
 import StatusChips, { type StatusChip } from "../components/trainer/StatusChips";
 import AdvancedDrawer from "../components/trainer/AdvancedDrawer";
 import { captureSkeletonThumbnail, captureVideoThumbnail } from "../components/trainer/thumbnails";
@@ -218,10 +218,11 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
     return `${WS_BASE}?${params.toString()}`;
   }, [room, publishToken]);
 
+  const everyClassNamed = dataset.classes.every((c) => c.name.trim().length > 0);
   const everyClassReady = dataset.classes.every(
     (c) => (counts[c.id] ?? 0) >= MIN_SAMPLES_PER_CLASS
   );
-  const canTrain = dataset.classes.length >= 2 && everyClassReady;
+  const canTrain = dataset.classes.length >= 2 && everyClassNamed && everyClassReady;
   const canTest = trainComplete && trainedModel?.kind === (mode === "examples" ? "knn" : "ml");
 
   // --- Acordeón guiado: un solo paso abierto; el gating se deriva del
@@ -511,6 +512,8 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
   const captureSample = () => {
     const activeClassId = dataset.activeClassId;
     if (!activeClassId) return;
+    const named = dataset.classes.find((c) => c.id === activeClassId)?.name.trim();
+    if (!named) return;
 
     const vec = latestVecRef.current;
     if (!vec || vec.length !== featureDim) return; // solo guardamos el vector de FEATURES
@@ -913,15 +916,17 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
   );
 
   const cameraLoading = status !== "Detectando...";
-  const cameraHint = !cameraLoading && !hasSubject ? config.missingHint : null;
 
   // Condición literal de desbloqueo del paso 2 (la más útil primero)
+  const unnamedClass = dataset.classes.find((c) => !c.name.trim());
   const missingClass = dataset.classes.find(
     (c) => (counts[c.id] ?? 0) < MIN_SAMPLES_PER_CLASS
   );
   const trainLockHint =
     dataset.classes.length < 2
       ? COPY.lockNeedClass
+      : unnamedClass
+      ? COPY.lockNeedClassName
       : missingClass
       ? COPY.lockMissingSamples(
           MIN_SAMPLES_PER_CLASS - (counts[missingClass.id] ?? 0),
@@ -939,6 +944,8 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
   const trainHint = !canTrain
     ? dataset.classes.length < 2
       ? COPY.needTwoClasses
+      : !everyClassNamed
+      ? COPY.needClassNames
       : COPY.needSamples(MIN_SAMPLES_PER_CLASS)
     : null;
   const trainProgressPct =
@@ -1075,6 +1082,9 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
                             value={activeClass.name}
                             placeholder={COPY.classNamePlaceholder}
                             aria-label={COPY.className}
+                            aria-required="true"
+                            aria-invalid={!activeClass.name.trim()}
+                            required
                             onChange={(e) =>
                               dispatch({
                                 type: "RENAME_CLASS",
@@ -1182,28 +1192,35 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
               focusBox={config.thumbnailSource === "video"}
               loading={cameraLoading}
               loadingText={status}
-              hint={cameraHint}
+              hint={null}
               overlay={
                 openStep === "test" && hasTrainedModel ? (
                   <span className="stage-seeing">
-                    <span className="stage-seeing-dot" aria-hidden="true" />
-                    {seeing ? (
-                      <>
-                        {COPY.see} <strong>{seeing.label}</strong>
-                        <span className="stage-seeing-pct">
-                          {Math.round(seeing.confidence * 100)}%
-                        </span>
-                      </>
-                    ) : (
-                      COPY.seeNothing
-                    )}
+                    <span
+                      className="stage-seeing-dot"
+                      aria-hidden="true"
+                      style={
+                        seeing
+                          ? {
+                              background: classBarColor(
+                                Math.max(0, trainedClassNames.indexOf(seeing.label))
+                              ),
+                            }
+                          : undefined
+                      }
+                    />
+                    <strong>{seeing ? seeing.label : COPY.noneClass}</strong>
                   </span>
                 ) : undefined
               }
             >
               {openStep === "teach" ? (
                 <CaptureControls
-                  disabled={!dataset.activeClassId || cameraLoading}
+                  disabled={
+                    !dataset.activeClassId ||
+                    cameraLoading ||
+                    !activeClass?.name.trim()
+                  }
                   burstMode={burstMode}
                   onToggleBurst={() => setBurstMode((prev) => !prev)}
                   onPressStart={startHold}
@@ -1212,7 +1229,11 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
               ) : null}
             </CameraStage>
             <div className="trainer-capture-hint">
-              {openStep === "teach" ? COPY.captureHint : COPY.stageTestHint}
+              {openStep === "teach"
+                ? activeClass && !activeClass.name.trim()
+                  ? COPY.nameClassToCapture
+                  : COPY.captureHint
+                : COPY.stageTestHint}
             </div>
           </div>
 
@@ -1224,7 +1245,6 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
                 trainComplete={trainComplete && hasTrainedModel}
                 xLabel={mode === "examples" ? COPY.curveXLabel : "Épocas de entrenamiento"}
               />
-              <div className="trainer-capture-hint">{COPY.curveWait}</div>
             </div>
           )}
         </section>
