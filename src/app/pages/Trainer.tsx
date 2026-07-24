@@ -551,8 +551,8 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
       captureSample();
       holdRepeatTimerRef.current = window.setInterval(() => {
         captureSample();
-      }, 500);
-    }, 1000);
+      }, 200);
+    }, 500);
   };
 
   const endHold = (event: MouseEvent<HTMLButtonElement> | TouchEvent<HTMLButtonElement>) => {
