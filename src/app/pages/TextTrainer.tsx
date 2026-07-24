@@ -7,7 +7,7 @@
 
 import { useEffect, useMemo, useReducer, useRef, useState, type ChangeEvent } from "react";
 import * as tf from "@tensorflow/tfjs";
-import { Save, Loader2, Satellite, Pencil, Trash2, ChevronLeft, Upload } from "lucide-react";
+import { Save, Loader2, Satellite, Pencil, Trash2, Upload } from "lucide-react";
 import {
   ResponsiveContainer,
   LineChart,
@@ -779,14 +779,17 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
   return (
     <div className="trainer-page">
       <header className="trainer-header">
-        <img
-          className="trainer-logo"
-          src={`${import.meta.env.BASE_URL ?? "/"}brand/smartteam-logo.svg`}
-          alt="SmartTEAM"
-        />
-        <span className="trainer-header-divider" aria-hidden="true" />
-        <button type="button" className="trainer-back" onClick={onBack}>
-          <ChevronLeft size={18} aria-hidden="true" /> {COPY.modalities}
+        <button
+          type="button"
+          className="trainer-logo-btn"
+          onClick={onBack}
+          aria-label="Volver al inicio"
+        >
+          <img
+            className="trainer-logo"
+            src={`${import.meta.env.BASE_URL ?? "/"}brand/smartteam-logo.svg`}
+            alt=""
+          />
         </button>
         <h2 className="trainer-title">Textos</h2>
         <div className="trainer-header-right">

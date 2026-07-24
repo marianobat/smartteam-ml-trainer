@@ -6,8 +6,6 @@
 // modo avanzado. Sin emojis: los íconos los ponen los componentes (Lucide).
 
 export const COPY = {
-  back: "← Volver",
-  modalities: "Modelos",
   advanced: "Modo avanzado",
 
   steps: ["Enséñale ejemplos", "Entrena", "Pruébalo y conéctalo"] as const,

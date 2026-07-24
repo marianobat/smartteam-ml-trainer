@@ -151,7 +151,7 @@ export default function MicrobitPage() {
     <div className="mb-page">
       <header className="mb-header">
         <a className="mb-back" href={`${baseUrl}trainer?model=${model}`}>
-          <ArrowLeft size={16} aria-hidden="true" /> Entrenador
+          <ArrowLeft size={16} aria-hidden="true" /> Entrenamiento
         </a>
         <h1 className="mb-title">
           Implementar modelo — {CONFIGS[model].label} · {COURSES[course].label}
@@ -203,7 +203,7 @@ function CourseSelect({
     <div className="mb-page mb-course-page">
       <header className="mb-header">
         <a className="mb-back" href={backHref}>
-          <ArrowLeft size={16} aria-hidden="true" /> Entrenador
+          <ArrowLeft size={16} aria-hidden="true" /> Entrenamiento
         </a>
         <h1 className="mb-title">{COPY.courseTitle}</h1>
       </header>

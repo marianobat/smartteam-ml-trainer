@@ -31,7 +31,7 @@ const getModelFromQuery = (): ModelId | null => {
 
 const trainerConfigs: Partial<Record<ModelId, TrainerConfig>> = {
   hands: {
-    title: "Manos",
+    title: "Entrenamiento",
     loadingText: "Preparando el detector de manos...",
     missingLabel: "Sin manos",
     missingHint: "No veo tus manos. Ponlas frente a la cámara",

@@ -8,7 +8,7 @@
 
 import { useEffect, useMemo, useReducer, useRef, useState, type MouseEvent, type TouchEvent } from "react";
 import * as tf from "@tensorflow/tfjs";
-import { Sparkles, Save, Loader2, Satellite, Pencil, Trash2, Cpu, ChevronLeft } from "lucide-react";
+import { Sparkles, Save, Loader2, Satellite, Pencil, Trash2, Cpu } from "lucide-react";
 import {
   ResponsiveContainer,
   LineChart,
@@ -1002,14 +1002,17 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
   return (
     <div className="trainer-page">
       <header className="trainer-header">
-        <img
-          className="trainer-logo"
-          src={`${import.meta.env.BASE_URL ?? "/"}brand/smartteam-logo.svg`}
-          alt="SmartTEAM"
-        />
-        <span className="trainer-header-divider" aria-hidden="true" />
-        <button type="button" className="trainer-back" onClick={onBack}>
-          <ChevronLeft size={18} aria-hidden="true" /> {COPY.modalities}
+        <button
+          type="button"
+          className="trainer-logo-btn"
+          onClick={onBack}
+          aria-label="Volver al inicio"
+        >
+          <img
+            className="trainer-logo"
+            src={`${import.meta.env.BASE_URL ?? "/"}brand/smartteam-logo.svg`}
+            alt=""
+          />
         </button>
         <h2 className="trainer-title">{config.title}</h2>
         <div className="trainer-header-right">
