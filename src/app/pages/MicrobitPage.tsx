@@ -171,9 +171,6 @@ export default function MicrobitPage() {
       </header>
 
       <div className="mb-main">
-        <section className="mb-eval">
-          <LiveEvalColumn key={model} config={CONFIGS[model]} baseUrl={baseUrl} />
-        </section>
         <section className="mb-editor">
           <MakeCodeController
             key={course}
@@ -184,6 +181,9 @@ export default function MicrobitPage() {
                 : null
             }
           />
+        </section>
+        <section className="mb-eval">
+          <LiveEvalColumn key={model} config={CONFIGS[model]} baseUrl={baseUrl} />
         </section>
       </div>
     </div>

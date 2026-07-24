@@ -41,7 +41,8 @@
 
 .mb-main {
   display: grid;
-  grid-template-columns: minmax(260px, 1fr) minmax(0, 3fr);
+  /* MakeCode (ancho) primero; cámara/detección después (izq→der / arriba→abajo) */
+  grid-template-columns: minmax(0, 3fr) minmax(260px, 1fr);
   gap: var(--space-4);
   min-height: 0;
 }
