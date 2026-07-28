@@ -63,7 +63,7 @@ const trainerConfigs: Partial<Record<ModelId, TrainerConfig>> = {
   images: {
     title: "Entrenamiento de Imágenes",
     loadingText: "Preparando el detector de imágenes...",
-    missingLabel: "Sin imagen",
+    missingLabel: "No reconocido",
     missingHint: "Muéstrale algo a la cámara",
     placeholderIcon: "🖼️",
     thumbnailSource: "video",

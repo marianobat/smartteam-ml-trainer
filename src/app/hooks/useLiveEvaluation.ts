@@ -189,6 +189,11 @@ export function useLiveEvaluation(
             } else {
               pendingLabelRef.current = null;
               pendingHitsRef.current = 0;
+              // Imágenes: siempre hay frame/sujeto. Bajo el umbral → no reconocido.
+              if (config.storageKey === "images") {
+                stableLabelRef.current = missingLabel;
+                stableConfidenceRef.current = 0;
+              }
             }
 
             setRows(

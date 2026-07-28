@@ -52,7 +52,7 @@ const CONFIGS: Record<ModelId, EvalConfig & { label: string }> = {
   images: {
     label: "Imágenes",
     storageKey: "images",
-    missingLabel: "Sin imagen",
+    missingLabel: "No reconocido",
     dimmed: false,
     createExtractor: createImageExtractor,
   },

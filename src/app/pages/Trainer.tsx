@@ -807,6 +807,12 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
             } else {
               pendingLabelRef.current = null;
               pendingHitsRef.current = 0;
+              // Imágenes: siempre hay "sujeto" (hay frame). Si ninguna clase pasa el
+              // umbral, soltar la predicción estable y tratarlo como no reconocido.
+              if (config.storageKey === "images") {
+                stableLabelRef.current = missingLabel;
+                stableConfidenceRef.current = 0;
+              }
             }
             setStableLabel(stableLabelRef.current);
             setStableConfidence(stableConfidenceRef.current);
@@ -1192,7 +1198,13 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
                           : undefined
                       }
                     />
-                    <strong>{seeing ? seeing.label : COPY.noneClass}</strong>
+                    <strong>
+                      {seeing
+                        ? seeing.label
+                        : config.storageKey === "images"
+                          ? missingLabel
+                          : COPY.noneClass}
+                    </strong>
                   </span>
                 ) : undefined
               }
