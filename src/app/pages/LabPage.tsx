@@ -36,9 +36,9 @@ const CONFIGS: Record<ModelId, EvalConfig & { label: string }> = {
     createExtractor: createHandExtractor,
   },
   face: {
-    label: "Caras",
+    label: "Rostros",
     storageKey: "face",
-    missingLabel: "Sin cara",
+    missingLabel: "Sin rostro",
     dimmed: true,
     createExtractor: createFaceExtractor,
   },

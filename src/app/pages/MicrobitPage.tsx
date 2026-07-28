@@ -46,7 +46,7 @@ type PageConfig = EvalConfig & { label: string; focusBox?: boolean };
 
 const CONFIGS: Record<ModelId, PageConfig> = {
   hands: { label: "Manos", storageKey: "hands", missingLabel: "Sin manos", dimmed: true, createExtractor: createHandExtractor },
-  face: { label: "Caras", storageKey: "face", missingLabel: "Sin cara", dimmed: true, createExtractor: createFaceExtractor },
+  face: { label: "Rostros", storageKey: "face", missingLabel: "Sin rostro", dimmed: true, createExtractor: createFaceExtractor },
   pose: { label: "Cuerpo", storageKey: "pose", missingLabel: "Sin cuerpo", dimmed: true, createExtractor: createPoseExtractor },
   images: { label: "Imágenes", storageKey: "images", missingLabel: "Sin imagen", dimmed: false, focusBox: true, createExtractor: createImageExtractor },
 };

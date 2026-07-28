@@ -51,10 +51,10 @@ const trainerConfigs: Partial<Record<ModelId, TrainerConfig>> = {
     createExtractor: createPoseExtractor,
   },
   face: {
-    title: "Entrenamiento de Caras",
-    loadingText: "Preparando el detector de caras...",
-    missingLabel: "Sin cara",
-    missingHint: "No veo tu cara. Acércate a la cámara",
+    title: "Entrenamiento de Rostros",
+    loadingText: "Preparando el detector de rostros...",
+    missingLabel: "Sin rostro",
+    missingHint: "No veo tu rostro. Acércate a la cámara",
     placeholderIcon: "😀",
     thumbnailSource: "overlay",
     storageKey: "face",
@@ -88,7 +88,7 @@ export default function TrainerPage() {
     },
     {
       id: "face",
-      title: "Caras",
+      title: "Rostros",
       description: "Sonrisas, guiños y expresiones.",
       enabled: true,
       cover: coverUrl("face"),

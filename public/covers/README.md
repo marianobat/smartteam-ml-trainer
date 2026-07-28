@@ -22,7 +22,7 @@ Para usar WebP/PNG, reemplazá el archivo y actualizá la extensión en el array
 | Archivo | Modalidad | Color acento (`theme.css`) | Idea visual sugerida |
 |---------|-----------|----------------------------|----------------------|
 | `hands` | Manos | `#FF4D8D` rosa | Manos con esqueleto colorido o gesto “pulgar arriba”, fondo lavanda/rosa suave |
-| `face` | Caras | `#7C4DFF` violeta | Cara sonriente / malla facial estilizada, fondo violeta claro |
+| `face` | Rostros | `#7C4DFF` violeta | Rostro sonriente / malla facial estilizada, fondo violeta claro |
 | `pose` | Cuerpo | `#00BCD9` cian | Silueta de cuerpo con articulaciones, fondo cian claro |
 | `images` | Imágenes | `#FF8A3D` naranja | Objeto cotidiano (fruta, lápiz) o marco de foto, fondo melocotón |
 | `text` | Textos | `#4D7CFE` azul | Burbujas de chat o líneas de texto, fondo azul claro |
