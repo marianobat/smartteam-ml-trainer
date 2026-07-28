@@ -63,7 +63,12 @@ const ORDINALS: Record<CourseId, string> = {
  * cuando se publique ese release, bumpear `ref` acá.
  */
 const COURSE_PACKAGES: Partial<Record<CourseId, CoursePackage>> = {
-  "4": { name: "ext4", repo: "smartteamok/smartteam-ml-ext4", ref: "v2.0.10" },
+  "4": { name: "ext4", repo: "LOGOS-SmartTEAM/EXT4", ref: "main" },
+  "5": { name: "ext5", repo: "LOGOS-SmartTEAM/EXT5", ref: "main" },
+  "6": { name: "ext6", repo: "LOGOS-SmartTEAM/EXT6", ref: "main" },
+  "7": { name: "ext7", repo: "LOGOS-SmartTEAM/EXT7", ref: "main" },
+  "8": { name: "ext8", repo: "LOGOS-SmartTEAM/EXT8", ref: "main" },
+  "9": { name: "ext9", repo: "LOGOS-SmartTEAM/EXT9", ref: "main" },
 };
 
 export const COURSES: Record<CourseId, Course> = Object.fromEntries(

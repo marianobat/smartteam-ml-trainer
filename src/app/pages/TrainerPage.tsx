@@ -31,7 +31,7 @@ const getModelFromQuery = (): ModelId | null => {
 
 const trainerConfigs: Partial<Record<ModelId, TrainerConfig>> = {
   hands: {
-    title: "Entrenamiento",
+    title: "Entrenamiento de manos",
     loadingText: "Preparando el detector de manos...",
     missingLabel: "Sin manos",
     missingHint: "No veo tus manos. Ponlas frente a la cámara",
@@ -41,7 +41,7 @@ const trainerConfigs: Partial<Record<ModelId, TrainerConfig>> = {
     createExtractor: createHandExtractor,
   },
   pose: {
-    title: "Cuerpo",
+    title: "Entrenamiento de cuerpo",
     loadingText: "Preparando el detector de cuerpo...",
     missingLabel: "Sin cuerpo",
     missingHint: "No te veo. Aléjate un poco de la cámara",
@@ -51,7 +51,7 @@ const trainerConfigs: Partial<Record<ModelId, TrainerConfig>> = {
     createExtractor: createPoseExtractor,
   },
   face: {
-    title: "Caras",
+    title: "Entrenamiento de Caras",
     loadingText: "Preparando el detector de caras...",
     missingLabel: "Sin cara",
     missingHint: "No veo tu cara. Acércate a la cámara",
@@ -61,7 +61,7 @@ const trainerConfigs: Partial<Record<ModelId, TrainerConfig>> = {
     createExtractor: createFaceExtractor,
   },
   images: {
-    title: "Imágenes",
+    title: "Entrenamiento de Imágenes",
     loadingText: "Preparando el detector de imágenes...",
     missingLabel: "Sin imagen",
     missingHint: "Muéstrale algo a la cámara",
@@ -109,14 +109,14 @@ export default function TrainerPage() {
     },
     {
       id: "text",
-      title: "Textos",
+      title: "Entrenamiento de Textos",
       description: "Frases y palabras escritas.",
       enabled: true,
       cover: coverUrl("text"),
     },
     {
       id: "audio",
-      title: "Sonidos",
+      title: "Entrenamiento de Sonidos",
       description: "Palabras y sonidos con el micrófono.",
       enabled: true,
       cover: coverUrl("audio"),
