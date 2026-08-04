@@ -31,7 +31,7 @@ const getModelFromQuery = (): ModelId | null => {
 
 const trainerConfigs: Partial<Record<ModelId, TrainerConfig>> = {
   hands: {
-    title: "Entrenador de manos",
+    title: "Entrenamiento de manos",
     loadingText: "Preparando el detector de manos...",
     missingLabel: "Sin manos",
     missingHint: "No veo tus manos. Ponlas frente a la cámara",
@@ -41,7 +41,7 @@ const trainerConfigs: Partial<Record<ModelId, TrainerConfig>> = {
     createExtractor: createHandExtractor,
   },
   pose: {
-    title: "Entrenador de posturas",
+    title: "Entrenamiento de cuerpo",
     loadingText: "Preparando el detector de cuerpo...",
     missingLabel: "Sin cuerpo",
     missingHint: "No te veo. Aléjate un poco de la cámara",
@@ -51,19 +51,19 @@ const trainerConfigs: Partial<Record<ModelId, TrainerConfig>> = {
     createExtractor: createPoseExtractor,
   },
   face: {
-    title: "Entrenador de caras",
-    loadingText: "Preparando el detector de caras...",
-    missingLabel: "Sin cara",
-    missingHint: "No veo tu cara. Acércate a la cámara",
+    title: "Entrenamiento de Rostros",
+    loadingText: "Preparando el detector de rostros...",
+    missingLabel: "Sin rostro",
+    missingHint: "No veo tu rostro. Acércate a la cámara",
     placeholderIcon: "😀",
     thumbnailSource: "overlay",
     storageKey: "face",
     createExtractor: createFaceExtractor,
   },
   images: {
-    title: "Entrenador de imágenes",
+    title: "Entrenamiento de Imágenes",
     loadingText: "Preparando el detector de imágenes...",
-    missingLabel: "Sin imagen",
+    missingLabel: "No reconocido",
     missingHint: "Muéstrale algo a la cámara",
     placeholderIcon: "🖼️",
     thumbnailSource: "video",
@@ -88,7 +88,7 @@ export default function TrainerPage() {
     },
     {
       id: "face",
-      title: "Caras",
+      title: "Rostros",
       description: "Sonrisas, guiños y expresiones.",
       enabled: true,
       cover: coverUrl("face"),
@@ -109,14 +109,14 @@ export default function TrainerPage() {
     },
     {
       id: "text",
-      title: "Textos",
+      title: "Entrenamiento de Textos",
       description: "Frases y palabras escritas.",
       enabled: true,
       cover: coverUrl("text"),
     },
     {
       id: "audio",
-      title: "Sonidos",
+      title: "Entrenamiento de Sonidos",
       description: "Palabras y sonidos con el micrófono.",
       enabled: true,
       cover: coverUrl("audio"),
@@ -137,11 +137,13 @@ export default function TrainerPage() {
       <div className="trainer-select">
         <header className="trainer-select-header">
           <div>
-            <div className="trainer-select-kicker">SmartTEAM IA</div>
-            <h1 className="trainer-select-title">¿Qué le quieres enseñar?</h1>
-            <p className="trainer-select-subtitle">
-              Elige una modalidad para entrenar tu modelo con ejemplos.
-            </p>
+            <img
+              className="trainer-select-logo"
+              src={`${import.meta.env.BASE_URL ?? "/"}brand/smartteam-logo.svg`}
+              alt="SmartTEAM"
+            />
+            <h1 className="trainer-select-title">Entrena tu modelo de IA</h1>
+            <p className="trainer-select-subtitle">Elige un modelo para entrenar.</p>
           </div>
           {TURBOWARP_ENABLED && room && (
             <div className="trainer-select-room">Room: {room}</div>

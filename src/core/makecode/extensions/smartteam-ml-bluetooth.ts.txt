@@ -13,7 +13,7 @@
  *   micro:bit → navegador: "ML?\n"
  *   navegador → micro:bit: "ML:<nombre de la clase>\n" ("none" si no hay)
  */
-//% color="#796EB0" icon="\uf294" block="SmartTEAM AI" weight=89
+//% color="#796EB0" icon="\uf294" block="SmartTEAM IA" weight=89
 namespace smartteamMLBT {
     const PREFIJO = "ML:"
     const PEDIDO = "ML?"

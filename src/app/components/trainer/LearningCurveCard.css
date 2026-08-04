@@ -10,8 +10,8 @@
   border: 1px solid var(--color-outline);
   box-shadow: 0 14px 40px rgba(22, 10, 96, 0.12);
   display: grid;
-  grid-template-rows: auto auto 1fr auto;
-  gap: var(--space-4);
+  grid-template-rows: auto 1fr;
+  gap: var(--space-3);
   padding: 26px 28px;
 }
 
@@ -98,11 +98,13 @@
 }
 
 .curve-card-chart {
-  min-height: 0;
+  min-height: 320px;
+  height: 100%;
   align-self: stretch;
 }
 
 .curve-card-empty {
+  min-height: 320px;
   height: 100%;
   display: grid;
   place-items: center;

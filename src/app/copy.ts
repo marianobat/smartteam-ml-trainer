@@ -6,20 +6,17 @@
 // modo avanzado. Sin emojis: los íconos los ponen los componentes (Lucide).
 
 export const COPY = {
-  back: "← Volver",
-  modalities: "Modalidades",
   advanced: "Modo avanzado",
 
   steps: ["Enséñale ejemplos", "Entrena", "Pruébalo y conéctalo"] as const,
 
   // --- Acordeón de pasos (Enseñar → Entrenar → Probar) ---
-  progressTitle: "Tu progreso",
-  stepTeachTitle: "Enséñale ejemplos",
-  stepTeachSubtitle: "Muéstrale ejemplos de cada clase",
-  stepTrainTitle: "Entrena tu modelo",
-  stepTrainSubtitle: "La compu aprende de tus ejemplos",
-  stepTestTitle: "Pruébalo y conéctalo",
-  stepTestSubtitle: "Ponlo a prueba y mira qué detecta",
+  stepTeachTitle: "Clasificar y cargar muestras",
+  stepTeachSubtitle: "",
+  stepTrainTitle: "Entrenar modelo",
+  stepTrainSubtitle: "",
+  stepTestTitle: "Probar modelo",
+  stepTestSubtitle: "",
   stepTeachSummary: (classes: number, samples: number) =>
     `${classes} clase${classes === 1 ? "" : "s"} · ${samples} ejemplo${samples === 1 ? "" : "s"}`,
   stepTrainSummary: (hits: number) => `Reconoce ${hits} de cada 10`,
@@ -27,8 +24,11 @@ export const COPY = {
   stepEdit: "Editar",
   stepRetrain: "Reentrenar",
   lockNeedClass: "Agrega otra clase",
-  lockMissingSamples: (n: number, name: string) =>
-    n === 1 ? `Falta 1 ejemplo en "${name}"` : `Faltan ${n} ejemplos en "${name}"`,
+  lockNeedClassName: "Ponle nombre a cada clase",
+  lockMissingSamples: (n: number, name: string) => {
+    const label = name.trim() || "sin nombre";
+    return n === 1 ? `Falta 1 ejemplo en "${label}"` : `Faltan ${n} ejemplos en "${label}"`;
+  },
   lockOpensOnTrain: "Se abre al entrenar",
   lockOpensAfterTrain: "Se abre al terminar de entrenar",
   teachNote: (min: number) =>
@@ -47,20 +47,21 @@ export const COPY = {
   curveXLabel: "Cantidad de ejemplos que fue viendo",
   curveNote: "Si la línea se queda abajo, súmale más ejemplos a la clase que confunde.",
   curveEmpty: "Toca ¡Entrenar modelo! para ver cómo aprende tu modelo.",
-  curveWait: "Tarda unos segundos. ¡No cierres la ventana!",
 
   stageTestHint: "Muéstrale ejemplos a la cámara y mira cómo los reconoce",
 
-  programMicrobit: "Programar micro:bit",
+  programMicrobit: "Implementar modelo",
 
   // --- Selector de curso (pantalla intermedia de /microbit) ---
-  courseTitle: "¿En qué curso están?",
-  courseSubtitle: "Elige el curso para cargar los bloques adecuados en MakeCode.",
+  courseTitle: "Seleccionar curso",
+  courseSubtitle: "Elige el curso para programar tu micro:bit con el modelo entrenado.",
   courseContinue: "Continuar",
   courseChange: "Cambiar de curso",
 
   addClass: "Agregar",
   className: "Nombre de la clase",
+  classNamePlaceholder: "Nombra la clase",
+  classResetConfirm: "¿Empezar de nuevo? Se borran las muestras y el nombre de esta clase.",
   deleteClass: "Eliminar clase",
   deleteSample: "Borrar ejemplo",
   examplesCount: (n: number) => `${n} ejemplo${n === 1 ? "" : "s"}`,
@@ -70,15 +71,18 @@ export const COPY = {
   captureBurst: "Ráfaga",
   recordAudio: "Grabar 1 segundo",
 
-  train: "¡Entrenar modelo!",
+  train: "Realizar entrenamiento",
   training: "Aprendiendo...",
   trained: "¡Tu modelo ya aprendió! Pruébalo",
   needTwoClasses: "Crea al menos 2 clases para poder entrenar",
+  needClassNames: "Ponle nombre a cada clase antes de entrenar",
   needSamples: (min: number) => `Cada clase necesita ${min} ejemplos para entrenar`,
+  nameClassToCapture: "Ponle nombre a la clase para cargar ejemplos",
 
   tryTitle: "Pruébalo",
   see: "Veo:",
-  seeNothing: "No estoy seguro todavía...",
+  seeNothing: "Ninguna clase",
+  noneClass: "Ninguna clase",
   liveEmpty: "Cuando entrenes tu modelo, aquí vas a ver qué detecta en vivo.",
   pipOpen: "Ventana flotante",
   pipClose: "Cerrar ventana",
@@ -91,4 +95,6 @@ export const COPY = {
   testTextPlaceholder: "Escribe algo y mira qué clase detecta...",
   addTextPlaceholder: "Escribe un ejemplo para esta clase y presiona Enter...",
   addTextButton: "Agregar ejemplo",
+  importFileButton: "Cargar archivo",
+  importFileImporting: "Importando…",
 };

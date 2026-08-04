@@ -41,7 +41,8 @@
 
 .mb-main {
   display: grid;
-  grid-template-columns: minmax(260px, 1fr) minmax(0, 3fr);
+  /* MakeCode (ancho) primero; cámara/detección después (izq→der / arriba→abajo) */
+  grid-template-columns: minmax(0, 3fr) minmax(260px, 1fr);
   gap: var(--space-4);
   min-height: 0;
 }
@@ -55,14 +56,30 @@
 }
 
 .mb-eval {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: var(--space-3);
-  align-content: start;
   background: var(--color-surface);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-card);
   padding: var(--space-4);
   overflow: auto;
+  min-height: 0;
+}
+
+.mb-brand {
+  margin-top: auto;
+  padding-top: var(--space-4);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.mb-brand-logo {
+  display: block;
+  width: min(84px, 42%);
+  height: auto;
+  opacity: 0.92;
 }
 
 .mb-no-model {

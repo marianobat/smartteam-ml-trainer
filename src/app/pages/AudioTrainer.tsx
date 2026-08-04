@@ -9,7 +9,7 @@
 // viven dentro del transfer recognizer de speech-commands).
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Mic, MicOff, Circle, Play, Pause, Satellite, ChevronLeft } from "lucide-react";
+import { Mic, MicOff, Circle, Play, Pause, Satellite } from "lucide-react";
 import type {
   SpeechCommandRecognizer,
   TransferSpeechCommandRecognizer,
@@ -117,11 +117,15 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
   }, [room, publishToken]);
 
   const noiseCount = counts[BACKGROUND_LABEL] ?? 0;
+  const everyClassNamed = classes.every((c) => c.name.trim().length > 0);
   const everyClassHasExamples = classes.every(
     (c) => (counts[c.id] ?? 0) >= MIN_SAMPLES_PER_CLASS
   );
   const samplesReady =
-    classes.length >= 2 && everyClassHasExamples && noiseCount >= MIN_SAMPLES_PER_CLASS;
+    classes.length >= 2 &&
+    everyClassNamed &&
+    everyClassHasExamples &&
+    noiseCount >= MIN_SAMPLES_PER_CLASS;
   const canTrain = ready && samplesReady && !isTraining && !recordingId;
   const canTest = trainComplete;
 
@@ -260,6 +264,10 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
   const handleRecord = async (classId: string) => {
     const transfer = transferRef.current;
     if (!transfer || !ready || recordingId || isTraining || listeningRef.current) return;
+    if (classId !== BACKGROUND_LABEL) {
+      const named = classes.find((c) => c.id === classId)?.name.trim();
+      if (!named) return;
+    }
 
     setRecordingId(classId);
     setTrainError(null);
@@ -379,19 +387,6 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
   const selectedCount = selectedClass ? counts[selectedClass.id] ?? 0 : 0;
   const isRecordingSelected = recordingId === selectedClass?.id;
 
-  // Condición literal de desbloqueo del paso 2 (la más útil primero)
-  const missingAudioClass = classes.find((c) => (counts[c.id] ?? 0) < MIN_SAMPLES_PER_CLASS);
-  const trainLockHint =
-    classes.length < 2
-      ? COPY.lockNeedClass
-      : noiseCount < MIN_SAMPLES_PER_CLASS
-      ? COPY.lockMissingSamples(MIN_SAMPLES_PER_CLASS - noiseCount, BACKGROUND_NAME)
-      : missingAudioClass
-      ? COPY.lockMissingSamples(
-          MIN_SAMPLES_PER_CLASS - (counts[missingAudioClass.id] ?? 0),
-          missingAudioClass.name
-        )
-      : COPY.lockOpensOnTrain;
   const totalSamples = Object.values(counts).reduce((a, b) => a + b, 0);
   const teachSummary = COPY.stepTeachSummary(classes.length + 1, totalSamples);
   const trainSummary =
@@ -404,6 +399,8 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
   const trainHint = !samplesReady
     ? classes.length < 2
       ? COPY.needTwoClasses
+      : !everyClassNamed
+      ? COPY.needClassNames
       : noiseCount < MIN_SAMPLES_PER_CLASS
       ? `Graba ${MIN_SAMPLES_PER_CLASS} muestras de "${BACKGROUND_NAME}" (el ruido normal del salón): así el modelo sabe cuándo nadie habla.`
       : COPY.needSamples(MIN_SAMPLES_PER_CLASS)
@@ -451,16 +448,19 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
   return (
     <div className="trainer-page">
       <header className="trainer-header">
-        <img
-          className="trainer-logo"
-          src={`${import.meta.env.BASE_URL ?? "/"}brand/smartteam-logo.svg`}
-          alt="SmartTEAM"
-        />
-        <span className="trainer-header-divider" aria-hidden="true" />
-        <button type="button" className="trainer-back" onClick={onBack}>
-          <ChevronLeft size={18} aria-hidden="true" /> {COPY.modalities}
+        <button
+          type="button"
+          className="trainer-logo-btn"
+          onClick={onBack}
+          aria-label="Volver al inicio"
+        >
+          <img
+            className="trainer-logo"
+            src={`${import.meta.env.BASE_URL ?? "/"}brand/smartteam-logo.svg`}
+            alt=""
+          />
         </button>
-        <h2 className="trainer-title">Entrenador de sonidos</h2>
+        <h2 className="trainer-title">Sonidos</h2>
         <div className="trainer-header-right">
           <StatusChips chips={chips} />
         </div>
@@ -468,7 +468,6 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
 
       <div className="trainer-main">
         <aside className="trainer-side">
-          <div className="trainer-progress-title">{COPY.progressTitle}</div>
           <StepAccordion
             openId={openStep}
             onOpen={(id) => setOpenStep(id as StepId)}
@@ -513,7 +512,11 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
                           <input
                             className="class-detail-name"
                             value={selectedClass.name}
+                            placeholder={COPY.classNamePlaceholder}
                             aria-label={COPY.className}
+                            aria-required="true"
+                            aria-invalid={!selectedClass.name.trim()}
+                            required
                             onChange={(e) =>
                               setClasses((prev) =>
                                 prev.map((c) =>
@@ -526,7 +529,6 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
                       </div>
                     )}
 
-                    <div className="step-acc-note">{COPY.teachNote(MIN_SAMPLES_PER_CLASS)}</div>
                   </>
                 ),
               },
@@ -536,7 +538,6 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
                 subtitle: COPY.stepTrainSubtitle,
                 state: !samplesReady ? "locked" : canTest ? "done" : "active",
                 summary: trainSummary,
-                lockHint: trainLockHint,
                 actionLabel: COPY.stepRetrain,
                 body: (
                   <>
@@ -563,7 +564,6 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
                 title: COPY.stepTestTitle,
                 subtitle: "Habla o haz sonidos y mira qué detecta",
                 state: canTest ? "active" : "locked",
-                lockHint: isTraining ? COPY.lockOpensAfterTrain : COPY.lockOpensOnTrain,
                 body: (
                   <>
                     <LivePredictionBars rows={liveRows} seeing={seeing} hasModel={trainComplete} />
@@ -606,7 +606,9 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
                     ) : (
                       <Mic size={18} aria-hidden="true" />
                     )}{" "}
-                    Graba ejemplos para "{selectedClass.name}"
+                    {selectedClass.name.trim()
+                      ? `Graba ejemplos para "${selectedClass.name.trim()}"`
+                      : COPY.nameClassToCapture}
                   </h3>
                   {selectedIsNoise && (
                     <p className="audio-stage-note">
@@ -617,7 +619,13 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
                     type="button"
                     className="audio-record"
                     onClick={() => void handleRecord(selectedClass.id)}
-                    disabled={!ready || Boolean(recordingId) || isTraining || isListening}
+                    disabled={
+                      !ready ||
+                      Boolean(recordingId) ||
+                      isTraining ||
+                      isListening ||
+                      (!selectedIsNoise && !selectedClass.name.trim())
+                    }
                   >
                     {isRecordingSelected ? (
                       <>
@@ -655,7 +663,6 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
                 trainComplete={trainComplete}
                 xLabel="Épocas de entrenamiento"
               />
-              <div className="trainer-capture-hint">{COPY.curveWait}</div>
             </div>
           )}
 

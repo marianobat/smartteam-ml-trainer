@@ -23,7 +23,8 @@ const BAR_COLORS = [
   "var(--mod-text)", // azul
 ];
 
-const barColor = (index: number) => BAR_COLORS[index % BAR_COLORS.length];
+/** Color de clase por índice (barras en vivo y píldora del stage). */
+export const classBarColor = (index: number) => BAR_COLORS[index % BAR_COLORS.length];
 
 type LivePredictionBarsProps = {
   rows: PredictionRow[];
@@ -33,23 +34,13 @@ type LivePredictionBarsProps = {
   hasModel: boolean;
 };
 
-export default function LivePredictionBars({ rows, seeing, hasModel }: LivePredictionBarsProps) {
+export default function LivePredictionBars({ rows, hasModel }: LivePredictionBarsProps) {
   if (!hasModel) {
     return <div className="live-bars-empty">{COPY.liveEmpty}</div>;
   }
 
   return (
     <div className="live-bars">
-      <div className="live-bars-seeing" aria-live="polite">
-        {seeing ? (
-          <>
-            {COPY.see} <strong>{seeing.label}</strong>
-            <span className="live-bars-pct">{Math.round(seeing.confidence * 100)}%</span>
-          </>
-        ) : (
-          <span className="live-bars-unsure">{COPY.seeNothing}</span>
-        )}
-      </div>
       <div className="live-bars-list">
         {rows.map((row, idx) => (
           <div key={row.name} className="live-bars-row">
@@ -60,7 +51,7 @@ export default function LivePredictionBars({ rows, seeing, hasModel }: LivePredi
                 style={
                   {
                     width: `${Math.round(Math.max(0, Math.min(1, row.value)) * 100)}%`,
-                    "--bar-color": barColor(idx),
+                    "--bar-color": classBarColor(idx),
                   } as CSSProperties
                 }
               />

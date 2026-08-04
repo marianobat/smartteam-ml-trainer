@@ -8,7 +8,7 @@
 
 import { useEffect, useMemo, useReducer, useRef, useState, type MouseEvent, type TouchEvent } from "react";
 import * as tf from "@tensorflow/tfjs";
-import { Sparkles, Save, Loader2, Satellite, Pin, Pencil, Trash2, Cpu, ChevronLeft } from "lucide-react";
+import { Sparkles, Save, Loader2, Satellite, Pencil, Trash2, Cpu } from "lucide-react";
 import {
   ResponsiveContainer,
   LineChart,
@@ -60,9 +60,7 @@ import { fetchPresetProject, presetClassIcon, PRESETS } from "../../core/presets
 import { COPY } from "../copy";
 import { useAdvancedMode } from "../hooks/useAdvancedMode";
 import MicrobitPanel from "../components/MicrobitPanel";
-import { microbitApi } from "../hooks/useMicrobit";
 import ProjectPanel, { type SaveStatus } from "../components/ProjectPanel";
-import { isPipSupported, openPipMonitor } from "../components/pipMonitor";
 import StepAccordion from "../components/trainer/StepAccordion";
 import LearningCurveCard from "../components/trainer/LearningCurveCard";
 import ClassCardStrip from "../components/trainer/ClassCardStrip";
@@ -70,7 +68,7 @@ import SampleGrid from "../components/trainer/SampleGrid";
 import CameraStage from "../components/trainer/CameraStage";
 import CaptureControls from "../components/trainer/CaptureControls";
 import TrainPanel from "../components/trainer/TrainPanel";
-import LivePredictionBars from "../components/trainer/LivePredictionBars";
+import LivePredictionBars, { classBarColor } from "../components/trainer/LivePredictionBars";
 import StatusChips, { type StatusChip } from "../components/trainer/StatusChips";
 import AdvancedDrawer from "../components/trainer/AdvancedDrawer";
 import { captureSkeletonThumbnail, captureVideoThumbnail } from "../components/trainer/thumbnails";
@@ -206,9 +204,6 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
   const skipAutosaveRef = useRef(false);
   const serializedModelRef = useRef<SavedModel | null>(null);
 
-  // Ventana flotante de monitoreo (Document PiP)
-  const [pipOpen, setPipOpen] = useState(false);
-  const pipCloseRef = useRef<(() => void) | null>(null);
 
   // Clases pre-entrenadas de fábrica (pose/manos)
   const preset = PRESETS[config.storageKey];
@@ -223,10 +218,11 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
     return `${WS_BASE}?${params.toString()}`;
   }, [room, publishToken]);
 
+  const everyClassNamed = dataset.classes.every((c) => c.name.trim().length > 0);
   const everyClassReady = dataset.classes.every(
     (c) => (counts[c.id] ?? 0) >= MIN_SAMPLES_PER_CLASS
   );
-  const canTrain = dataset.classes.length >= 2 && everyClassReady;
+  const canTrain = dataset.classes.length >= 2 && everyClassNamed && everyClassReady;
   const canTest = trainComplete && trainedModel?.kind === (mode === "examples" ? "knn" : "ml");
 
   // --- Acordeón guiado: un solo paso abierto; el gating se deriva del
@@ -501,46 +497,6 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
     // el autosave persiste el proyecto vacío (sin presetId)
   };
 
-  const handleTogglePip = async () => {
-    if (pipCloseRef.current) {
-      pipCloseRef.current();
-      return;
-    }
-    try {
-      const close = await openPipMonitor({
-        video: videoRef.current,
-        overlay: canvasRef.current,
-        dimmed: config.thumbnailSource !== "video",
-        title: config.title,
-        getLabel: () => stableLabelRef.current,
-        getConfidence: () => stableConfidenceRef.current,
-        isDetecting: () => hasSubjectRef.current,
-        missingLabel,
-        acceptThreshold: ACCEPT_THRESHOLD,
-        getRows: () =>
-          trainedClassNamesRef.current.map((name, idx) => {
-            const value = hasSubjectRef.current ? liveProbsStateRef.current[idx] ?? 0 : 0;
-            return { name, value, pass: value >= ACCEPT_THRESHOLD };
-          }),
-        microbit: microbitApi,
-        onClose: () => {
-          pipCloseRef.current = null;
-          setPipOpen(false);
-        },
-      });
-      pipCloseRef.current = close;
-      setPipOpen(true);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  // Cerrar la ventana PiP al desmontar
-  useEffect(() => {
-    return () => {
-      pipCloseRef.current?.();
-    };
-  }, []);
 
   const clearHoldTimers = () => {
     if (holdStartTimerRef.current) {
@@ -556,6 +512,8 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
   const captureSample = () => {
     const activeClassId = dataset.activeClassId;
     if (!activeClassId) return;
+    const named = dataset.classes.find((c) => c.id === activeClassId)?.name.trim();
+    if (!named) return;
 
     const vec = latestVecRef.current;
     if (!vec || vec.length !== featureDim) return; // solo guardamos el vector de FEATURES
@@ -593,8 +551,8 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
       captureSample();
       holdRepeatTimerRef.current = window.setInterval(() => {
         captureSample();
-      }, 500);
-    }, 1000);
+      }, 200);
+    }, 500);
   };
 
   const endHold = (event: MouseEvent<HTMLButtonElement> | TouchEvent<HTMLButtonElement>) => {
@@ -849,6 +807,12 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
             } else {
               pendingLabelRef.current = null;
               pendingHitsRef.current = 0;
+              // Imágenes: siempre hay "sujeto" (hay frame). Si ninguna clase pasa el
+              // umbral, soltar la predicción estable y tratarlo como no reconocido.
+              if (config.storageKey === "images") {
+                stableLabelRef.current = missingLabel;
+                stableConfidenceRef.current = 0;
+              }
             }
             setStableLabel(stableLabelRef.current);
             setStableConfidence(stableConfidenceRef.current);
@@ -958,21 +922,7 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
   );
 
   const cameraLoading = status !== "Detectando...";
-  const cameraHint = !cameraLoading && !hasSubject ? config.missingHint : null;
 
-  // Condición literal de desbloqueo del paso 2 (la más útil primero)
-  const missingClass = dataset.classes.find(
-    (c) => (counts[c.id] ?? 0) < MIN_SAMPLES_PER_CLASS
-  );
-  const trainLockHint =
-    dataset.classes.length < 2
-      ? COPY.lockNeedClass
-      : missingClass
-      ? COPY.lockMissingSamples(
-          MIN_SAMPLES_PER_CLASS - (counts[missingClass.id] ?? 0),
-          missingClass.name
-        )
-      : COPY.lockOpensOnTrain;
   const teachSummary = COPY.stepTeachSummary(dataset.classes.length, dataset.samples.length);
   // Con modelo hidratado de un guardado/preset no hay métricas: mostrar solo "entrenado"
   const trainAccuracy = trainProgress.valAcc ?? trainProgress.acc ?? 0;
@@ -984,6 +934,8 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
   const trainHint = !canTrain
     ? dataset.classes.length < 2
       ? COPY.needTwoClasses
+      : !everyClassNamed
+      ? COPY.needClassNames
       : COPY.needSamples(MIN_SAMPLES_PER_CLASS)
     : null;
   const trainProgressPct =
@@ -1056,14 +1008,17 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
   return (
     <div className="trainer-page">
       <header className="trainer-header">
-        <img
-          className="trainer-logo"
-          src={`${import.meta.env.BASE_URL ?? "/"}brand/smartteam-logo.svg`}
-          alt="SmartTEAM"
-        />
-        <span className="trainer-header-divider" aria-hidden="true" />
-        <button type="button" className="trainer-back" onClick={onBack}>
-          <ChevronLeft size={18} aria-hidden="true" /> {COPY.modalities}
+        <button
+          type="button"
+          className="trainer-logo-btn"
+          onClick={onBack}
+          aria-label="Volver al inicio"
+        >
+          <img
+            className="trainer-logo"
+            src={`${import.meta.env.BASE_URL ?? "/"}brand/smartteam-logo.svg`}
+            alt=""
+          />
         </button>
         <h2 className="trainer-title">{config.title}</h2>
         <div className="trainer-header-right">
@@ -1073,7 +1028,6 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
 
       <div className="trainer-main">
         <aside className="trainer-side">
-          <div className="trainer-progress-title">{COPY.progressTitle}</div>
           <StepAccordion
             openId={openStep}
             onOpen={(id) => setOpenStep(id as StepId)}
@@ -1118,7 +1072,11 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
                           <input
                             className="class-detail-name"
                             value={activeClass.name}
+                            placeholder={COPY.classNamePlaceholder}
                             aria-label={COPY.className}
+                            aria-required="true"
+                            aria-invalid={!activeClass.name.trim()}
+                            required
                             onChange={(e) =>
                               dispatch({
                                 type: "RENAME_CLASS",
@@ -1132,8 +1090,16 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
                             className="class-detail-delete"
                             title={COPY.deleteClass}
                             aria-label={COPY.deleteClass}
-                            disabled={dataset.classes.length <= 1}
-                            onClick={() => dispatch({ type: "DELETE_CLASS", id: activeClass.id })}
+                            onClick={() => {
+                              // Con una sola clase, borrar = reset (pide confirmación).
+                              if (
+                                dataset.classes.length <= 1 &&
+                                !window.confirm(COPY.classResetConfirm)
+                              ) {
+                                return;
+                              }
+                              dispatch({ type: "DELETE_CLASS", id: activeClass.id });
+                            }}
                           >
                             <Trash2 size={16} aria-hidden="true" />
                           </button>
@@ -1147,7 +1113,6 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
                       </div>
                     )}
 
-                    <div className="step-acc-note">{COPY.teachNote(MIN_SAMPLES_PER_CLASS)}</div>
                   </>
                 ),
               },
@@ -1157,13 +1122,9 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
                 subtitle: COPY.stepTrainSubtitle,
                 state: !canTrain ? "locked" : canTest ? "done" : "active",
                 summary: trainSummary,
-                lockHint: trainLockHint,
                 actionLabel: COPY.stepRetrain,
                 body: (
                   <>
-                    <div className="step-acc-guide">
-                      {COPY.trainGuide(dataset.classes.length)}
-                    </div>
                     <TrainPanel
                       canTrain={canTrain}
                       isTraining={isTraining}
@@ -1173,7 +1134,6 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
                       error={trainError}
                       onTrain={() => void handleTrain()}
                     />
-                    <div className="step-acc-guide is-center">{COPY.trainCurveNote}</div>
                   </>
                 ),
               },
@@ -1182,28 +1142,19 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
                 title: COPY.stepTestTitle,
                 subtitle: COPY.stepTestSubtitle,
                 state: canTest ? "active" : "locked",
-                lockHint: isTraining ? COPY.lockOpensAfterTrain : COPY.lockOpensOnTrain,
                 body: (
                   <>
-                    {isPipSupported() && (
-                      <div className="try-panel-header">
-                        <button
-                          type="button"
-                          className="try-pip"
-                          onClick={() => void handleTogglePip()}
-                        >
-                          <Pin size={14} aria-hidden="true" /> {pipOpen ? COPY.pipClose : COPY.pipOpen}
-                        </button>
-                      </div>
-                    )}
                     <LivePredictionBars rows={liveRows} seeing={seeing} hasModel={hasTrainedModel} />
                     {hasTrainedModel && (
-                      <a
-                        className="try-program"
-                        href={`${import.meta.env.BASE_URL ?? "/"}microbit?model=${config.storageKey}`}
-                      >
-                        <Cpu size={16} aria-hidden="true" /> {COPY.programMicrobit}
-                      </a>
+                      <>
+                        <hr className="try-divider" />
+                        <a
+                          className="try-program"
+                          href={`${import.meta.env.BASE_URL ?? "/"}microbit?model=${config.storageKey}`}
+                        >
+                          <Cpu size={16} aria-hidden="true" /> {COPY.programMicrobit}
+                        </a>
+                      </>
                     )}
                     <div className="trainer-microbit">
                       <MicrobitPanel
@@ -1230,28 +1181,41 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
               focusBox={config.thumbnailSource === "video"}
               loading={cameraLoading}
               loadingText={status}
-              hint={cameraHint}
+              hint={null}
               overlay={
                 openStep === "test" && hasTrainedModel ? (
                   <span className="stage-seeing">
-                    <span className="stage-seeing-dot" aria-hidden="true" />
-                    {seeing ? (
-                      <>
-                        {COPY.see} <strong>{seeing.label}</strong>
-                        <span className="stage-seeing-pct">
-                          {Math.round(seeing.confidence * 100)}%
-                        </span>
-                      </>
-                    ) : (
-                      COPY.seeNothing
-                    )}
+                    <span
+                      className="stage-seeing-dot"
+                      aria-hidden="true"
+                      style={
+                        seeing
+                          ? {
+                              background: classBarColor(
+                                Math.max(0, trainedClassNames.indexOf(seeing.label))
+                              ),
+                            }
+                          : undefined
+                      }
+                    />
+                    <strong>
+                      {seeing
+                        ? seeing.label
+                        : config.storageKey === "images"
+                          ? missingLabel
+                          : COPY.noneClass}
+                    </strong>
                   </span>
                 ) : undefined
               }
             >
               {openStep === "teach" ? (
                 <CaptureControls
-                  disabled={!dataset.activeClassId || cameraLoading}
+                  disabled={
+                    !dataset.activeClassId ||
+                    cameraLoading ||
+                    !activeClass?.name.trim()
+                  }
                   burstMode={burstMode}
                   onToggleBurst={() => setBurstMode((prev) => !prev)}
                   onPressStart={startHold}
@@ -1260,7 +1224,11 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
               ) : null}
             </CameraStage>
             <div className="trainer-capture-hint">
-              {openStep === "teach" ? COPY.captureHint : COPY.stageTestHint}
+              {openStep === "teach"
+                ? activeClass && !activeClass.name.trim()
+                  ? COPY.nameClassToCapture
+                  : COPY.captureHint
+                : COPY.stageTestHint}
             </div>
           </div>
 
@@ -1272,7 +1240,6 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
                 trainComplete={trainComplete && hasTrainedModel}
                 xLabel={mode === "examples" ? COPY.curveXLabel : "Épocas de entrenamiento"}
               />
-              <div className="trainer-capture-hint">{COPY.curveWait}</div>
             </div>
           )}
         </section>

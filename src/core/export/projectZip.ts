@@ -38,7 +38,7 @@ export async function exportProjectZip(project: SavedProject): Promise<void> {
 
 const MODALITY_NAMES: Record<SavedModality, string> = {
   hands: "manos",
-  face: "cara",
+  face: "rostro",
   pose: "cuerpo",
   images: "imagenes",
   text: "textos",

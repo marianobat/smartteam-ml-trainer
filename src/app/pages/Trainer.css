@@ -10,7 +10,7 @@
   margin: 0 auto;
 }
 
-/* --- Barra superior: logo + Modalidades + título + chips --- */
+/* --- Barra superior: logo (vuelve al inicio) + título + chips --- */
 .trainer-header {
   display: flex;
   align-items: center;
@@ -23,30 +23,37 @@
   box-shadow: var(--shadow-card);
 }
 
+.trainer-logo-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  margin: 0;
+  min-height: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  font-weight: inherit;
+  box-shadow: none;
+  cursor: pointer;
+  line-height: 0;
+  transform: none;
+}
+.trainer-logo-btn:hover:not(:disabled) {
+  opacity: 0.85;
+  transform: none;
+  box-shadow: none;
+  background: transparent;
+}
+.trainer-logo-btn:focus-visible {
+  outline: 3px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
 .trainer-logo {
   height: 30px;
   width: auto;
   display: block;
-}
-
-.trainer-header-divider {
-  width: 1px;
-  height: 26px;
-  background: var(--color-outline);
-}
-
-.trainer-back {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--color-bg);
-  color: var(--color-ink);
-  border: none;
-  font-weight: 500;
-  font-size: 0.95rem;
-}
-.trainer-back:hover:not(:disabled) {
-  box-shadow: var(--shadow-card);
 }
 
 .trainer-title {
@@ -129,7 +136,7 @@
   text-align: center;
 }
 
-/* Píldora "Veo: X %" sobre la cámara durante el paso Probar */
+/* Píldora de clase detectada sobre la cámara (paso Probar) */
 .stage-seeing {
   display: inline-flex;
   align-items: center;
@@ -144,16 +151,14 @@
   color: var(--color-ink);
 }
 .stage-seeing strong {
-  color: var(--color-primary);
+  color: inherit;
+  font-weight: 700;
 }
 .stage-seeing-dot {
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  background: var(--color-accent);
-}
-.stage-seeing-pct {
-  color: var(--color-success-strong);
+  background: var(--color-ink-faint);
 }
 
 .preset-own-btn {
@@ -190,6 +195,10 @@
   font-weight: 600;
   font-family: var(--font-display);
   font-size: 1rem;
+}
+.class-detail-name[aria-invalid="true"] {
+  border-color: var(--color-danger);
+  box-shadow: 0 0 0 2px var(--color-danger-soft);
 }
 
 .class-detail-delete {
@@ -253,7 +262,13 @@
   box-shadow: var(--shadow-card);
 }
 
-.trainer-microbit {
+.try-divider {
+  border: none;
+  border-top: 1.5px solid var(--color-outline);
+  margin: var(--space-3) 0 0;
+}
+
+.trainer-microbit:not(:empty) {
   border-top: 1.5px solid var(--color-outline);
   padding-top: var(--space-3);
 }

@@ -24,6 +24,13 @@
   font-weight: 800;
 }
 
+.trainer-select-logo {
+  display: block;
+  height: 48px;
+  width: auto;
+  margin-bottom: var(--space-3);
+}
+
 .trainer-select-title {
   margin: 6px 0 0;
   font-size: clamp(2rem, 4.5vw, 3rem);

@@ -1,11 +1,8 @@
 // src/app/components/trainer/LearningCurveCard.tsx
 //
-// Tarjeta "Cómo va aprendiendo": la curva de precisión (entrenamiento violeta,
-// validación cyan) que ocupa el escenario derecho mientras el paso 2 está
-// activo. Reutiliza el mismo lineData/trainHistory del cajón avanzado, pero
-// con lenguaje para chicos. Crece en vivo durante el entrenamiento.
+// Tarjeta "Cómo va aprendiendo": curva de precisión en el escenario del paso 2.
+// Datos mínimos: leyenda de series + algunos números en la grilla.
 
-import { TrendingUp, Info } from "lucide-react";
 import {
   ResponsiveContainer,
   LineChart,
@@ -26,39 +23,16 @@ export type CurvePoint = {
 type LearningCurveCardProps = {
   data: CurvePoint[];
   isTraining: boolean;
-  /** Hay un modelo entrenado (muestra el chip "Listo" al terminar). */
   trainComplete: boolean;
-  /** Etiqueta del eje X ("Cantidad de ejemplos…" / épocas). */
   xLabel?: string;
 };
 
-export default function LearningCurveCard({
-  data,
-  isTraining,
-  trainComplete,
-  xLabel = COPY.curveXLabel,
-}: LearningCurveCardProps) {
+export default function LearningCurveCard({ data }: LearningCurveCardProps) {
   const hasData = data.length > 0;
   const hasVal = data.some((d) => d.valAcc !== undefined);
 
   return (
     <div className="curve-card">
-      <div className="curve-card-header">
-        <span className="curve-card-tile" aria-hidden="true">
-          <TrendingUp size={24} aria-hidden="true" />
-        </span>
-        <div className="curve-card-heading">
-          <div className="curve-card-title">{COPY.curveTitle}</div>
-          <div className="curve-card-subtitle">{COPY.curveSubtitle}</div>
-        </div>
-        {(isTraining || trainComplete) && (
-          <span className={`curve-card-chip ${isTraining ? "is-live" : ""}`}>
-            <span className="curve-card-dot" aria-hidden="true" />
-            {isTraining ? COPY.curveTraining : COPY.curveDone}
-          </span>
-        )}
-      </div>
-
       <div className="curve-card-legend">
         <span className="curve-card-legend-item">
           <span className="curve-card-swatch" style={{ background: "var(--color-primary)" }} />
@@ -75,33 +49,28 @@ export default function LearningCurveCard({
       <div className="curve-card-chart">
         {hasData ? (
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={data} margin={{ top: 8, right: 12, bottom: 4, left: -18 }}>
+            <LineChart data={data} margin={{ top: 8, right: 16, bottom: 8, left: 4 }}>
               <CartesianGrid stroke="var(--color-sunken)" vertical={false} />
               <XAxis
                 dataKey="step"
                 tickLine={false}
                 axisLine={false}
-                tick={{ fill: "var(--color-ink-faint)", fontSize: 13 }}
-                label={{
-                  value: xLabel,
-                  position: "insideBottom",
-                  offset: -2,
-                  fill: "var(--color-ink-faint)",
-                  fontSize: 13,
-                }}
-                height={40}
+                tick={{ fill: "var(--color-ink-faint)", fontSize: 12 }}
+                minTickGap={28}
               />
               <YAxis
                 domain={[0, 1]}
-                tickCount={4}
+                ticks={[0, 0.5, 1]}
                 tickLine={false}
                 axisLine={false}
-                tick={{ fill: "var(--color-ink-faint)", fontSize: 13 }}
+                width={40}
+                tick={{ fill: "var(--color-ink-faint)", fontSize: 12 }}
                 tickFormatter={(v: number) => `${Math.round(v * 100)}%`}
               />
               <Line
                 type="monotone"
                 dataKey="acc"
+                name={COPY.curveLegendTrain}
                 stroke="var(--color-primary)"
                 strokeWidth={4.5}
                 strokeLinecap="round"
@@ -112,6 +81,7 @@ export default function LearningCurveCard({
                 <Line
                   type="monotone"
                   dataKey="valAcc"
+                  name={COPY.curveLegendVal}
                   stroke="var(--color-secondary)"
                   strokeWidth={4.5}
                   strokeLinecap="round"
@@ -124,13 +94,6 @@ export default function LearningCurveCard({
         ) : (
           <div className="curve-card-empty">{COPY.curveEmpty}</div>
         )}
-      </div>
-
-      <div className="curve-card-note">
-        <span className="curve-card-note-tile" aria-hidden="true">
-          <Info size={18} aria-hidden="true" />
-        </span>
-        {COPY.curveNote}
       </div>
     </div>
   );
