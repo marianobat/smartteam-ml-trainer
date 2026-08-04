@@ -25,6 +25,7 @@ import {
 import { WS_BASE } from "../../core/bridge/config";
 import { TURBOWARP_ENABLED } from "../../core/bridge/features";
 import { MIN_SAMPLES_PER_CLASS } from "../../core/dataset/datasetStore";
+import { DEFAULT_CONFIDENCE_THRESHOLD } from "../../core/microbit/protocol";
 import { COPY } from "../copy";
 import { useAdvancedMode } from "../hooks/useAdvancedMode";
 import MicrobitPanel from "../components/MicrobitPanel";
@@ -42,7 +43,7 @@ import "./AudioTrainer.css";
 const BACKGROUND_LABEL = "_background_noise_";
 const BACKGROUND_NAME = "Ruido de fondo";
 const TRAIN_EPOCHS = 40;
-const ACCEPT_THRESHOLD = 0.7;
+const ACCEPT_THRESHOLD = DEFAULT_CONFIDENCE_THRESHOLD;
 const PLACEHOLDER_ICON = "🔊";
 
 type AudioClass = { id: string; name: string };
@@ -387,8 +388,7 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
   const selectedCount = selectedClass ? counts[selectedClass.id] ?? 0 : 0;
   const isRecordingSelected = recordingId === selectedClass?.id;
 
-  const totalSamples = Object.values(counts).reduce((a, b) => a + b, 0);
-  const teachSummary = COPY.stepTeachSummary(classes.length + 1, totalSamples);
+  const teachSummary = COPY.stepTeachSummary(classes.length + 1, selectedCount);
   const trainSummary =
     (trainProgress.acc ?? 0) > 0
       ? COPY.stepTrainSummary(

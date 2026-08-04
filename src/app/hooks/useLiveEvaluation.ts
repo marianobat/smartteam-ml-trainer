@@ -14,11 +14,12 @@ import type { VideoExtractor } from "../../core/extractors/types";
 import { predict } from "../../core/training/predict";
 import { predictKnn, type KnnModel } from "../../core/training/knn";
 import { deserializeMlModel, loadProject, type SavedModality } from "../../core/storage/projectStore";
+import { DEFAULT_CONFIDENCE_THRESHOLD } from "../../core/microbit/protocol";
 import { microbitApi } from "./useMicrobit";
 import type { PredictionRow } from "../components/trainer/LivePredictionBars";
 
 const PREDICT_INTERVAL_MS = 80;
-const ACCEPT_THRESHOLD = 0.7;
+const ACCEPT_THRESHOLD = DEFAULT_CONFIDENCE_THRESHOLD;
 
 export type EvalConfig = {
   storageKey: SavedModality;

@@ -21,6 +21,7 @@ import {
 } from "recharts";
 import { startCamera } from "../../core/extractors/camera";
 import type { VideoExtractor } from "../../core/extractors/types";
+import { DEFAULT_CONFIDENCE_THRESHOLD } from "../../core/microbit/protocol";
 import { prepareTensors, type PreparedTensors } from "../../core/training/prepare";
 import { createClassifier } from "../../core/training/model";
 import { trainClassifier } from "../../core/training/train";
@@ -113,7 +114,7 @@ type StepId = "teach" | "train" | "test";
 
 const TRAIN_EPOCHS = 40;
 const PREDICT_INTERVAL_MS = 80; // faster stable response
-const ACCEPT_THRESHOLD = 0.7;
+const ACCEPT_THRESHOLD = DEFAULT_CONFIDENCE_THRESHOLD;
 
 type TrainerProps = {
   config: TrainerConfig;
@@ -923,7 +924,10 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
 
   const cameraLoading = status !== "Detectando...";
 
-  const teachSummary = COPY.stepTeachSummary(dataset.classes.length, dataset.samples.length);
+  const activeSampleCount = dataset.activeClassId
+    ? counts[dataset.activeClassId] ?? 0
+    : 0;
+  const teachSummary = COPY.stepTeachSummary(dataset.classes.length, activeSampleCount);
   // Con modelo hidratado de un guardado/preset no hay métricas: mostrar solo "entrenado"
   const trainAccuracy = trainProgress.valAcc ?? trainProgress.acc ?? 0;
   const trainSummary =

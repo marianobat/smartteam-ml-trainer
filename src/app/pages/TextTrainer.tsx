@@ -7,7 +7,7 @@
 
 import { useEffect, useMemo, useReducer, useRef, useState, type ChangeEvent } from "react";
 import * as tf from "@tensorflow/tfjs";
-import { Save, Loader2, Satellite, Pencil, Trash2, Upload } from "lucide-react";
+import { Save, Loader2, Satellite, Pencil, Trash2, Upload, Cpu } from "lucide-react";
 import {
   ResponsiveContainer,
   LineChart,
@@ -59,6 +59,7 @@ import { exportProjectZip, importProjectZip } from "../../core/export/projectZip
 import { COPY } from "../copy";
 import { useAdvancedMode } from "../hooks/useAdvancedMode";
 import MicrobitPanel from "../components/MicrobitPanel";
+import { useMicrobit } from "../hooks/useMicrobit";
 import ProjectPanel, { type SaveStatus } from "../components/ProjectPanel";
 import StepAccordion from "../components/trainer/StepAccordion";
 import LearningCurveCard from "../components/trainer/LearningCurveCard";
@@ -89,7 +90,6 @@ type Trained = { kind: "knn"; model: KnnModel } | { kind: "ml"; model: tf.Layers
 type StepId = "teach" | "train" | "test";
 
 const TRAIN_EPOCHS = 40;
-const ACCEPT_THRESHOLD = 0.7;
 const STORAGE_KEY = "text" as const;
 const PLACEHOLDER_ICON = "✏️";
 
@@ -100,6 +100,9 @@ type TextTrainerProps = {
 };
 
 export default function TextTrainer({ onBack, room, publishToken }: TextTrainerProps) {
+  const mb = useMicrobit();
+  /** Mismo umbral que el slider avanzado de micro:bit y la eval en /microbit. */
+  const acceptThreshold = mb.threshold;
   const [status, setStatus] = useState("Descargando el modelo de texto (~25 MB la primera vez)...");
   const [ready, setReady] = useState(false);
   const [mode, setMode] = useState<Mode>("examples");
@@ -244,7 +247,7 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
     if (wsStatus !== "open") return;
     if (!room || !publishToken) return;
 
-    const labelToSend = liveLabel && liveConfidence >= ACCEPT_THRESHOLD ? liveLabel : "none";
+    const labelToSend = liveLabel && liveConfidence >= acceptThreshold ? liveLabel : "none";
     const now = Date.now();
     const labelChanged = labelToSend !== lastSentLabelRef.current;
     const elapsed = now - lastSentAtRef.current;
@@ -256,7 +259,7 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
     lastSentLabelRef.current = labelToSend;
     lastSentAtRef.current = now;
     setLastSentGesture({ label: labelToSend, confidence });
-  }, [liveLabel, liveConfidence, wsStatus, room, publishToken]);
+  }, [liveLabel, liveConfidence, wsStatus, room, publishToken, acceptThreshold]);
 
   // Predicción en vivo (con debounce) sobre el texto de prueba
   useEffect(() => {
@@ -306,10 +309,10 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
 
   // Paso ③: primera predicción confiable
   useEffect(() => {
-    if (trainComplete && liveConfidence >= ACCEPT_THRESHOLD && !triedIt) {
+    if (trainComplete && liveConfidence >= acceptThreshold && !triedIt) {
       setTriedIt(true);
     }
-  }, [trainComplete, liveConfidence, triedIt]);
+  }, [trainComplete, liveConfidence, triedIt, acceptThreshold]);
 
   const persistProject = async (datasetToSave: DatasetState) => {
     try {
@@ -732,7 +735,10 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
   }, [trainHistory]);
 
   // Condición literal de desbloqueo del paso 2 (la más útil primero)
-  const teachSummary = COPY.stepTeachSummary(dataset.classes.length, dataset.samples.length);
+  const activeSampleCount = dataset.activeClassId
+    ? counts[dataset.activeClassId] ?? 0
+    : 0;
+  const teachSummary = COPY.stepTeachSummary(dataset.classes.length, activeSampleCount);
   // Con modelo hidratado de un guardado no hay métricas: mostrar solo "entrenado"
   const trainAccuracy = trainProgress.valAcc ?? trainProgress.acc ?? 0;
   const trainSummary =
@@ -754,10 +760,10 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
 
   const liveRows = trainedClassNames.map((name, idx) => {
     const value = liveProbs[idx] ?? 0;
-    return { name, value, pass: value >= ACCEPT_THRESHOLD };
+    return { name, value, pass: value >= acceptThreshold };
   });
   const seeing =
-    hasTrainedModel && liveLabel && liveConfidence >= ACCEPT_THRESHOLD
+    hasTrainedModel && liveLabel && liveConfidence >= acceptThreshold
       ? { label: liveLabel, confidence: liveConfidence }
       : null;
 
@@ -830,7 +836,7 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
               {
                 id: "teach",
                 title: COPY.stepTeachTitle,
-                subtitle: "Escríbele frases de ejemplo para cada clase",
+                subtitle: "",
                 state: canTrain ? "done" : "active",
                 summary: teachSummary,
                 actionLabel: COPY.stepEdit,
@@ -899,36 +905,41 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
                 summary: trainSummary,
                 actionLabel: COPY.stepRetrain,
                 body: (
-                  <>
-                    <div className="step-acc-guide">
-                      {COPY.trainGuide(dataset.classes.length)}
-                    </div>
-                    <TrainPanel
-                      canTrain={canTrain && ready}
-                      isTraining={isTraining}
-                      trainComplete={trainComplete && hasTrainedModel}
-                      progressPct={trainProgressPct}
-                      hint={trainHint}
-                      error={trainError}
-                      onTrain={() => void handleTrain()}
-                    />
-                    <div className="step-acc-guide is-center">{COPY.trainCurveNote}</div>
-                  </>
+                  <TrainPanel
+                    canTrain={canTrain && ready}
+                    isTraining={isTraining}
+                    trainComplete={trainComplete && hasTrainedModel}
+                    progressPct={trainProgressPct}
+                    hint={trainHint}
+                    error={trainError}
+                    onTrain={() => void handleTrain()}
+                  />
                 ),
               },
               {
                 id: "test",
                 title: COPY.stepTestTitle,
-                subtitle: "Escribe algo y mira qué clase detecta",
+                subtitle: "",
                 state: canTest ? "active" : "locked",
                 body: (
                   <>
                     <LivePredictionBars rows={liveRows} seeing={seeing} hasModel={hasTrainedModel} />
+                    {hasTrainedModel && (
+                      <>
+                        <hr className="try-divider" />
+                        <a
+                          className="try-program"
+                          href={`${import.meta.env.BASE_URL ?? "/"}microbit?model=${STORAGE_KEY}`}
+                        >
+                          <Cpu size={16} aria-hidden="true" /> {COPY.programMicrobit}
+                        </a>
+                      </>
+                    )}
                     <div className="trainer-microbit">
                       <MicrobitPanel
-                        label={liveLabel && liveConfidence >= ACCEPT_THRESHOLD ? liveLabel : "none"}
+                        label={liveLabel && liveConfidence >= acceptThreshold ? liveLabel : "none"}
                         confidence={
-                          liveLabel && liveConfidence >= ACCEPT_THRESHOLD ? liveConfidence : 0
+                          liveLabel && liveConfidence >= acceptThreshold ? liveConfidence : 0
                         }
                         advanced={advanced}
                       />
