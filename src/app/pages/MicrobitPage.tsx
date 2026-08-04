@@ -30,6 +30,7 @@ import { resolveControllerUrl, useMakeCodeController, type ImportGuard } from ".
 import CameraStage from "../components/trainer/CameraStage";
 import LivePredictionBars from "../components/trainer/LivePredictionBars";
 import { useLiveEvaluation, type EvalConfig } from "../hooks/useLiveEvaluation";
+import { useTextLiveEvaluation } from "../hooks/useTextLiveEvaluation";
 import { useMicrobit } from "../hooks/useMicrobit";
 import "./MicrobitPage.css";
 
@@ -294,19 +295,55 @@ function MakeCodeController({
   );
 }
 
-/** Columna derecha para textos: MakeCode usa las clases; la prueba en vivo sigue en el entrenador. */
+/** Columna derecha para textos: textarea + predicción en vivo + BLE (mismo umbral que useMicrobit). */
 function TextEvalColumn({ baseUrl }: { baseUrl: string }) {
   const mb = useMicrobit();
+  const evaluation = useTextLiveEvaluation(mb.threshold);
   const connected = mb.status === "open";
   const connecting = mb.status === "connecting";
 
   return (
     <>
-      <div className="mb-no-model">
-        Probá frases en el{" "}
-        <a href={`${baseUrl}trainer?model=text`}>entrenador de textos</a>. Acá programás la
-        micro:bit con las clases del modelo.
+      <div className="mb-text-stage">
+        {evaluation.loading && (
+          <div className="mb-text-loading">{evaluation.status}</div>
+        )}
+        {!evaluation.hasModel && !evaluation.loading && (
+          <div className="mb-no-model">
+            No hay un modelo de textos entrenado en este navegador.{" "}
+            <a href={`${baseUrl}trainer?model=text`}>Entrená uno primero</a>.
+          </div>
+        )}
+        {evaluation.error && (
+          <div className="mb-no-model">{evaluation.error}</div>
+        )}
+        <label className="mb-text-label" htmlFor="mb-text-input">
+          {COPY.tryTitle}
+        </label>
+        <textarea
+          id="mb-text-input"
+          className="mb-text-input"
+          value={evaluation.testText}
+          onChange={(e) => evaluation.setTestText(e.target.value)}
+          placeholder={COPY.testTextPlaceholder}
+          rows={3}
+          disabled={!evaluation.hasModel || evaluation.loading}
+        />
+        {evaluation.seeing ? (
+          <div className="mb-text-seeing">
+            {COPY.see} <strong>{evaluation.seeing.label}</strong>{" "}
+            {Math.round(evaluation.seeing.confidence * 100)}%
+          </div>
+        ) : evaluation.hasModel && evaluation.testText.trim() ? (
+          <div className="mb-text-seeing is-none">{COPY.noneClass}</div>
+        ) : null}
       </div>
+
+      <LivePredictionBars
+        rows={evaluation.rows}
+        seeing={evaluation.seeing}
+        hasModel={evaluation.hasModel}
+      />
 
       <div className="mb-microbit">
         {connected ? (

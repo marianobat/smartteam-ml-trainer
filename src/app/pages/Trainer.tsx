@@ -21,6 +21,7 @@ import {
 } from "recharts";
 import { startCamera } from "../../core/extractors/camera";
 import type { VideoExtractor } from "../../core/extractors/types";
+import { DEFAULT_CONFIDENCE_THRESHOLD } from "../../core/microbit/protocol";
 import { prepareTensors, type PreparedTensors } from "../../core/training/prepare";
 import { createClassifier } from "../../core/training/model";
 import { trainClassifier } from "../../core/training/train";
@@ -113,7 +114,7 @@ type StepId = "teach" | "train" | "test";
 
 const TRAIN_EPOCHS = 40;
 const PREDICT_INTERVAL_MS = 80; // faster stable response
-const ACCEPT_THRESHOLD = 0.7;
+const ACCEPT_THRESHOLD = DEFAULT_CONFIDENCE_THRESHOLD;
 
 type TrainerProps = {
   config: TrainerConfig;

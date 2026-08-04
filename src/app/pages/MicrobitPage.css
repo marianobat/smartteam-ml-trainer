@@ -252,3 +252,55 @@
   min-height: 38px;
   padding: 0.3em 1em;
 }
+
+/* --- Eval de textos (columna derecha) --- */
+.mb-text-stage {
+  display: grid;
+  gap: var(--space-2);
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: var(--space-3);
+}
+
+.mb-text-loading {
+  font-size: 0.85rem;
+  color: var(--color-ink-soft);
+  background: var(--color-primary-soft);
+  border-radius: var(--radius-md);
+  padding: var(--space-2);
+  text-align: center;
+}
+
+.mb-text-label {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.mb-text-input {
+  width: 100%;
+  resize: vertical;
+  min-height: 4.5rem;
+  font: inherit;
+  padding: var(--space-2);
+  border: 1.5px solid var(--color-outline);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  color: var(--color-ink);
+}
+
+.mb-text-input:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+
+.mb-text-seeing {
+  font-size: 0.95rem;
+  color: var(--color-ink);
+}
+
+.mb-text-seeing.is-none {
+  color: var(--color-ink-soft);
+}
