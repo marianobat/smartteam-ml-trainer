@@ -37,10 +37,9 @@ import "./MicrobitPage.css";
 /** USB queda en el código pero oculto: por ahora solo ofrecemos Bluetooth. */
 const SHOW_USB_CONNECT = false;
 
-// Preservar el trabajo del alumno: si ya está en true, no re-inyectamos el
-// proyecto en cada carga (el editor reabre lo que el chico venía armando).
-// Poner en false vuelve al comportamiento clásico (importar siempre).
-const PRESERVE_STUDENT_WORK = true;
+// Persistencia de bloques: ImportGuard da persistId + contentSig (clases).
+// El controller siempre re-importa plantilla fresca (extensiones) mergeada con
+// main.blocks/main.ts guardados en localStorage (ver studentWorkspace.ts).
 
 type VideoModelId = "hands" | "face" | "pose" | "images";
 type ModelId = VideoModelId | "text";
@@ -114,8 +113,8 @@ export default function MicrobitPage() {
   const baseUrl = import.meta.env.BASE_URL ?? "/";
   const [course, setCourse] = useState<CourseId | null>(getInitialCourse);
   const [project, setProject] = useState<MakeCodeProject | null>(null);
-  // Firma del contenido inyectable (clases entrenadas): si no cambia, no se
-  // re-inyecta el proyecto y se preserva lo que el alumno editó (ver ImportGuard).
+  // Firma de clases entrenadas: si cambia, se re-importa plantilla mergeada
+  // con los bloques del alumno (localStorage).
   const [contentSig, setContentSig] = useState<string>("");
 
   // El curso vive en la URL (?curso=): compartible y compatible con "volver".
@@ -193,10 +192,10 @@ export default function MicrobitPage() {
       <div className="mb-main">
         <section className="mb-editor">
           <MakeCodeController
-            key={course}
+            key={`${model}-${course}`}
             project={project}
             importGuard={
-              PRESERVE_STUDENT_WORK
+              contentSig
                 ? { persistId: `${model}-${course}`, contentSig }
                 : null
             }
@@ -263,7 +262,12 @@ function MakeCodeController({
 }) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const resolved = useMemo(() => resolveControllerUrl(resolveForkUrl()), []);
-  const { state } = useMakeCodeController(iframeRef, resolved?.origin ?? null, project, importGuard);
+  const { state, hostReady } = useMakeCodeController(
+    iframeRef,
+    resolved?.origin ?? null,
+    project,
+    importGuard
+  );
 
   if (!resolved) {
     return (
@@ -283,7 +287,8 @@ function MakeCodeController({
         ref={iframeRef}
         className="mb-makecode"
         title="MakeCode micro:bit"
-        src={resolved.src}
+        // Solo cuando el host ya escucha workspacesync (si no, el editor se cuelga).
+        src={hostReady ? resolved.src : undefined}
         allow="usb; serial; bluetooth; camera; microphone"
       />
       {state !== "imported" && (
