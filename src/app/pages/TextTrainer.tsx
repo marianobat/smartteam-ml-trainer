@@ -7,7 +7,7 @@
 
 import { useEffect, useMemo, useReducer, useRef, useState, type ChangeEvent } from "react";
 import * as tf from "@tensorflow/tfjs";
-import { Save, Loader2, Satellite, Pencil, Trash2, Upload } from "lucide-react";
+import { Save, Loader2, Satellite, Pencil, Trash2, Upload, Cpu } from "lucide-react";
 import {
   ResponsiveContainer,
   LineChart,
@@ -732,7 +732,10 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
   }, [trainHistory]);
 
   // Condición literal de desbloqueo del paso 2 (la más útil primero)
-  const teachSummary = COPY.stepTeachSummary(dataset.classes.length, dataset.samples.length);
+  const activeSampleCount = dataset.activeClassId
+    ? counts[dataset.activeClassId] ?? 0
+    : 0;
+  const teachSummary = COPY.stepTeachSummary(dataset.classes.length, activeSampleCount);
   // Con modelo hidratado de un guardado no hay métricas: mostrar solo "entrenado"
   const trainAccuracy = trainProgress.valAcc ?? trainProgress.acc ?? 0;
   const trainSummary =
@@ -830,7 +833,7 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
               {
                 id: "teach",
                 title: COPY.stepTeachTitle,
-                subtitle: "Escríbele frases de ejemplo para cada clase",
+                subtitle: "",
                 state: canTrain ? "done" : "active",
                 summary: teachSummary,
                 actionLabel: COPY.stepEdit,
@@ -899,31 +902,36 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
                 summary: trainSummary,
                 actionLabel: COPY.stepRetrain,
                 body: (
-                  <>
-                    <div className="step-acc-guide">
-                      {COPY.trainGuide(dataset.classes.length)}
-                    </div>
-                    <TrainPanel
-                      canTrain={canTrain && ready}
-                      isTraining={isTraining}
-                      trainComplete={trainComplete && hasTrainedModel}
-                      progressPct={trainProgressPct}
-                      hint={trainHint}
-                      error={trainError}
-                      onTrain={() => void handleTrain()}
-                    />
-                    <div className="step-acc-guide is-center">{COPY.trainCurveNote}</div>
-                  </>
+                  <TrainPanel
+                    canTrain={canTrain && ready}
+                    isTraining={isTraining}
+                    trainComplete={trainComplete && hasTrainedModel}
+                    progressPct={trainProgressPct}
+                    hint={trainHint}
+                    error={trainError}
+                    onTrain={() => void handleTrain()}
+                  />
                 ),
               },
               {
                 id: "test",
                 title: COPY.stepTestTitle,
-                subtitle: "Escribe algo y mira qué clase detecta",
+                subtitle: "",
                 state: canTest ? "active" : "locked",
                 body: (
                   <>
                     <LivePredictionBars rows={liveRows} seeing={seeing} hasModel={hasTrainedModel} />
+                    {hasTrainedModel && (
+                      <>
+                        <hr className="try-divider" />
+                        <a
+                          className="try-program"
+                          href={`${import.meta.env.BASE_URL ?? "/"}microbit?model=${STORAGE_KEY}`}
+                        >
+                          <Cpu size={16} aria-hidden="true" /> {COPY.programMicrobit}
+                        </a>
+                      </>
+                    )}
                     <div className="trainer-microbit">
                       <MicrobitPanel
                         label={liveLabel && liveConfidence >= ACCEPT_THRESHOLD ? liveLabel : "none"}

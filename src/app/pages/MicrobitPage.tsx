@@ -6,7 +6,8 @@
 // modo controller, al que le inyecta un proyecto con la extensión BLE y bloques
 // generados con las clases reales (ver core/makecode/*).
 //
-// El modelo se lee de IndexedDB por modalidad (?model=hands|face|pose|images).
+// El modelo se lee de IndexedDB por modalidad
+// (?model=hands|face|pose|images|text).
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Bluetooth, Usb, ArrowLeft, GraduationCap } from "lucide-react";
@@ -40,21 +41,39 @@ const SHOW_USB_CONNECT = false;
 // Poner en false vuelve al comportamiento clásico (importar siempre).
 const PRESERVE_STUDENT_WORK = true;
 
-type ModelId = "hands" | "face" | "pose" | "images";
+type VideoModelId = "hands" | "face" | "pose" | "images";
+type ModelId = VideoModelId | "text";
 
 type PageConfig = EvalConfig & { label: string; focusBox?: boolean };
 
-const CONFIGS: Record<ModelId, PageConfig> = {
+const VIDEO_CONFIGS: Record<VideoModelId, PageConfig> = {
   hands: { label: "Manos", storageKey: "hands", missingLabel: "Sin manos", dimmed: true, createExtractor: createHandExtractor },
   face: { label: "Rostros", storageKey: "face", missingLabel: "Sin rostro", dimmed: true, createExtractor: createFaceExtractor },
   pose: { label: "Cuerpo", storageKey: "pose", missingLabel: "Sin cuerpo", dimmed: true, createExtractor: createPoseExtractor },
   images: { label: "Imágenes", storageKey: "images", missingLabel: "No reconocido", dimmed: false, focusBox: true, createExtractor: createImageExtractor },
 };
 
+const MODEL_LABELS: Record<ModelId, string> = {
+  hands: "Manos",
+  face: "Rostros",
+  pose: "Cuerpo",
+  images: "Imágenes",
+  text: "Textos",
+};
+
+const MODEL_STORAGE: Record<ModelId, SavedModality> = {
+  hands: "hands",
+  face: "face",
+  pose: "pose",
+  images: "images",
+  text: "text",
+};
+
 const getInitialModel = (): ModelId => {
   if (typeof window === "undefined") return "hands";
   const param = new URLSearchParams(window.location.search).get("model");
-  return param && param in CONFIGS ? (param as ModelId) : "hands";
+  if (param && param in MODEL_STORAGE) return param as ModelId;
+  return "hands";
 };
 
 /** Curso desde ?curso= (null → se muestra el selector de curso). */
@@ -120,13 +139,13 @@ export default function MicrobitPage() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const classes = await loadClassNames(CONFIGS[model].storageKey);
+      const classes = await loadClassNames(MODEL_STORAGE[model]);
       if (cancelled) return;
       setProject(
         buildMakeCodeProject({
           classes,
           transport: "bluetooth",
-          name: `SmartTEAM ML ${CONFIGS[model].label}`,
+          name: `SmartTEAM ML ${MODEL_LABELS[model]}`,
           course: course ?? undefined,
         })
       );
@@ -154,7 +173,7 @@ export default function MicrobitPage() {
           <ArrowLeft size={16} aria-hidden="true" /> Entrenamiento
         </a>
         <h1 className="mb-title">
-          Implementar modelo — {CONFIGS[model].label} · {COURSES[course].label}
+          Implementar modelo — {MODEL_LABELS[model]} · {COURSES[course].label}
         </h1>
         <button
           type="button"
@@ -183,7 +202,11 @@ export default function MicrobitPage() {
           />
         </section>
         <section className="mb-eval">
-          <LiveEvalColumn key={model} config={CONFIGS[model]} baseUrl={baseUrl} />
+          {model === "text" ? (
+            <TextEvalColumn baseUrl={baseUrl} />
+          ) : (
+            <LiveEvalColumn key={model} config={VIDEO_CONFIGS[model]} baseUrl={baseUrl} />
+          )}
         </section>
       </div>
     </div>
@@ -268,6 +291,60 @@ function MakeCodeController({
         </div>
       )}
     </div>
+  );
+}
+
+/** Columna derecha para textos: MakeCode usa las clases; la prueba en vivo sigue en el entrenador. */
+function TextEvalColumn({ baseUrl }: { baseUrl: string }) {
+  const mb = useMicrobit();
+  const connected = mb.status === "open";
+  const connecting = mb.status === "connecting";
+
+  return (
+    <>
+      <div className="mb-no-model">
+        Probá frases en el{" "}
+        <a href={`${baseUrl}trainer?model=text`}>entrenador de textos</a>. Acá programás la
+        micro:bit con las clases del modelo.
+      </div>
+
+      <div className="mb-microbit">
+        {connected ? (
+          <button type="button" className="mb-mb-disconnect" onClick={() => void mb.disconnect()}>
+            Desconectar micro:bit
+          </button>
+        ) : (
+          <div className="mb-mb-buttons">
+            {mb.supported.bluetooth && (
+              <button
+                type="button"
+                className="mb-mb-connect"
+                disabled={connecting}
+                onClick={() => void mb.connectBle()}
+              >
+                <Bluetooth size={16} aria-hidden="true" />{" "}
+                {connecting ? "Conectando..." : "Bluetooth"}
+              </button>
+            )}
+          </div>
+        )}
+        <div className="mb-mb-status">
+          {connected
+            ? `micro:bit conectado (${mb.transport === "bluetooth" ? "Bluetooth" : "USB"})`
+            : mb.status === "error"
+              ? mb.error ?? "Error de conexión"
+              : "micro:bit desconectado"}
+        </div>
+      </div>
+
+      <div className="mb-brand">
+        <img
+          className="mb-brand-logo"
+          src={`${baseUrl}brand/smartteam-logo.svg`}
+          alt="SmartTEAM"
+        />
+      </div>
+    </>
   );
 }
 

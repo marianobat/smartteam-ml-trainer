@@ -923,7 +923,10 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
 
   const cameraLoading = status !== "Detectando...";
 
-  const teachSummary = COPY.stepTeachSummary(dataset.classes.length, dataset.samples.length);
+  const activeSampleCount = dataset.activeClassId
+    ? counts[dataset.activeClassId] ?? 0
+    : 0;
+  const teachSummary = COPY.stepTeachSummary(dataset.classes.length, activeSampleCount);
   // Con modelo hidratado de un guardado/preset no hay métricas: mostrar solo "entrenado"
   const trainAccuracy = trainProgress.valAcc ?? trainProgress.acc ?? 0;
   const trainSummary =

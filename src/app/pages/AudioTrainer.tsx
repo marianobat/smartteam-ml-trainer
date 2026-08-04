@@ -387,8 +387,7 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
   const selectedCount = selectedClass ? counts[selectedClass.id] ?? 0 : 0;
   const isRecordingSelected = recordingId === selectedClass?.id;
 
-  const totalSamples = Object.values(counts).reduce((a, b) => a + b, 0);
-  const teachSummary = COPY.stepTeachSummary(classes.length + 1, totalSamples);
+  const teachSummary = COPY.stepTeachSummary(classes.length + 1, selectedCount);
   const trainSummary =
     (trainProgress.acc ?? 0) > 0
       ? COPY.stepTrainSummary(
