@@ -39,7 +39,7 @@
   justify-self: start;
 }
 
-.text-stage-csv {
+.text-stage-file {
   display: grid;
   gap: 4px;
   justify-items: start;
@@ -48,7 +48,7 @@
   border-top: 1px solid var(--color-outline);
 }
 
-.text-stage-csv-btn {
+.text-stage-file-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -58,18 +58,13 @@
   font-weight: 500;
 }
 
-.text-stage-csv-btn:hover:not(:disabled) {
+.text-stage-file-btn:hover:not(:disabled) {
   border-color: var(--color-primary);
   color: var(--color-primary);
 }
 
-.text-stage-csv-hint,
-.text-stage-csv-notice {
+.text-stage-file-notice {
   margin: 0;
   font-size: 0.85rem;
-  color: var(--color-ink-soft);
-}
-
-.text-stage-csv-notice {
   color: var(--color-ink);
 }

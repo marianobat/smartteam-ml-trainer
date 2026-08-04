@@ -44,6 +44,7 @@ import {
   type DatasetState,
 } from "../../core/dataset/datasetStore";
 import { parseTextSamplesCsv } from "../../core/text/parseTextSamplesCsv";
+import { parseTextSamplesTxt } from "../../core/text/parseTextSamplesTxt";
 import {
   clearProject,
   deserializeMlModel,
@@ -108,11 +109,12 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
 
   const [inputText, setInputText] = useState("");
   const [isEmbedding, setIsEmbedding] = useState(false);
-  const [csvNotice, setCsvNotice] = useState<string | null>(null);
-  const [csvImportProgress, setCsvImportProgress] = useState<{ done: number; total: number } | null>(
-    null
-  );
-  const csvInputRef = useRef<HTMLInputElement>(null);
+  const [fileNotice, setFileNotice] = useState<string | null>(null);
+  const [fileImportProgress, setFileImportProgress] = useState<{
+    done: number;
+    total: number;
+  } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [testText, setTestText] = useState("");
   const [triedIt, setTriedIt] = useState(false);
 
@@ -474,21 +476,43 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
     }
   };
 
-  const handleImportCsvFile = async (file: File) => {
-    if (!ready || isEmbedding || csvImportProgress) return;
+  const handleImportSamplesFile = async (file: File) => {
+    if (!ready || isEmbedding || fileImportProgress) return;
 
-    setCsvNotice(null);
+    setFileNotice(null);
     let raw: string;
     try {
       raw = await file.text();
     } catch {
-      setCsvNotice("No se pudo leer el archivo.");
+      setFileNotice("No se pudo leer el archivo.");
       return;
     }
 
-    const parsed = parseTextSamplesCsv(raw);
-    if (parsed.rows.length === 0) {
-      setCsvNotice(parsed.errors[0] ?? "No hay ejemplos válidos en el CSV.");
+    const useTxt = !file.name.toLowerCase().endsWith(".csv");
+
+    type ImportRow = { clase: string; texto: string; line: number };
+    let rows: ImportRow[] = [];
+    let parseErrors: string[] = [];
+
+    if (useTxt) {
+      const activeName = dataset.classes
+        .find((c) => c.id === dataset.activeClassId)
+        ?.name.trim();
+      if (!activeName || !dataset.activeClassId) {
+        setFileNotice("Ponle nombre a la clase activa antes de cargar el archivo.");
+        return;
+      }
+      const parsed = parseTextSamplesTxt(raw);
+      parseErrors = parsed.errors;
+      rows = parsed.lines.map((l) => ({ clase: activeName, texto: l.texto, line: l.line }));
+    } else {
+      const parsed = parseTextSamplesCsv(raw);
+      parseErrors = parsed.errors;
+      rows = parsed.rows;
+    }
+
+    if (rows.length === 0) {
+      setFileNotice(parseErrors[0] ?? "No hay ejemplos válidos en el archivo.");
       return;
     }
 
@@ -518,13 +542,13 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
     };
 
     setIsEmbedding(true);
-    setCsvImportProgress({ done: 0, total: parsed.rows.length });
+    setFileImportProgress({ done: 0, total: rows.length });
     let added = 0;
-    const rowErrors = [...parsed.errors];
+    const rowErrors = [...parseErrors];
 
     try {
-      for (let i = 0; i < parsed.rows.length; i++) {
-        const row = parsed.rows[i];
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
         try {
           const classId = ensureClassId(row.clase);
           const vec = await embedText(row.texto);
@@ -540,11 +564,11 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
             `Fila ${row.line}: ${err instanceof Error ? err.message : String(err)}`
           );
         }
-        setCsvImportProgress({ done: i + 1, total: parsed.rows.length });
+        setFileImportProgress({ done: i + 1, total: rows.length });
       }
     } finally {
       setIsEmbedding(false);
-      setCsvImportProgress(null);
+      setFileImportProgress(null);
     }
 
     const skipNote =
@@ -553,17 +577,17 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
             rowErrors.length === 1 ? "" : "s"
           }`
         : "";
-    setCsvNotice(
+    setFileNotice(
       added > 0
         ? `Se agregaron ${added} ejemplo${added === 1 ? "" : "s"}${skipNote}.`
         : `No se pudo importar ningún ejemplo.${rowErrors[0] ? ` ${rowErrors[0]}` : ""}`
     );
   };
 
-  const onCsvInputChange = (e: ChangeEvent<HTMLInputElement>) => {
+  const onFileInputChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = "";
-    if (file) void handleImportCsvFile(file);
+    if (file) void handleImportSamplesFile(file);
   };
 
   const handleTrain = async () => {
@@ -922,7 +946,7 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
               {!ready && <div className="text-stage-loading">{status}</div>}
               <div className="text-stage-block">
                 <h3 className="text-stage-title">
-                  <Pencil size={18} aria-hidden="true" /> Enséñale con frases{" "}
+                  <Pencil size={18} aria-hidden="true" /> Cargar frases{" "}
                   {activeClass?.name.trim() ? `a "${activeClass.name.trim()}"` : ""}
                 </h3>
                 <textarea
@@ -954,31 +978,30 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
                     isEmbedding
                   }
                 >
-                  {isEmbedding && !csvImportProgress
+                  {isEmbedding && !fileImportProgress
                     ? "Agregando..."
                     : COPY.addTextButton}
                 </button>
-                <div className="text-stage-csv">
+                <div className="text-stage-file">
                   <input
-                    ref={csvInputRef}
+                    ref={fileInputRef}
                     type="file"
-                    accept=".csv,text/csv,text/plain"
+                    accept=".csv,.txt,text/csv,text/plain"
                     hidden
-                    onChange={onCsvInputChange}
+                    onChange={onFileInputChange}
                   />
                   <button
                     type="button"
-                    className="text-stage-csv-btn"
-                    onClick={() => csvInputRef.current?.click()}
+                    className="text-stage-file-btn"
+                    onClick={() => fileInputRef.current?.click()}
                     disabled={!ready || isEmbedding}
                   >
                     <Upload size={16} aria-hidden="true" />
-                    {csvImportProgress
-                      ? `${COPY.importCsvImporting} ${csvImportProgress.done}/${csvImportProgress.total}`
-                      : COPY.importCsvButton}
+                    {fileImportProgress
+                      ? `${COPY.importFileImporting} ${fileImportProgress.done}/${fileImportProgress.total}`
+                      : COPY.importFileButton}
                   </button>
-                  <p className="text-stage-csv-hint">{COPY.importCsvHint}</p>
-                  {csvNotice && <p className="text-stage-csv-notice">{csvNotice}</p>}
+                  {fileNotice && <p className="text-stage-file-notice">{fileNotice}</p>}
                 </div>
               </div>
             </div>

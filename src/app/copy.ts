@@ -95,7 +95,6 @@ export const COPY = {
   testTextPlaceholder: "Escribe algo y mira qué clase detecta...",
   addTextPlaceholder: "Escribe un ejemplo para esta clase y presiona Enter...",
   addTextButton: "Agregar ejemplo",
-  importCsvButton: "Cargar CSV",
-  importCsvHint: "Formato UTF-8: clase,texto (primera fila = encabezado)",
-  importCsvImporting: "Importando…",
+  importFileButton: "Cargar archivo",
+  importFileImporting: "Importando…",
 };
