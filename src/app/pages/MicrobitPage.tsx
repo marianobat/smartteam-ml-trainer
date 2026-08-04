@@ -329,14 +329,6 @@ function TextEvalColumn({ baseUrl }: { baseUrl: string }) {
           rows={3}
           disabled={!evaluation.hasModel || evaluation.loading}
         />
-        {evaluation.seeing ? (
-          <div className="mb-text-seeing">
-            {COPY.see} <strong>{evaluation.seeing.label}</strong>{" "}
-            {Math.round(evaluation.seeing.confidence * 100)}%
-          </div>
-        ) : evaluation.hasModel && evaluation.testText.trim() ? (
-          <div className="mb-text-seeing is-none">{COPY.noneClass}</div>
-        ) : null}
       </div>
 
       <LivePredictionBars

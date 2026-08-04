@@ -295,12 +295,3 @@
   outline: 2px solid var(--color-primary);
   outline-offset: 1px;
 }
-
-.mb-text-seeing {
-  font-size: 0.95rem;
-  color: var(--color-ink);
-}
-
-.mb-text-seeing.is-none {
-  color: var(--color-ink-soft);
-}
