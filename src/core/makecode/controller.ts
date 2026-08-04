@@ -1,56 +1,88 @@
 // src/core/makecode/controller.ts
 //
-// Hook para comunicarse con el fork de MakeCode embebido en modo controller.
-// El fork (pxteditor/editorcontroller.ts) acepta requests del padre cuando
-// corre con `?controller=1`. Al terminar de cargar, emite
-// `{ type: "pxthost", action: "editorcontentloaded" }`; recién ahí le mandamos
-// el proyecto con `{ type: "pxteditor", action: "importproject", project }`.
+// Hook para el MakeCode embebido en modo controller (`?controller=1`).
 //
-// Preservación del trabajo del alumno: `importproject` PISA el proyecto actual.
-// Si en cada carga re-importáramos, el chico perdería lo que venía armando. Con
-// `ImportGuard` recordamos (en localStorage) qué contenido inyectamos por
-// proyecto; si es el mismo, NO re-importamos y dejamos que el workspace del
-// navegador (ws=browser) reabra solo el último proyecto guardado.
+// Workspace: SIN `ws=browser`. El editor pide al padre `workspacesync` /
+// `workspacesave` (ver webapp/public/controller.html de pxt). Así los bloques
+// del alumno viven en localStorage del trainer y no se pierden al reimportar
+// plantilla (clases / extensión).
+//
+// Idioma: `?lang=` según el navegador, con fallback a español.
 
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import type { MakeCodeProject } from "./project";
+import {
+  loadStudentWorkspace,
+  mergeStudentFiles,
+  saveStudentWorkspace,
+  type MakeCodeWorkspaceProject,
+} from "./studentWorkspace";
 
 type EditorState = "loading" | "ready" | "imported" | "error";
 
 interface HostMessage {
   type?: string;
   action?: string;
+  id?: string;
+  projects?: MakeCodeWorkspaceProject[];
+  project?: MakeCodeWorkspaceProject;
+  editor?: unknown;
 }
 
 /**
- * Guarda de importación para preservar el trabajo del alumno entre cargas.
- * Si ya inyectamos el mismo `contentSig` para este `persistId` en este
- * navegador, no re-importamos (dejamos que ws=browser reabra el proyecto).
- * `null` → comportamiento clásico: importar siempre.
+ * Guarda de importación: `persistId` identifica el slot (p. ej. "hands-4");
+ * `contentSig` son las clases entrenadas. Si cambia la firma, re-importamos
+ * plantilla mergeada con los bloques guardados del alumno.
  */
 export interface ImportGuard {
-  /** Identidad estable del proyecto en este navegador (p. ej. "hands-4"). */
   persistId: string;
-  /** Firma del contenido inyectable (clases entrenadas). Cambia → re-importa. */
   contentSig: string;
 }
 
-/** Prefijo de la clave localStorage donde recordamos qué contenido inyectamos. */
-const GUARD_STORAGE_PREFIX = "smartteam-mk-imported-";
+/** Locales MakeCode que usamos con frecuencia en el aula. */
+const MAKECODE_LANGS = new Set([
+  "en",
+  "es",
+  "es-ES",
+  "pt",
+  "pt-BR",
+  "fr",
+  "it",
+  "de",
+  "ca",
+  "eu",
+  "gl",
+]);
 
 let messageSeq = 0;
 const nextId = () => `st-${Date.now()}-${messageSeq++}`;
 
 /**
- * Devuelve la URL del iframe en modo controller (agrega controller=1 sin pisar
- * query existente) y el origin para validar/postear mensajes.
- *
- * `ws=browser` fuerza el workspace de IndexedDB dentro del iframe. Sin esto, el
- * editor en modo controller usa el "iframe workspace", que hace un handshake de
- * storage contra el padre (workspacesync/save) y se queda colgado en el splash
- * si el padre no responde ese protocolo (nosotros sólo inyectamos importproject).
- * Además, ws=browser hace que el editor reabra solo el último proyecto guardado,
- * que es lo que aprovecha ImportGuard para no pisar el trabajo del alumno.
+ * Elige idioma MakeCode: preferencia del navegador si está soportada; si no, `es`.
+ */
+export function resolveMakeCodeLang(
+  languages: readonly string[] = typeof navigator !== "undefined"
+    ? navigator.languages?.length
+      ? navigator.languages
+      : [navigator.language]
+    : ["es"]
+): string {
+  for (const raw of languages) {
+    if (!raw) continue;
+    const tag = raw.replace("_", "-");
+    if (MAKECODE_LANGS.has(tag)) return tag === "es-ES" ? "es" : tag;
+    const base = tag.split("-")[0]?.toLowerCase();
+    if (base && MAKECODE_LANGS.has(base)) return base;
+    // es-AR, es-MX, etc. → es
+    if (base === "es") return "es";
+    if (base === "pt") return "pt";
+  }
+  return "es";
+}
+
+/**
+ * URL del iframe en modo controller + idioma. No usa `ws=browser`: el workspace
+ * lo hostea el padre (workspacesync/save).
  */
 export function resolveControllerUrl(baseUrl: string): { src: string; origin: string } | null {
   const trimmed = baseUrl.trim();
@@ -58,7 +90,9 @@ export function resolveControllerUrl(baseUrl: string): { src: string; origin: st
   try {
     const url = new URL(trimmed, window.location.href);
     url.searchParams.set("controller", "1");
-    url.searchParams.set("ws", "browser");
+    url.searchParams.set("lang", resolveMakeCodeLang());
+    // Quitar ws=browser si venía en la URL base: forzar workspace del padre.
+    url.searchParams.delete("ws");
     return { src: url.toString(), origin: url.origin };
   } catch {
     return null;
@@ -66,19 +100,17 @@ export function resolveControllerUrl(baseUrl: string): { src: string; origin: st
 }
 
 /**
- * Espera a que el editor avise que cargó y le inyecta el proyecto una sola vez.
- * `project` puede llegar async (null mientras se cargan las clases); se importa
- * cuando ambos (editor listo + proyecto) están disponibles. Si `importGuard`
- * indica que ese contenido ya se inyectó antes en este navegador, se omite la
- * importación para no pisar el proyecto que el alumno venía editando.
+ * Espera `editorcontentloaded`, responde workspace sync/save e inyecta el
+ * proyecto plantilla (mergeado con bloques del alumno cuando corresponde).
  */
 export function useMakeCodeController(
   iframeRef: RefObject<HTMLIFrameElement | null>,
   forkOrigin: string | null,
   project: MakeCodeProject | null,
   importGuard: ImportGuard | null = null
-): { state: EditorState } {
+): { state: EditorState; /** true cuando el host ya escucha workspacesync (seguro cargar el iframe). */ hostReady: boolean } {
   const [state, setState] = useState<EditorState>("loading");
+  const [hostReady, setHostReady] = useState(false);
   const readyRef = useRef(false);
   const importedRef = useRef(false);
   const projectRef = useRef<MakeCodeProject | null>(project);
@@ -86,14 +118,16 @@ export function useMakeCodeController(
   const guardRef = useRef<ImportGuard | null>(importGuard);
   guardRef.current = importGuard;
 
-  const postAction = (action: string) => {
+  const postToEditor = (msg: object) => {
     const win = iframeRef.current?.contentWindow;
     if (!win || !forkOrigin) return;
-    win.postMessage({ type: "pxteditor", id: nextId(), action }, forkOrigin);
+    win.postMessage(msg, forkOrigin);
   };
 
-  // Colapsa el simulador (más espacio para los bloques). La cámara + barras del
-  // trainer cumplen el rol del simulador. Se re-asegura por si el import lo expande.
+  const postAction = (action: string) => {
+    postToEditor({ type: "pxteditor", id: nextId(), action });
+  };
+
   const collapseSimulator = () => {
     postAction("hidesimulator");
     window.setTimeout(() => postAction("hidesimulator"), 1200);
@@ -101,67 +135,104 @@ export function useMakeCodeController(
 
   const sendImport = () => {
     if (importedRef.current) return;
-    const win = iframeRef.current?.contentWindow;
     const proj = projectRef.current;
-    if (!readyRef.current || !win || !proj || !forkOrigin) return;
-
-    // Si ya inyectamos este mismo contenido (mismo modelo+curso+clases) en este
-    // navegador, no re-importamos: dejamos que ws=browser reabra el proyecto que
-    // el alumno venía armando. Si las clases cambiaron (contentSig distinto), sí
-    // re-importamos con el contenido nuevo.
     const guard = guardRef.current;
-    if (guard) {
-      const key = GUARD_STORAGE_PREFIX + guard.persistId;
-      let prev: string | null = null;
-      try {
-        prev = window.localStorage.getItem(key);
-      } catch {
-        // sin localStorage (modo privado): se cae al comportamiento de importar siempre
-      }
-      if (prev !== null && prev === guard.contentSig) {
-        importedRef.current = true;
-        setState("imported");
-        collapseSimulator();
-        return;
-      }
-      try {
-        window.localStorage.setItem(key, guard.contentSig);
-      } catch {
-        // idem: si no se puede recordar, igual importamos abajo
-      }
+    if (!readyRef.current || !proj || !forkOrigin) return;
+
+    const persistId = guard?.persistId;
+    const contentSig = guard?.contentSig ?? "";
+    const stored = persistId ? loadStudentWorkspace(persistId) : null;
+
+    // Misma firma y ya hay proyecto en el workspace del padre → no pisar.
+    // (El editor lo abrió vía workspacesync.)
+    if (
+      persistId &&
+      stored &&
+      contentSig &&
+      stored.contentSig === contentSig &&
+      stored.project.text
+    ) {
+      importedRef.current = true;
+      setState("imported");
+      collapseSimulator();
+      return;
     }
 
+    const text = mergeStudentFiles(proj.text, stored?.project.text);
+    const toImport: MakeCodeProject = { text };
+
     importedRef.current = true;
-    win.postMessage(
-      { type: "pxteditor", id: nextId(), action: "importproject", project: proj },
-      forkOrigin
-    );
+    postToEditor({
+      type: "pxteditor",
+      id: nextId(),
+      action: "importproject",
+      project: toImport,
+    });
+    // Recordar firma + proyecto mergeado (por si workspacesave tarda).
+    if (persistId) {
+      saveStudentWorkspace(persistId, contentSig, { text });
+    }
     setState("imported");
     collapseSimulator();
   };
 
-  useEffect(() => {
-    if (!forkOrigin) return;
+  // useLayoutEffect: el listener debe existir ANTES de poner src al iframe,
+  // si no se pierde el primer `workspacesync` y el editor se cuelga.
+  useLayoutEffect(() => {
+    if (!forkOrigin) {
+      setHostReady(false);
+      return;
+    }
+
     const onMessage = (event: MessageEvent) => {
       if (event.origin !== forkOrigin) return;
       const data = event.data as HostMessage | null;
-      if (!data || data.type !== "pxthost") return;
-      if (data.action === "editorcontentloaded") {
+      if (!data || typeof data !== "object") return;
+
+      // El editor pide la lista de proyectos al padre.
+      if (data.type === "pxthost" && data.action === "workspacesync") {
+        const persistId = guardRef.current?.persistId;
+        const stored = persistId ? loadStudentWorkspace(persistId) : null;
+        const projects = stored?.project ? [stored.project] : [];
+        postToEditor({ ...data, projects });
+        return;
+      }
+
+      // Autoguardado del editor → backup en el trainer.
+      if (data.type === "pxthost" && data.action === "workspacesave" && data.project) {
+        const persistId = guardRef.current?.persistId;
+        if (persistId) {
+          saveStudentWorkspace(
+            persistId,
+            guardRef.current?.contentSig ?? "",
+            data.project
+          );
+        }
+        return;
+      }
+
+      if (data.type === "pxthost" && data.action === "editorcontentloaded") {
         readyRef.current = true;
         setState((s) => (s === "loading" ? "ready" : s));
         sendImport();
       }
     };
+
     window.addEventListener("message", onMessage);
-    return () => window.removeEventListener("message", onMessage);
+    setHostReady(true);
+    return () => {
+      window.removeEventListener("message", onMessage);
+      setHostReady(false);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [forkOrigin]);
 
-  // Si el proyecto llega después de que el editor ya estaba listo, importamos.
   useEffect(() => {
+    // Nueva firma / proyecto → permitir re-import mergeado.
+    importedRef.current = false;
     sendImport();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project, forkOrigin]);
+  }, [project, forkOrigin, importGuard?.persistId, importGuard?.contentSig]);
 
-  return { state };
+  return { state, hostReady };
 }

@@ -43,12 +43,10 @@ const CLASSES_FILE = "clases.ts";
 const EMPTY_BLOCKS = '<xml xmlns="https://developers.google.com/blockly/xml"></xml>';
 
 /**
- * Construye el `project.text` para `importproject`. El canvas arranca vacío (sin
- * bloques pre-armados); trae la extensión BLE inline más `clases.ts`, que define
- * el enum con las clases entrenadas y los bloques de desplegable. La extensión
- * BLE viaja como un archivo más del proyecto, con `bluetooth` (paquete built-in)
- * como dependencia y el yotta config que habilita BLE. Si el curso tiene
- * extensión publicada, se suma a `dependencies` como paquete de GitHub.
+ * Construye el `project.text` para `importproject`. Por defecto el canvas viene
+ * vacío; el controller puede mergear `main.blocks`/`main.ts` guardados del
+ * alumno (ver studentWorkspace.ts). Trae la extensión BLE inline más `clases.ts`
+ * y, si el curso tiene extensión publicada, esa dependencia de GitHub.
  */
 export function buildMakeCodeProject(options: BuildProjectOptions = {}): MakeCodeProject {
   const name = options.name ?? "SmartTEAM ML";

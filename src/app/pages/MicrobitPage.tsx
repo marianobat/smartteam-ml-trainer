@@ -37,9 +37,8 @@ import "./MicrobitPage.css";
 /** USB queda en el código pero oculto: por ahora solo ofrecemos Bluetooth. */
 const SHOW_USB_CONNECT = false;
 
-// Preservar el trabajo del alumno: si ya está en true, no re-inyectamos el
-// proyecto en cada carga (el editor reabre lo que el chico venía armando).
-// Poner en false vuelve al comportamiento clásico (importar siempre).
+// Preservar bloques del alumno (workspacesync/save + merge al reimportar clases).
+// false = siempre importar plantilla vacía (pierde el programa al recargar).
 const PRESERVE_STUDENT_WORK = true;
 
 type VideoModelId = "hands" | "face" | "pose" | "images";
@@ -263,7 +262,12 @@ function MakeCodeController({
 }) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const resolved = useMemo(() => resolveControllerUrl(resolveForkUrl()), []);
-  const { state } = useMakeCodeController(iframeRef, resolved?.origin ?? null, project, importGuard);
+  const { state, hostReady } = useMakeCodeController(
+    iframeRef,
+    resolved?.origin ?? null,
+    project,
+    importGuard
+  );
 
   if (!resolved) {
     return (
@@ -279,11 +283,12 @@ function MakeCodeController({
 
   return (
     <div className="mb-editor-frame">
+      {/* src solo cuando el host ya escucha workspacesync (evita colgar el splash). */}
       <iframe
         ref={iframeRef}
         className="mb-makecode"
         title="MakeCode micro:bit"
-        src={resolved.src}
+        src={hostReady ? resolved.src : undefined}
         allow="usb; serial; bluetooth; camera; microphone"
       />
       {state !== "imported" && (
