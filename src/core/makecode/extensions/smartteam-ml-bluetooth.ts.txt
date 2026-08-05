@@ -12,8 +12,12 @@
  * Protocolo (una línea por mensaje), siempre "a pedido":
  *   micro:bit → navegador: "ML?\n"
  *   navegador → micro:bit: "ML:<nombre de la clase>\n" ("none" si no hay)
+ *
+ * Idiomas: ES en `block`; EN / PT-BR vía `block.loc.*` (MakeCode usa forcelang).
  */
 //% color="#796EB0" icon="\uf294" block="SmartTEAM IA" weight=89
+//% block.loc.en="SmartTEAM AI"
+//% block.loc.pt-BR="SmartTEAM IA"
 namespace smartteamMLBT {
     const PREFIJO = "ML:"
     const PEDIDO = "ML?"
@@ -110,6 +114,8 @@ namespace smartteamMLBT {
      */
     //% blockId=smartteam_mlbt_mostrar_nombre
     //% block="mostrar nombre Bluetooth"
+    //% block.loc.en="show Bluetooth name"
+    //% block.loc.pt-BR="mostrar nome Bluetooth"
     //% weight=100
     export function mostrarNombreBluetooth(): void {
         iniciar()
@@ -131,6 +137,8 @@ namespace smartteamMLBT {
      */
     //% blockId=smartteam_mlbt_clase_actual
     //% block="clase ML actual"
+    //% block.loc.en="current ML class"
+    //% block.loc.pt-BR="classe ML atual"
     //% weight=80
     export function claseActual(): string {
         iniciar()
@@ -152,6 +160,8 @@ namespace smartteamMLBT {
      */
     //% blockId=smartteam_mlbt_sin_deteccion
     //% block="cuando no se detecta ninguna clase ML"
+    //% block.loc.en="when no ML class is detected"
+    //% block.loc.pt-BR="quando nenhuma classe ML é detectada"
     //% weight=60
     export function cuandoNoHayDeteccion(manejador: () => void): void {
         alDetectarClase(SIN_DETECCION, manejador)

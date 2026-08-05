@@ -5,8 +5,8 @@
 // las clases reales del modelo entrenado (dropdown nativo de MakeCode) y unos
 // bloques que mapean ese enum a la API de string de la extensión BLE inline.
 //
-// Así el bloque "al detectar clase ML <clase>" muestra un desplegable con las
-// clases entrenadas, sin tocar el fork ni depender de la red.
+// Los nombres de clase del alumno van TAL CUAL en el enum. Solo se localizan
+// las plantillas fijas de bloque (ES / EN / PT-BR vía block.loc.*).
 
 const NONE_LABEL = "none";
 
@@ -29,10 +29,23 @@ const BLOCK_ID_PREFIX: Record<BlocksTransport, string> = {
   bluetooth: "smartteam_mlbt",
 };
 
+/** Plantillas fijas de los bloques generados (el %clase lo rellena MakeCode). */
+const BLOCK_AL_DETECTAR = {
+  es: "al detectar clase ML %clase",
+  en: "when ML class %clase detected",
+  ptBR: "ao detectar classe ML %clase",
+} as const;
+
+const BLOCK_CLASE_ES = {
+  es: "clase ML es %clase",
+  en: "ML class is %clase",
+  ptBR: "classe ML é %clase",
+} as const;
+
 export interface ClassesMetadata {
   /** Transporte → define el namespace de los bloques generados. */
   transport: BlocksTransport;
-  /** Nombres canónicos de las clases entrenadas, en orden. */
+  /** Nombres canónicos de las clases entrenadas, en orden (sin traducir). */
   classes: string[];
 }
 
@@ -56,9 +69,10 @@ function toBlockLabel(name: string): string {
 
 /**
  * Genera el contenido de `clases.ts`: el enum con las clases reales (dropdown) y
- * los bloques `al detectar clase ML %clase` / `clase ML es %clase` que lo mapean
- * a la API de string de la extensión. Si no hay clases (modelo sin entrenar),
- * usa una entrada placeholder para que el bloque exista igual.
+ * los bloques `al detectar…` / `clase ML es…` que lo mapean a la API de string
+ * de la extensión. Si no hay clases (modelo sin entrenar), usa una entrada
+ * placeholder para que el bloque exista igual. Los nombres del enum no se
+ * traducen; solo las plantillas de bloque llevan loc EN / PT-BR.
  */
 export function generateClassesFile(meta: ClassesMetadata): string {
   const ns = NAMESPACE[meta.transport];
@@ -84,7 +98,9 @@ namespace ${ns} {
      * Ejecuta el código cuando el entrenador detecta la clase elegida.
      */
     //% blockId=${prefix}_al_detectar_sel
-    //% block="al detectar clase ML %clase"
+    //% block="${BLOCK_AL_DETECTAR.es}"
+    //% block.loc.en="${BLOCK_AL_DETECTAR.en}"
+    //% block.loc.pt-BR="${BLOCK_AL_DETECTAR.ptBR}"
     //% weight=99
     export function alDetectarClaseSel(clase: ClaseML, manejador: () => void): void {
         alDetectarClase(NOMBRES_CLASE[clase], manejador)
@@ -94,7 +110,9 @@ namespace ${ns} {
      * Verdadero si la clase detectada en este momento es la elegida.
      */
     //% blockId=${prefix}_clase_es_sel
-    //% block="clase ML es %clase"
+    //% block="${BLOCK_CLASE_ES.es}"
+    //% block.loc.en="${BLOCK_CLASE_ES.en}"
+    //% block.loc.pt-BR="${BLOCK_CLASE_ES.ptBR}"
     //% weight=85
     export function claseEsSel(clase: ClaseML): boolean {
         return claseEs(NOMBRES_CLASE[clase])
