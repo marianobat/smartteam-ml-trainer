@@ -26,7 +26,7 @@ import {
   type CourseId,
 } from "../../core/makecode/courses";
 import { COPY } from "../copy";
-import { getLang } from "../i18n";
+import { getLang, toMakeCodeLang } from "../i18n";
 import { resolveControllerUrl, useMakeCodeController, type ImportGuard } from "../../core/makecode/controller";
 import CameraStage from "../components/trainer/CameraStage";
 import LivePredictionBars from "../components/trainer/LivePredictionBars";
@@ -262,7 +262,7 @@ function MakeCodeController({
   importGuard: ImportGuard | null;
 }) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
-  const resolved = useMemo(() => resolveControllerUrl(resolveForkUrl(), getLang()), []);
+  const resolved = useMemo(() => resolveControllerUrl(resolveForkUrl(), toMakeCodeLang(getLang())), []);
   const { state, hostReady } = useMakeCodeController(
     iframeRef,
     resolved?.origin ?? null,

@@ -5,8 +5,9 @@
 // segunda persona. Regla: nada de jerga (época, validación, umbral, WebSocket)
 // fuera del modo avanzado. Sin emojis: los íconos los ponen los componentes.
 //
-// La versión en inglés (copy.en.ts) debe tener EXACTAMENTE las mismas claves:
-// `AppCopy` (typeof COPY_ES) es el contrato y TypeScript avisa si falta una.
+// La versión en inglés (copy.en.ts) y portugués BR (copy.pt.ts) deben tener
+// EXACTAMENTE las mismas claves: `AppCopy` (typeof COPY_ES) es el contrato y
+// TypeScript avisa si falta una.
 
 export const COPY_ES = {
   advanced: "Modo avanzado",
