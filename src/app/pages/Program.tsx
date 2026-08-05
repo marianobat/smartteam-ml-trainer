@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { EXT_URL, TEMPLATE_SB3, TW_EDITOR } from "../../core/bridge/config";
 import { TURBOWARP_ENABLED } from "../../core/bridge/features";
 import { getRoom } from "../../core/bridge/session";
+import { COPY } from "../copy";
 
 const getRoomFromQuery = () => {
   if (typeof window === "undefined") return "";
@@ -46,39 +47,33 @@ export default function Program() {
   if (!room) {
     return (
       <div style={{ padding: 16 }}>
-        <h2>Programador</h2>
-        <p>No hay room disponible. Volvé al lobby para crear una sesión.</p>
-        <button onClick={() => window.location.assign(baseUrl)}>Volver al Lobby</button>
+        <h2>{COPY.progTitle}</h2>
+        <p>{COPY.progNoRoom}</p>
+        <button onClick={() => window.location.assign(baseUrl)}>{COPY.backToLobby}</button>
       </div>
     );
   }
 
   return (
     <div style={{ padding: 16 }}>
-      <h2>Programador</h2>
+      <h2>{COPY.progTitle}</h2>
       {!extensionUrl && (
         <div style={{ marginBottom: 12, padding: 10, borderRadius: 8, background: "#fff7ed", border: "1px solid #fed7aa" }}>
-          <strong>Extension not configured yet</strong>
-          <div style={{ fontSize: 12, marginTop: 4 }}>
-            Podés abrir TurboWarp sin extensión y seguir igual.
-          </div>
+          <strong>{COPY.progExtMissing}</strong>
+          <div style={{ fontSize: 12, marginTop: 4 }}>{COPY.progExtMissingNote}</div>
         </div>
       )}
-      {shouldAutoRedirect ? (
-        <p>Redirigiendo a TurboWarp con extensión...</p>
-      ) : (
-        <p>TurboWarp listo para abrir sin extensión.</p>
-      )}
+      {shouldAutoRedirect ? <p>{COPY.progRedirecting}</p> : <p>{COPY.progReady}</p>}
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
         <button onClick={() => window.location.assign(primaryUrl)} disabled={!primaryUrl}>
-          {shouldAutoRedirect ? "Abrir TurboWarp" : "Abrir TurboWarp sin extensión"}
+          {shouldAutoRedirect ? COPY.homeOpenTw : COPY.progOpenTwNoExt}
         </button>
         <a href={primaryUrl} rel="noreferrer">
           {primaryUrl}
         </a>
       </div>
       <div style={{ marginTop: 12 }}>
-        <button onClick={() => window.location.assign(baseUrl)}>Volver al Lobby</button>
+        <button onClick={() => window.location.assign(baseUrl)}>{COPY.backToLobby}</button>
       </div>
     </div>
   );

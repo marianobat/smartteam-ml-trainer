@@ -13,6 +13,8 @@ import {
 import { API_BASE, EXT_URL, TEMPLATE_SB3, TW_EDITOR } from "../../core/bridge/config";
 import { TURBOWARP_ENABLED } from "../../core/bridge/features";
 import { getRoom, getToken, setRoom as setSessionRoom, setToken } from "../../core/bridge/session";
+import { COPY } from "../copy";
+import LangSwitch from "../components/LangSwitch";
 import "./Home.css";
 
 type SessionResponse = {
@@ -80,7 +82,7 @@ export default function Home() {
     } catch (err) {
       console.error(err);
       setStatus("error");
-      setError("No se pudo crear la sesión. Prueba de nuevo.");
+      setError(COPY.homeSessionCreateError);
     } finally {
       setIsCreating(false);
     }
@@ -90,23 +92,22 @@ export default function Home() {
     if (!room) return;
     try {
       await navigator.clipboard.writeText(room);
-      setCopyNotice("¡Copiado!");
+      setCopyNotice(COPY.homeCopied);
     } catch (err) {
       console.error(err);
-      setCopyNotice("No se pudo copiar.");
+      setCopyNotice(COPY.homeCopyFailed);
     }
   };
 
   return (
     <div className="home">
       <header className="home-hero">
+        <div className="home-lang">
+          <LangSwitch />
+        </div>
         <div className="home-kicker">SmartTEAM</div>
-        <h1 className="home-title">SmartTEAM IA</h1>
-        <p className="home-subtitle">
-          Enséñale a la computadora con tus manos, tu cuerpo, tu voz o tus dibujos — y conecta lo
-          que aprende a un micro:bit
-          {TURBOWARP_ENABLED ? " o a TurboWarp" : ""}.
-        </p>
+        <h1 className="home-title">{COPY.homeTitle}</h1>
+        <p className="home-subtitle">{COPY.homeSubtitle(TURBOWARP_ENABLED)}</p>
       </header>
 
       <main className="home-cards">
@@ -119,12 +120,10 @@ export default function Home() {
             <Pencil size={26} />
             <Mic size={26} />
           </div>
-          <h2 className="home-card-title">Entrenador</h2>
-          <p className="home-card-copy">
-            Elige una modalidad, enséñale con ejemplos, entrena tu modelo y pruébalo en vivo.
-          </p>
+          <h2 className="home-card-title">{COPY.homeTrainerTitle}</h2>
+          <p className="home-card-copy">{COPY.homeTrainerCopy}</p>
           <button type="button" className="home-card-cta" onClick={handleOpenTrainer}>
-            <Sparkles size={18} aria-hidden="true" /> Abrir entrenador
+            <Sparkles size={18} aria-hidden="true" /> {COPY.homeTrainerCta}
           </button>
         </article>
 
@@ -134,32 +133,29 @@ export default function Home() {
             <Satellite size={26} />
           </div>
           <h2 className="home-card-title">TurboWarp</h2>
-          <p className="home-card-copy">
-            Para programar en Scratch con lo que detecta tu modelo, primero crea una sesión y
-            comparte el room.
-          </p>
+          <p className="home-card-copy">{COPY.homeTwCopy}</p>
 
           <div className="home-session">
             <div className="home-session-row">
               <button type="button" onClick={() => void handleCreateSession()} disabled={isCreating}>
-                {isCreating ? "Creando..." : "Crear sesión"}
+                {isCreating ? COPY.homeCreating : COPY.homeCreateSession}
               </button>
               <span className="home-session-status">
                 {status === "ready" ? (
                   <>
-                    <Check size={14} aria-hidden="true" /> lista
+                    <Check size={14} aria-hidden="true" /> {COPY.homeSessionReady}
                   </>
                 ) : status === "error" ? (
-                  "error"
+                  COPY.homeSessionErrorShort
                 ) : (
-                  "sin sesión"
+                  COPY.homeSessionNone
                 )}
               </span>
             </div>
             <div className="home-room">
               <span className="home-room-code">{room || "—"}</span>
               <button type="button" onClick={() => void handleCopy()} disabled={!room}>
-                Copiar
+                {COPY.homeCopyButton}
               </button>
               {copyNotice && <span className="home-room-note">{copyNotice}</span>}
             </div>
@@ -172,12 +168,9 @@ export default function Home() {
             onClick={handleOpenProgram}
             disabled={!canEnter}
           >
-            Abrir TurboWarp
+            {COPY.homeOpenTw}
           </button>
-          <p className="home-card-note">
-            La sesión solo hace falta para TurboWarp: el entrenador y el micro:bit funcionan sin
-            ella.
-          </p>
+          <p className="home-card-note">{COPY.homeTwNote}</p>
         </article>
         )}
       </main>

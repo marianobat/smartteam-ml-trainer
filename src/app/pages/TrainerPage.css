@@ -16,6 +16,12 @@
   flex-wrap: wrap;
 }
 
+.trainer-select-header-right {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+}
+
 .trainer-select-kicker {
   font-size: 0.75rem;
   letter-spacing: 0.26em;

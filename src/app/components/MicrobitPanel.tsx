@@ -9,6 +9,7 @@
 import { useEffect } from "react";
 import { Usb, Bluetooth } from "lucide-react";
 import { useMicrobit } from "../hooks/useMicrobit";
+import { COPY } from "../copy";
 
 /** USB queda en el código pero oculto: por ahora solo ofrecemos Bluetooth. */
 const SHOW_USB_CONNECT = false;
@@ -49,10 +50,7 @@ export default function MicrobitPanel({ label, confidence, advanced = false }: M
     return (
       <div style={{ paddingTop: 10, display: "grid", gap: 8 }}>
         <div style={{ fontSize: 12, fontWeight: 600 }}>micro:bit</div>
-        <div style={{ fontSize: 12, opacity: 0.75 }}>
-          Conectar un micro:bit necesita Web Bluetooth, disponible en Chrome o Edge.
-          En este navegador puedes entrenar igual, pero sin micro:bit.
-        </div>
+        <div style={{ fontSize: 12, opacity: 0.75 }}>{COPY.mbNoBluetooth}</div>
       </div>
     );
   }
@@ -62,14 +60,14 @@ export default function MicrobitPanel({ label, confidence, advanced = false }: M
     transport === "bluetooth" ? "Bluetooth" : transport === "serial" ? "USB" : "";
   const statusLabel =
     status === "open"
-      ? `conectado por ${transportLabel}`
+      ? COPY.mbConnectedVia(transportLabel)
       : status === "connecting"
-      ? "conectando"
+      ? COPY.mbStateConnecting
       : status === "disconnecting"
-      ? "desconectando"
+      ? COPY.mbStateDisconnecting
       : status === "error"
-      ? "error"
-      : "desconectado";
+      ? COPY.mbStateError
+      : COPY.mbStateDisconnected;
 
   const connectedName =
     transport === "bluetooth" && (deviceName || alias)
@@ -93,7 +91,7 @@ export default function MicrobitPanel({ label, confidence, advanced = false }: M
           disabled={status === "disconnecting"}
           style={{ width: "100%" }}
         >
-          {status === "disconnecting" ? "Desconectando..." : "Desconectar micro:bit"}
+          {status === "disconnecting" ? COPY.mbDisconnecting : COPY.mbDisconnect}
         </button>
       ) : (
         <div style={{ display: "flex", gap: 8 }}>
@@ -104,7 +102,7 @@ export default function MicrobitPanel({ label, confidence, advanced = false }: M
               style={buttonStyle}
             >
               {status === "connecting" ? (
-                "Conectando..."
+                COPY.mbConnecting
               ) : (
                 <>
                   <Usb size={16} aria-hidden="true" /> USB
@@ -119,7 +117,7 @@ export default function MicrobitPanel({ label, confidence, advanced = false }: M
               style={{ ...buttonStyle, width: "100%" }}
             >
               {status === "connecting" ? (
-                "Conectando..."
+                COPY.mbConnecting
               ) : (
                 <>
                   <Bluetooth size={16} aria-hidden="true" /> Bluetooth
@@ -130,24 +128,24 @@ export default function MicrobitPanel({ label, confidence, advanced = false }: M
         </div>
       )}
       <div style={{ fontSize: 12 }}>
-        Estado: <b>{statusLabel}</b>
+        {COPY.advStatus} <b>{statusLabel}</b>
         {status === "open" && connectedName && (
           <>
             {" "}
-            — placa: <b>{connectedName}</b>
+            — {COPY.mbBoard} <b>{connectedName}</b>
           </>
         )}
         {status === "open" && (
           <>
             {" "}
-            — pedidos respondidos: <b>{requestCount}</b>
+            — {COPY.mbRequests} <b>{requestCount}</b>
           </>
         )}
       </div>
       {advanced && (
         <label style={{ fontSize: 12, display: "grid", gap: 4 }}>
           <span>
-            Umbral de confianza: <b>{threshold.toFixed(2)}</b>
+            {COPY.mbThreshold} <b>{threshold.toFixed(2)}</b>
           </span>
           <input
             type="range"
@@ -169,7 +167,7 @@ export default function MicrobitPanel({ label, confidence, advanced = false }: M
               </div>
             ))
           ) : (
-            <div style={{ opacity: 0.55 }}>Esperando pedidos del micro:bit...</div>
+            <div style={{ opacity: 0.55 }}>{COPY.mbWaiting}</div>
           )}
         </div>
       )}

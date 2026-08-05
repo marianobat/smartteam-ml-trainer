@@ -37,7 +37,7 @@ export default function ClassCardStrip({
   addDisabled,
 }: ClassCardStripProps) {
   return (
-    <div className="class-strip" role="tablist" aria-label="Clases">
+    <div className="class-strip" role="tablist" aria-label={COPY.ariaClasses}>
       {items.map((item) => {
         const complete = item.count >= min;
         return (
@@ -62,7 +62,7 @@ export default function ClassCardStrip({
                 </span>
               )}
             </span>
-            <span className="class-strip-name">{item.name || "Sin nombre"}</span>
+            <span className="class-strip-name">{item.name || COPY.classUnnamed}</span>
             <span
               className={`class-strip-progress ${complete ? "is-complete" : ""}`}
               aria-label={`${item.count} de ${min} ejemplos`}

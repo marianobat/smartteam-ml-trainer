@@ -1,8 +1,9 @@
 // src/core/makecode/project.ts
 //
 // Arma el proyecto MakeCode que el shell le inyecta al editor vía el mensaje
-// `importproject` (ver core/makecode/controller.ts). El canvas arranca vacío
-// (sin bloques pre-armados) pero con la extensión BLE inline en el toolbox, un
+// `importproject` (ver core/makecode/controller.ts). El canvas arranca como un
+// proyecto nuevo de MakeCode ("al iniciar" + "para siempre"), con la extensión
+// BLE inline en el toolbox, un
 // archivo `clases.ts` generado que expone las clases entrenadas como desplegable
 // y —si el curso tiene extensión publicada— esa extensión como dependencia.
 //
@@ -40,11 +41,18 @@ const BLE_EXTENSION_FILE = "smartteamMLBT.ts";
 /** Archivo generado con el enum de clases (desplegable) y sus bloques. */
 const CLASSES_FILE = "clases.ts";
 
-const EMPTY_BLOCKS = '<xml xmlns="https://developers.google.com/blockly/xml"></xml>';
+// Canvas inicial: igual que un proyecto nuevo de MakeCode ("al iniciar" +
+// "para siempre"). Si hay backup del alumno con bloques, el merge lo pisa.
+const STARTER_BLOCKS =
+  '<xml xmlns="https://developers.google.com/blockly/xml">' +
+  '<block type="pxt-on-start" x="0" y="0"></block>' +
+  '<block type="device_forever" x="260" y="0"></block>' +
+  "</xml>";
 
 /**
- * Construye el `project.text` para `importproject`. El canvas arranca vacío (sin
- * bloques pre-armados); trae la extensión BLE inline más `clases.ts`, que define
+ * Construye el `project.text` para `importproject`. El canvas arranca con los
+ * bloques estándar de proyecto nuevo ("al iniciar" + "para siempre"); trae la
+ * extensión BLE inline más `clases.ts`, que define
  * el enum con las clases entrenadas y los bloques de desplegable. La extensión
  * BLE viaja como un archivo más del proyecto, con `bluetooth` (paquete built-in)
  * como dependencia y el yotta config que habilita BLE. Si el curso tiene
@@ -91,7 +99,7 @@ export function buildMakeCodeProject(options: BuildProjectOptions = {}): MakeCod
   return {
     text: {
       "pxt.json": JSON.stringify(config, null, 4),
-      "main.blocks": EMPTY_BLOCKS,
+      "main.blocks": STARTER_BLOCKS,
       "main.ts": "",
       [BLE_EXTENSION_FILE]: bleExtensionSource,
       [CLASSES_FILE]: classesSource,

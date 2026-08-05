@@ -15,6 +15,10 @@
   justify-items: center;
 }
 
+.home-lang {
+  justify-self: end;
+}
+
 .home-kicker {
   font-size: 0.75rem;
   letter-spacing: 0.26em;

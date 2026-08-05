@@ -44,7 +44,7 @@ export default function TrainPanel({
         )}
       </button>
       {isTraining && (
-        <div className="train-panel-progress" role="progressbar" aria-label="Entrenando">
+        <div className="train-panel-progress" role="progressbar" aria-label={COPY.ariaTraining}>
           <div
             className={`train-panel-progress-fill ${progressPct === null ? "is-indeterminate" : ""}`}
             style={progressPct !== null ? { width: `${progressPct}%` } : undefined}

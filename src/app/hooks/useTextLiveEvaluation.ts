@@ -12,6 +12,7 @@ import { predictKnn, type KnnModel } from "../../core/training/knn";
 import { deserializeMlModel, loadProject } from "../../core/storage/projectStore";
 import { microbitApi } from "./useMicrobit";
 import type { PredictionRow } from "../components/trainer/LivePredictionBars";
+import { COPY } from "../copy";
 
 type Trained = { kind: "knn"; model: KnnModel } | { kind: "ml"; model: tf.LayersModel };
 
@@ -29,7 +30,7 @@ export type TextLiveEvaluation = {
 };
 
 export function useTextLiveEvaluation(threshold: number): TextLiveEvaluation {
-  const [status, setStatus] = useState("Cargando modelo de texto...");
+  const [status, setStatus] = useState(COPY.statusTextDownload);
   const [loading, setLoading] = useState(true);
   const [hasModel, setHasModel] = useState(false);
   const [testText, setTestText] = useState("");
@@ -47,11 +48,11 @@ export function useTextLiveEvaluation(threshold: number): TextLiveEvaluation {
     (async () => {
       try {
         setLoading(true);
-        setStatus("Descargando el modelo de texto...");
+        setStatus(COPY.statusTextDownload);
         await initTextEmbedder();
         if (cancelled) return;
 
-        setStatus("Cargando tu modelo entrenado...");
+        setStatus(COPY.statusLoadingTrained);
         const saved = await loadProject("text");
         if (cancelled) return;
 
@@ -59,7 +60,7 @@ export function useTextLiveEvaluation(threshold: number): TextLiveEvaluation {
           trainedRef.current = null;
           classNamesRef.current = [];
           setHasModel(false);
-          setStatus("Sin modelo");
+          setStatus(COPY.statusNoModel);
           setLoading(false);
           return;
         }
@@ -74,7 +75,7 @@ export function useTextLiveEvaluation(threshold: number): TextLiveEvaluation {
           classNamesRef.current = saved.model.classNames;
         }
         setHasModel(true);
-        setStatus("Listo");
+        setStatus(COPY.statusReady);
         setLoading(false);
       } catch (err) {
         if (!cancelled) {

@@ -20,6 +20,7 @@ import LivePredictionBars from "../components/trainer/LivePredictionBars";
 import MakeCodeEmbed from "../components/MakeCodeEmbed";
 import { useLiveEvaluation, type EvalConfig } from "../hooks/useLiveEvaluation";
 import { useMicrobit } from "../hooks/useMicrobit";
+import { COPY } from "../copy";
 import "./LabPage.css";
 
 /** USB queda en el código pero oculto: por ahora solo ofrecemos Bluetooth. */
@@ -29,30 +30,30 @@ type ModelId = "hands" | "face" | "pose" | "images";
 
 const CONFIGS: Record<ModelId, EvalConfig & { label: string }> = {
   hands: {
-    label: "Manos",
+    label: COPY.modalities.hands.label,
     storageKey: "hands",
-    missingLabel: "Sin manos",
+    missingLabel: COPY.modalities.hands.missingLabel,
     dimmed: true,
     createExtractor: createHandExtractor,
   },
   face: {
-    label: "Rostros",
+    label: COPY.modalities.face.label,
     storageKey: "face",
-    missingLabel: "Sin rostro",
+    missingLabel: COPY.modalities.face.missingLabel,
     dimmed: true,
     createExtractor: createFaceExtractor,
   },
   pose: {
-    label: "Cuerpo",
+    label: COPY.modalities.pose.label,
     storageKey: "pose",
-    missingLabel: "Sin cuerpo",
+    missingLabel: COPY.modalities.pose.missingLabel,
     dimmed: true,
     createExtractor: createPoseExtractor,
   },
   images: {
-    label: "Imágenes",
+    label: COPY.modalities.images.label,
     storageKey: "images",
-    missingLabel: "No reconocido",
+    missingLabel: COPY.modalities.images.missingLabel,
     dimmed: false,
     createExtractor: createImageExtractor,
   },
@@ -72,10 +73,10 @@ export default function LabPage() {
     <div className="lab-page">
       <header className="lab-header">
         <a className="lab-back" href={`${baseUrl}trainer`}>
-          <ArrowLeft size={16} aria-hidden="true" /> Entrenador
+          <ArrowLeft size={16} aria-hidden="true" /> {COPY.labBack}
         </a>
-        <h1 className="lab-title">Laboratorio</h1>
-        <div className="lab-model-switch" role="group" aria-label="Modalidad">
+        <h1 className="lab-title">{COPY.labTitle}</h1>
+        <div className="lab-model-switch" role="group" aria-label={COPY.ariaModality}>
           {(Object.keys(CONFIGS) as ModelId[]).map((id) => (
             <button
               key={id}
@@ -128,8 +129,7 @@ function LiveEvalColumn({ config, baseUrl }: { config: EvalConfig; baseUrl: stri
 
       {!evaluation.hasModel && !evaluation.loading && (
         <div className="lab-no-model">
-          No hay un modelo entrenado para esta modalidad en este navegador.{" "}
-          <a href={`${baseUrl}trainer`}>Entrená uno primero</a>.
+          {COPY.noModelModality} <a href={`${baseUrl}trainer`}>{COPY.trainFirst}</a>.
         </div>
       )}
 
@@ -142,7 +142,7 @@ function LiveEvalColumn({ config, baseUrl }: { config: EvalConfig; baseUrl: stri
       <div className="lab-microbit">
         {connected ? (
           <button type="button" className="lab-mb-disconnect" onClick={() => void mb.disconnect()}>
-            Desconectar micro:bit
+            {COPY.mbDisconnect}
           </button>
         ) : (
           <div className="lab-mb-buttons">
@@ -153,7 +153,7 @@ function LiveEvalColumn({ config, baseUrl }: { config: EvalConfig; baseUrl: stri
                 disabled={connecting}
                 onClick={() => void mb.connectBle()}
               >
-                <Bluetooth size={16} aria-hidden="true" /> {connecting ? "Conectando..." : "Bluetooth"}
+                <Bluetooth size={16} aria-hidden="true" /> {connecting ? COPY.mbConnecting : "Bluetooth"}
               </button>
             )}
             {SHOW_USB_CONNECT && mb.supported.serial && (
@@ -163,17 +163,17 @@ function LiveEvalColumn({ config, baseUrl }: { config: EvalConfig; baseUrl: stri
                 disabled={connecting}
                 onClick={() => void mb.connectUsb()}
               >
-                <Usb size={16} aria-hidden="true" /> {connecting ? "Conectando..." : "USB"}
+                <Usb size={16} aria-hidden="true" /> {connecting ? COPY.mbConnecting : "USB"}
               </button>
             )}
           </div>
         )}
         <div className="lab-mb-status">
           {connected
-            ? `micro:bit conectado (${mb.transport === "bluetooth" ? "Bluetooth" : "USB"})`
+            ? COPY.mbConnected(mb.transport === "bluetooth" ? "Bluetooth" : "USB")
             : mb.status === "error"
-            ? mb.error ?? "Error de conexión"
-            : "micro:bit desconectado"}
+            ? mb.error ?? COPY.mbConnectionError
+            : COPY.mbDisconnected}
         </div>
       </div>
     </>

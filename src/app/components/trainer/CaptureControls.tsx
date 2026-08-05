@@ -27,7 +27,7 @@ export default function CaptureControls({
 }: CaptureControlsProps) {
   return (
     <div className="capture-controls">
-      <div className="capture-mode" role="group" aria-label="Modo de captura">
+      <div className="capture-mode" role="group" aria-label={COPY.ariaCaptureMode}>
         <button
           type="button"
           className={`capture-mode-btn ${!burstMode ? "is-on" : ""}`}
@@ -53,7 +53,7 @@ export default function CaptureControls({
       <button
         type="button"
         className="capture-shutter"
-        aria-label="Capturar ejemplo"
+        aria-label={COPY.ariaCapture}
         disabled={disabled}
         onMouseDown={onPressStart}
         onMouseUp={onPressEnd}

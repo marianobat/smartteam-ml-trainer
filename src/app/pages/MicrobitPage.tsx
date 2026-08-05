@@ -26,6 +26,7 @@ import {
   type CourseId,
 } from "../../core/makecode/courses";
 import { COPY } from "../copy";
+import { getLang } from "../i18n";
 import { resolveControllerUrl, useMakeCodeController, type ImportGuard } from "../../core/makecode/controller";
 import CameraStage from "../components/trainer/CameraStage";
 import LivePredictionBars from "../components/trainer/LivePredictionBars";
@@ -47,18 +48,18 @@ type ModelId = VideoModelId | "text";
 type PageConfig = EvalConfig & { label: string; focusBox?: boolean };
 
 const VIDEO_CONFIGS: Record<VideoModelId, PageConfig> = {
-  hands: { label: "Manos", storageKey: "hands", missingLabel: "Sin manos", dimmed: true, createExtractor: createHandExtractor },
-  face: { label: "Rostros", storageKey: "face", missingLabel: "Sin rostro", dimmed: true, createExtractor: createFaceExtractor },
-  pose: { label: "Cuerpo", storageKey: "pose", missingLabel: "Sin cuerpo", dimmed: true, createExtractor: createPoseExtractor },
-  images: { label: "Imágenes", storageKey: "images", missingLabel: "No reconocido", dimmed: false, focusBox: true, createExtractor: createImageExtractor },
+  hands: { label: COPY.modalities.hands.label, storageKey: "hands", missingLabel: COPY.modalities.hands.missingLabel, dimmed: true, createExtractor: createHandExtractor },
+  face: { label: COPY.modalities.face.label, storageKey: "face", missingLabel: COPY.modalities.face.missingLabel, dimmed: true, createExtractor: createFaceExtractor },
+  pose: { label: COPY.modalities.pose.label, storageKey: "pose", missingLabel: COPY.modalities.pose.missingLabel, dimmed: true, createExtractor: createPoseExtractor },
+  images: { label: COPY.modalities.images.label, storageKey: "images", missingLabel: COPY.modalities.images.missingLabel, dimmed: false, focusBox: true, createExtractor: createImageExtractor },
 };
 
 const MODEL_LABELS: Record<ModelId, string> = {
-  hands: "Manos",
-  face: "Rostros",
-  pose: "Cuerpo",
-  images: "Imágenes",
-  text: "Textos",
+  hands: COPY.modalities.hands.label,
+  face: COPY.modalities.face.label,
+  pose: COPY.modalities.pose.label,
+  images: COPY.modalities.images.label,
+  text: COPY.modalities.text.label,
 };
 
 const MODEL_STORAGE: Record<ModelId, SavedModality> = {
@@ -170,10 +171,10 @@ export default function MicrobitPage() {
     <div className="mb-page">
       <header className="mb-header">
         <a className="mb-back" href={`${baseUrl}trainer?model=${model}`}>
-          <ArrowLeft size={16} aria-hidden="true" /> Entrenamiento
+          <ArrowLeft size={16} aria-hidden="true" /> {COPY.backTraining}
         </a>
         <h1 className="mb-title">
-          Implementar modelo — {MODEL_LABELS[model]} · {COURSES[course].label}
+          {COPY.programMicrobit} — {MODEL_LABELS[model]} · {COURSES[course].label}
         </h1>
         <button
           type="button"
@@ -226,7 +227,7 @@ function CourseSelect({
     <div className="mb-page mb-course-page">
       <header className="mb-header">
         <a className="mb-back" href={backHref}>
-          <ArrowLeft size={16} aria-hidden="true" /> Entrenamiento
+          <ArrowLeft size={16} aria-hidden="true" /> {COPY.backTraining}
         </a>
         <h1 className="mb-title">{COPY.courseTitle}</h1>
       </header>
@@ -245,7 +246,7 @@ function CourseSelect({
               {id}
             </span>
             <span className="mb-course-label">{COURSES[id].longLabel}</span>
-            {last === id && <span className="mb-course-hint">La última vez</span>}
+            {last === id && <span className="mb-course-hint">{COPY.courseLast}</span>}
           </button>
         ))}
       </div>
@@ -261,7 +262,7 @@ function MakeCodeController({
   importGuard: ImportGuard | null;
 }) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
-  const resolved = useMemo(() => resolveControllerUrl(resolveForkUrl()), []);
+  const resolved = useMemo(() => resolveControllerUrl(resolveForkUrl(), getLang()), []);
   const { state, hostReady } = useMakeCodeController(
     iframeRef,
     resolved?.origin ?? null,
@@ -272,11 +273,8 @@ function MakeCodeController({
   if (!resolved) {
     return (
       <div className="mb-editor-missing">
-        <strong>Falta configurar el fork de MakeCode.</strong>
-        <p>
-          Definí <code>VITE_MAKECODE_FORK_URL</code> (o pasá <code>?mk=&lt;url&gt;</code> en la
-          dirección) apuntando al fork propio deployado.
-        </p>
+        <strong>{COPY.editorMissingTitle}</strong>
+        <p>{COPY.editorMissingHint}</p>
       </div>
     );
   }
@@ -293,7 +291,7 @@ function MakeCodeController({
       />
       {state !== "imported" && (
         <div className="mb-editor-status">
-          {state === "error" ? "No se pudo cargar el editor." : "Cargando editor y bloques..."}
+          {state === "error" ? COPY.editorLoadError : COPY.editorLoading}
         </div>
       )}
     </div>
@@ -315,8 +313,8 @@ function TextEvalColumn({ baseUrl }: { baseUrl: string }) {
         )}
         {!evaluation.hasModel && !evaluation.loading && (
           <div className="mb-no-model">
-            No hay un modelo de textos entrenado en este navegador.{" "}
-            <a href={`${baseUrl}trainer?model=text`}>Entrená uno primero</a>.
+            {COPY.noModelText}{" "}
+            <a href={`${baseUrl}trainer?model=text`}>{COPY.trainFirst}</a>.
           </div>
         )}
         {evaluation.error && (
@@ -345,7 +343,7 @@ function TextEvalColumn({ baseUrl }: { baseUrl: string }) {
       <div className="mb-microbit">
         {connected ? (
           <button type="button" className="mb-mb-disconnect" onClick={() => void mb.disconnect()}>
-            Desconectar micro:bit
+            {COPY.mbDisconnect}
           </button>
         ) : (
           <div className="mb-mb-buttons">
@@ -357,17 +355,17 @@ function TextEvalColumn({ baseUrl }: { baseUrl: string }) {
                 onClick={() => void mb.connectBle()}
               >
                 <Bluetooth size={16} aria-hidden="true" />{" "}
-                {connecting ? "Conectando..." : "Bluetooth"}
+                {connecting ? COPY.mbConnecting : "Bluetooth"}
               </button>
             )}
           </div>
         )}
         <div className="mb-mb-status">
           {connected
-            ? `micro:bit conectado (${mb.transport === "bluetooth" ? "Bluetooth" : "USB"})`
+            ? COPY.mbConnected(mb.transport === "bluetooth" ? "Bluetooth" : "USB")
             : mb.status === "error"
-              ? mb.error ?? "Error de conexión"
-              : "micro:bit desconectado"}
+              ? mb.error ?? COPY.mbConnectionError
+              : COPY.mbDisconnected}
         </div>
       </div>
 
@@ -406,8 +404,7 @@ function LiveEvalColumn({ config, baseUrl }: { config: PageConfig; baseUrl: stri
 
       {!evaluation.hasModel && !evaluation.loading && (
         <div className="mb-no-model">
-          No hay un modelo entrenado para esta modalidad en este navegador.{" "}
-          <a href={`${baseUrl}trainer`}>Entrená uno primero</a>.
+          {COPY.noModelModality} <a href={`${baseUrl}trainer`}>{COPY.trainFirst}</a>.
         </div>
       )}
 
@@ -416,28 +413,28 @@ function LiveEvalColumn({ config, baseUrl }: { config: PageConfig; baseUrl: stri
       <div className="mb-microbit">
         {connected ? (
           <button type="button" className="mb-mb-disconnect" onClick={() => void mb.disconnect()}>
-            Desconectar micro:bit
+            {COPY.mbDisconnect}
           </button>
         ) : (
           <div className="mb-mb-buttons">
             {mb.supported.bluetooth && (
               <button type="button" className="mb-mb-connect" disabled={connecting} onClick={() => void mb.connectBle()}>
-                <Bluetooth size={16} aria-hidden="true" /> {connecting ? "Conectando..." : "Bluetooth"}
+                <Bluetooth size={16} aria-hidden="true" /> {connecting ? COPY.mbConnecting : "Bluetooth"}
               </button>
             )}
             {SHOW_USB_CONNECT && mb.supported.serial && (
               <button type="button" className="mb-mb-connect" disabled={connecting} onClick={() => void mb.connectUsb()}>
-                <Usb size={16} aria-hidden="true" /> {connecting ? "Conectando..." : "USB"}
+                <Usb size={16} aria-hidden="true" /> {connecting ? COPY.mbConnecting : "USB"}
               </button>
             )}
           </div>
         )}
         <div className="mb-mb-status">
           {connected
-            ? `micro:bit conectado (${mb.transport === "bluetooth" ? "Bluetooth" : "USB"})`
+            ? COPY.mbConnected(mb.transport === "bluetooth" ? "Bluetooth" : "USB")
             : mb.status === "error"
-            ? mb.error ?? "Error de conexión"
-            : "micro:bit desconectado"}
+            ? mb.error ?? COPY.mbConnectionError
+            : COPY.mbDisconnected}
         </div>
       </div>
 

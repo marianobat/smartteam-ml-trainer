@@ -133,7 +133,7 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
   const featureDim = extractor.featureDim;
   const missingLabel = config.missingLabel;
 
-  const [status, setStatus] = useState("Inicializando...");
+  const [status, setStatus] = useState(COPY.statusInit);
   const [mode, setMode] = useState<Mode>("examples");
   const modeRef = useRef<Mode>(mode);
   const [advanced, toggleAdvanced] = useAdvancedMode();
@@ -328,7 +328,7 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
     } catch (err) {
       console.error(err);
       setSaveStatus("error");
-      setProjectError("No se pudo guardar el proyecto en este navegador.");
+      setProjectError(COPY.projectSaveError);
     }
   };
 
@@ -379,7 +379,7 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
       } catch (err) {
         console.error(err);
         if (!cancelled) {
-          setProjectError("No se pudo cargar el proyecto guardado.");
+          setProjectError(COPY.projectLoadError);
         }
       } finally {
         if (!cancelled) {
@@ -420,7 +420,7 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
       setProjectError(null);
     } catch (err) {
       console.error(err);
-      setProjectError("No se pudo exportar el proyecto.");
+      setProjectError(COPY.projectExportError);
     }
   };
 
@@ -462,7 +462,7 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
       await clearProject(config.storageKey);
     } catch (err) {
       console.error(err);
-      setProjectError("No se pudo borrar el proyecto guardado.");
+      setProjectError(COPY.projectClearError);
     }
     // Volver al preset de fábrica (si la modalidad tiene uno)
     if (preset) {
@@ -672,11 +672,9 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
         setTrainError(null);
         const sampleCount = prepared.xs.shape[0];
         if (sampleCount < 30) {
-          setTrainNotice("Hay pocas muestras para validar. Suma más ejemplos para mejorar el modelo.");
+          setTrainNotice(COPY.trainNoticeFewSamples);
         } else if (result.meta.stoppedEarly) {
-          setTrainNotice(
-            "Entrenamiento detenido por falta de mejora en validación. Suma más muestras o balancea las clases."
-          );
+          setTrainNotice(COPY.trainNoticeEarlyStop);
         } else {
           setTrainNotice(null);
         }
@@ -703,23 +701,23 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
 
     async function setup() {
       if (!videoEl || !canvasEl) {
-        setStatus("No se encontró el video.");
+        setStatus(COPY.statusNoVideo);
         return;
       }
       setStatus(config.loadingText);
       await extractor.load();
 
-      setStatus("Activando cámara...");
+      setStatus(COPY.statusCamera);
       await startCamera(videoEl);
 
       // Ajustar canvas al tamaño del video
       canvasEl.width = videoEl.videoWidth || 640;
       canvasEl.height = videoEl.videoHeight || 480;
 
-      setStatus("Detectando...");
+      setStatus(COPY.statusDetecting);
       const ctx = canvasEl.getContext("2d");
       if (!ctx) {
-        setStatus("No se pudo iniciar el canvas.");
+        setStatus(COPY.statusCanvasError);
         return;
       }
 
@@ -922,7 +920,7 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
     [dataset.samples, dataset.activeClassId]
   );
 
-  const cameraLoading = status !== "Detectando...";
+  const cameraLoading = status !== COPY.statusDetecting;
 
   const activeSampleCount = dataset.activeClassId
     ? counts[dataset.activeClassId] ?? 0
@@ -993,14 +991,14 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
 
   const wsStatusLabel =
     wsStatus === "open"
-      ? "conectado"
+      ? COPY.wsConnected
       : wsStatus === "reconnecting"
-      ? "reconectando"
+      ? COPY.wsReconnecting
       : wsStatus === "connecting"
-      ? "conectando"
+      ? COPY.wsConnecting
       : wsStatus === "error"
-      ? "error"
-      : "inactivo";
+      ? COPY.wsError
+      : COPY.wsIdle;
   const lastGestureLabel = lastSentGesture
     ? `${lastSentGesture.label} (${lastSentGesture.confidence.toFixed(2)})`
     : "—";
@@ -1016,7 +1014,7 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
           type="button"
           className="trainer-logo-btn"
           onClick={onBack}
-          aria-label="Volver al inicio"
+          aria-label={COPY.ariaBackHome}
         >
           <img
             className="trainer-logo"
@@ -1066,7 +1064,7 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
                         className="preset-own-btn"
                         onClick={handleCreateOwnClasses}
                       >
-                        <Pencil size={15} aria-hidden="true" /> Crear mis propias clases
+                        <Pencil size={15} aria-hidden="true" /> {COPY.createOwnClasses}
                       </button>
                     )}
 
@@ -1242,7 +1240,7 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
                 data={lineData}
                 isTraining={isTraining}
                 trainComplete={trainComplete && hasTrainedModel}
-                xLabel={mode === "examples" ? COPY.curveXLabel : "Épocas de entrenamiento"}
+                xLabel={mode === "examples" ? COPY.curveXLabel : COPY.advEpochsXLabel}
               />
             </div>
           )}
@@ -1251,7 +1249,7 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
 
       <AdvancedDrawer open={advanced} onToggle={toggleAdvanced}>
         <div className="advanced-block">
-          <div className="advanced-block-title">Clasificador</div>
+          <div className="advanced-block-title">{COPY.advClassifier}</div>
           <div className="advanced-mode-toggle">
             <button
               type="button"
@@ -1260,7 +1258,7 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
               onClick={() => setMode("examples")}
               disabled={isTraining}
             >
-              Comparar ejemplos (kNN)
+              {COPY.advKnn}
             </button>
             <button
               type="button"
@@ -1269,13 +1267,13 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
               onClick={() => setMode("ml")}
               disabled={isTraining}
             >
-              Red neuronal (ML)
+              {COPY.advNn}
             </button>
           </div>
           <div>
-            {mode === "examples" ? "Muestras" : "Época"}: <b>{trainProgress.epoch}</b> /{" "}
-            {trainProgress.total || (mode === "ml" ? TRAIN_EPOCHS : 0)} — Precisión{" "}
-            <b>{(trainProgress.acc ?? 0).toFixed(2)}</b> / Validación{" "}
+            {mode === "examples" ? COPY.advSamples : COPY.advEpoch}: <b>{trainProgress.epoch}</b> /{" "}
+            {trainProgress.total || (mode === "ml" ? TRAIN_EPOCHS : 0)} — {COPY.advAccuracy}{" "}
+            <b>{(trainProgress.acc ?? 0).toFixed(2)}</b> / {COPY.advValidation}{" "}
             <b>
               {trainProgress.valAcc !== undefined ? trainProgress.valAcc.toFixed(2) : "—"}
             </b>
@@ -1292,14 +1290,14 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
                     typeof value === "number" ? value.toFixed(2) : value
                   }
                   labelFormatter={(label) =>
-                    mode === "examples" ? `Muestras ${label}` : `Época ${label}`
+                    mode === "examples" ? `${COPY.advSamples} ${label}` : `${COPY.advEpoch} ${label}`
                   }
                 />
                 <Legend />
                 <Line
                   type="monotone"
                   dataKey="acc"
-                  name="Precisión entrenamiento"
+                  name={COPY.advTrainAccSeries}
                   stroke="#796eb0"
                   dot={false}
                   isAnimationActive={false}
@@ -1308,7 +1306,7 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
                   <Line
                     type="monotone"
                     dataKey="valAcc"
-                    name="Precisión validación"
+                    name={COPY.advValAccSeries}
                     stroke="#35bfe9"
                     dot={false}
                     isAnimationActive={false}
@@ -1320,9 +1318,9 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
         </div>
 
         <div className="advanced-block">
-          <div className="advanced-block-title">Predicción (detalle)</div>
+          <div className="advanced-block-title">{COPY.advPrediction}</div>
           <div>
-            Instantánea:{" "}
+            {COPY.advInstant}{" "}
             <b>
               {hasTrainedModel
                 ? hasSubject
@@ -1332,44 +1330,44 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
             </b>
           </div>
           <div>
-            Estable:{" "}
+            {COPY.advStable}{" "}
             <b>{stableLabel ? `${stableLabel} (${stableConfidence.toFixed(2)})` : "—"}</b>
           </div>
           <div>
-            Umbral de aceptación: <b>{ACCEPT_THRESHOLD.toFixed(2)}</b> — estado:{" "}
-            <b>{predictionAccepted ? "aceptado" : hasSubject ? "pendiente" : "sin sujeto"}</b>
+            {COPY.advThreshold} <b>{ACCEPT_THRESHOLD.toFixed(2)}</b> — {COPY.advStateLabel}{" "}
+            <b>{predictionAccepted ? COPY.advAccepted : hasSubject ? COPY.advPending : COPY.advNoSubject}</b>
           </div>
         </div>
 
         {TURBOWARP_ENABLED && (
           <div className="advanced-block">
-            <div className="advanced-block-title">TurboWarp (WebSocket)</div>
+            <div className="advanced-block-title">{COPY.advTurboWarp}</div>
             <div>
               Room: <b>{room || "—"}</b>
             </div>
             <div>
-              Estado: <b>{wsStatusLabel}</b>
+              {COPY.advStatus} <b>{wsStatusLabel}</b>
               {wsRole ? (
                 <>
                   {" "}
-                  — rol <b>{wsRole}</b>
+                  — {COPY.advRole} <b>{wsRole}</b>
                 </>
               ) : null}
             </div>
             {subscriberCount !== null && (
               <div>
-                Proyectos escuchando: <b>{subscriberCount}</b>
+                {COPY.advSubscribers} <b>{subscriberCount}</b>
               </div>
             )}
             <div>
-              Último gesto enviado: <b>{lastGestureLabel}</b>
+              {COPY.advLastGesture} <b>{lastGestureLabel}</b>
             </div>
             {wsError && <div className="advanced-error">WS: {wsError}</div>}
           </div>
         )}
 
         <div className="advanced-block">
-          <div className="advanced-block-title">Proyecto</div>
+          <div className="advanced-block-title">{COPY.projTitle}</div>
           <ProjectPanel
             saveStatus={saveStatus}
             savedAt={savedAt}

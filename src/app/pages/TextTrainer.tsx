@@ -103,7 +103,7 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
   const mb = useMicrobit();
   /** Mismo umbral que el slider avanzado de micro:bit y la eval en /microbit. */
   const acceptThreshold = mb.threshold;
-  const [status, setStatus] = useState("Descargando el modelo de texto (~25 MB la primera vez)...");
+  const [status, setStatus] = useState(COPY.statusTextDownload);
   const [ready, setReady] = useState(false);
   const [mode, setMode] = useState<Mode>("examples");
   const [advanced, toggleAdvanced] = useAdvancedMode();
@@ -330,7 +330,7 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
     } catch (err) {
       console.error(err);
       setSaveStatus("error");
-      setProjectError("No se pudo guardar el proyecto en este navegador.");
+      setProjectError(COPY.projectSaveError);
     }
   };
 
@@ -374,7 +374,7 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
       } catch (err) {
         console.error(err);
         if (!cancelled) {
-          setProjectError("No se pudo cargar el proyecto guardado.");
+          setProjectError(COPY.projectLoadError);
         }
       } finally {
         if (!cancelled) {
@@ -515,7 +515,7 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
     }
 
     if (rows.length === 0) {
-      setFileNotice(parseErrors[0] ?? "No hay ejemplos válidos en el archivo.");
+      setFileNotice(parseErrors[0] ?? COPY.fileNoSamples);
       return;
     }
 
@@ -680,11 +680,9 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
         setTrainComplete(true);
         const sampleCount = prepared.xs.shape[0];
         if (sampleCount < 30) {
-          setTrainNotice("Hay pocas muestras para validar. Suma más ejemplos para mejorar el modelo.");
+          setTrainNotice(COPY.trainNoticeFewSamples);
         } else if (result.meta.stoppedEarly) {
-          setTrainNotice(
-            "Entrenamiento detenido por falta de mejora en validación. Suma más muestras o balancea las clases."
-          );
+          setTrainNotice(COPY.trainNoticeEarlyStop);
         }
         serializedModelRef.current = await serializeMlModel(result.model, prepared.classNames);
         void persistProject(dataset);
@@ -813,7 +811,7 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
           type="button"
           className="trainer-logo-btn"
           onClick={onBack}
-          aria-label="Volver al inicio"
+          aria-label={COPY.ariaBackHome}
         >
           <img
             className="trainer-logo"
@@ -1024,7 +1022,7 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
                 data={lineData}
                 isTraining={isTraining}
                 trainComplete={trainComplete && hasTrainedModel}
-                xLabel={mode === "examples" ? COPY.curveXLabel : "Épocas de entrenamiento"}
+                xLabel={mode === "examples" ? COPY.curveXLabel : COPY.advEpochsXLabel}
               />
             </div>
           )}
@@ -1048,7 +1046,7 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
 
       <AdvancedDrawer open={advanced} onToggle={toggleAdvanced}>
         <div className="advanced-block">
-          <div className="advanced-block-title">Clasificador</div>
+          <div className="advanced-block-title">{COPY.advClassifier}</div>
           <div className="advanced-mode-toggle">
             <button
               type="button"
@@ -1057,7 +1055,7 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
               onClick={() => setMode("examples")}
               disabled={isTraining}
             >
-              Comparar ejemplos (kNN)
+              {COPY.advKnn}
             </button>
             <button
               type="button"
@@ -1066,13 +1064,13 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
               onClick={() => setMode("ml")}
               disabled={isTraining}
             >
-              Red neuronal (ML)
+              {COPY.advNn}
             </button>
           </div>
           <div>
-            {mode === "examples" ? "Muestras" : "Época"}: <b>{trainProgress.epoch}</b> /{" "}
-            {trainProgress.total || (mode === "ml" ? TRAIN_EPOCHS : 0)} — Precisión{" "}
-            <b>{(trainProgress.acc ?? 0).toFixed(2)}</b> / Validación{" "}
+            {mode === "examples" ? COPY.advSamples : COPY.advEpoch}: <b>{trainProgress.epoch}</b> /{" "}
+            {trainProgress.total || (mode === "ml" ? TRAIN_EPOCHS : 0)} — {COPY.advAccuracy}{" "}
+            <b>{(trainProgress.acc ?? 0).toFixed(2)}</b> / {COPY.advValidation}{" "}
             <b>{trainProgress.valAcc !== undefined ? trainProgress.valAcc.toFixed(2) : "—"}</b>
           </div>
           {trainNotice && <div className="advanced-notice">{trainNotice}</div>}
@@ -1087,14 +1085,14 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
                     typeof value === "number" ? value.toFixed(2) : value
                   }
                   labelFormatter={(label) =>
-                    mode === "examples" ? `Muestras ${label}` : `Época ${label}`
+                    mode === "examples" ? `${COPY.advSamples} ${label}` : `${COPY.advEpoch} ${label}`
                   }
                 />
                 <Legend />
                 <Line
                   type="monotone"
                   dataKey="acc"
-                  name="Precisión entrenamiento"
+                  name={COPY.advTrainAccSeries}
                   stroke="#796eb0"
                   dot={false}
                   isAnimationActive={false}
@@ -1103,7 +1101,7 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
                   <Line
                     type="monotone"
                     dataKey="valAcc"
-                    name="Precisión validación"
+                    name={COPY.advValAccSeries}
                     stroke="#35bfe9"
                     dot={false}
                     isAnimationActive={false}
@@ -1116,33 +1114,33 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
 
         {TURBOWARP_ENABLED && (
           <div className="advanced-block">
-            <div className="advanced-block-title">TurboWarp (WebSocket)</div>
+            <div className="advanced-block-title">{COPY.advTurboWarp}</div>
             <div>
               Room: <b>{room || "—"}</b>
             </div>
             <div>
-              Estado: <b>{wsStatusLabel}</b>
+              {COPY.advStatus} <b>{wsStatusLabel}</b>
               {wsRole ? (
                 <>
                   {" "}
-                  — rol <b>{wsRole}</b>
+                  — {COPY.advRole} <b>{wsRole}</b>
                 </>
               ) : null}
             </div>
             {subscriberCount !== null && (
               <div>
-                Proyectos escuchando: <b>{subscriberCount}</b>
+                {COPY.advSubscribers} <b>{subscriberCount}</b>
               </div>
             )}
             <div>
-              Último gesto enviado: <b>{lastGestureLabel}</b>
+              {COPY.advLastGesture} <b>{lastGestureLabel}</b>
             </div>
             {wsError && <div className="advanced-error">WS: {wsError}</div>}
           </div>
         )}
 
         <div className="advanced-block">
-          <div className="advanced-block-title">Proyecto</div>
+          <div className="advanced-block-title">{COPY.projTitle}</div>
           <ProjectPanel
             saveStatus={saveStatus}
             savedAt={savedAt}

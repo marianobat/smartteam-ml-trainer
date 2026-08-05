@@ -22,6 +22,7 @@ import {
 } from "../../core/microbit/bluetoothConnection";
 import { setMicrobitListeners, type MicrobitTransportKind } from "../../core/microbit/transport";
 import { DEFAULT_CONFIDENCE_THRESHOLD, NONE_LABEL } from "../../core/microbit/protocol";
+import { COPY } from "../copy";
 
 export type MicrobitStatus = "idle" | "connecting" | "open" | "disconnecting" | "error";
 
@@ -105,7 +106,7 @@ function wireListeners() {
       setState({
         status: "error",
         transport: null,
-        error: "Se perdió la conexión con la placa. Acércala y vuelve a conectar.",
+        error: COPY.mbLostConnection,
       }),
   });
 }

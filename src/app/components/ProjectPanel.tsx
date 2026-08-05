@@ -5,6 +5,7 @@
 
 import { useRef } from "react";
 import { Check } from "lucide-react";
+import { COPY } from "../copy";
 
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
 
@@ -39,15 +40,16 @@ export default function ProjectPanel({
 
   const statusLabel =
     saveStatus === "saving" ? (
-      "Guardando..."
+      COPY.chipSaving
     ) : saveStatus === "saved" ? (
       <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-        <Check size={13} aria-hidden="true" /> Guardado{savedAt ? ` ${formatTime(savedAt)}` : ""}
+        <Check size={13} aria-hidden="true" /> {COPY.chipSaved}
+        {savedAt ? ` ${formatTime(savedAt)}` : ""}
       </span>
     ) : saveStatus === "error" ? (
-      "Error al guardar"
+      COPY.projSaveFailed
     ) : (
-      "Sin guardar"
+      COPY.projUnsaved
     );
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -57,24 +59,22 @@ export default function ProjectPanel({
   };
 
   const handleClear = () => {
-    const ok = window.confirm(
-      "¿Borrar el proyecto guardado? Se pierden las clases, muestras y el modelo entrenado de esta modalidad."
-    );
+    const ok = window.confirm(COPY.projClearConfirm);
     if (ok) onClear();
   };
 
   return (
     <div style={{ borderTop: "1px solid #eee", paddingTop: 10, display: "grid", gap: 8 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ fontSize: 12, fontWeight: 600 }}>Proyecto</div>
+        <div style={{ fontSize: 12, fontWeight: 600 }}>{COPY.projTitle}</div>
         <div style={{ fontSize: 12, opacity: 0.8 }}>{statusLabel}</div>
       </div>
       <div style={{ display: "flex", gap: 8 }}>
         <button onClick={onExport} disabled={!canExport} style={{ flex: 1 }}>
-          Exportar ZIP
+          {COPY.projExport}
         </button>
         <button onClick={() => fileInputRef.current?.click()} style={{ flex: 1 }}>
-          Importar ZIP
+          {COPY.projImport}
         </button>
       </div>
       <input
@@ -85,12 +85,10 @@ export default function ProjectPanel({
         style={{ display: "none" }}
       />
       <button onClick={handleClear} style={{ fontSize: 12 }}>
-        Borrar proyecto guardado
+        {COPY.projClear}
       </button>
       {error && <div style={{ fontSize: 12, color: "#b91c1c" }}>{error}</div>}
-      <div style={{ fontSize: 11, opacity: 0.65 }}>
-        El proyecto se guarda solo en este navegador. Usá el ZIP para llevarlo a otra computadora.
-      </div>
+      <div style={{ fontSize: 11, opacity: 0.65 }}>{COPY.projNote}</div>
     </div>
   );
 }

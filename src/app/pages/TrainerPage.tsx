@@ -8,6 +8,8 @@ import { createFaceExtractor } from "../../core/extractors/faceExtractor";
 import { createImageExtractor } from "../../core/extractors/imageExtractor";
 import { TURBOWARP_ENABLED } from "../../core/bridge/features";
 import { getToken, getRoom } from "../../core/bridge/session";
+import { COPY } from "../copy";
+import LangSwitch from "../components/LangSwitch";
 import "./TrainerPage.css";
 
 const coverUrl = (name: string) => `${import.meta.env.BASE_URL}covers/${name}.svg`;
@@ -31,40 +33,40 @@ const getModelFromQuery = (): ModelId | null => {
 
 const trainerConfigs: Partial<Record<ModelId, TrainerConfig>> = {
   hands: {
-    title: "Entrenamiento de manos",
-    loadingText: "Preparando el detector de manos...",
-    missingLabel: "Sin manos",
-    missingHint: "No veo tus manos. Ponlas frente a la cámara",
+    title: COPY.modalities.hands.trainerTitle,
+    loadingText: COPY.modalities.hands.loadingText,
+    missingLabel: COPY.modalities.hands.missingLabel,
+    missingHint: COPY.modalities.hands.missingHint,
     placeholderIcon: "✋",
     thumbnailSource: "overlay",
     storageKey: "hands",
     createExtractor: createHandExtractor,
   },
   pose: {
-    title: "Entrenamiento de cuerpo",
-    loadingText: "Preparando el detector de cuerpo...",
-    missingLabel: "Sin cuerpo",
-    missingHint: "No te veo. Aléjate un poco de la cámara",
+    title: COPY.modalities.pose.trainerTitle,
+    loadingText: COPY.modalities.pose.loadingText,
+    missingLabel: COPY.modalities.pose.missingLabel,
+    missingHint: COPY.modalities.pose.missingHint,
     placeholderIcon: "🧍",
     thumbnailSource: "overlay",
     storageKey: "pose",
     createExtractor: createPoseExtractor,
   },
   face: {
-    title: "Entrenamiento de Rostros",
-    loadingText: "Preparando el detector de rostros...",
-    missingLabel: "Sin rostro",
-    missingHint: "No veo tu rostro. Acércate a la cámara",
+    title: COPY.modalities.face.trainerTitle,
+    loadingText: COPY.modalities.face.loadingText,
+    missingLabel: COPY.modalities.face.missingLabel,
+    missingHint: COPY.modalities.face.missingHint,
     placeholderIcon: "😀",
     thumbnailSource: "overlay",
     storageKey: "face",
     createExtractor: createFaceExtractor,
   },
   images: {
-    title: "Entrenamiento de Imágenes",
-    loadingText: "Preparando el detector de imágenes...",
-    missingLabel: "No reconocido",
-    missingHint: "Muéstrale algo a la cámara",
+    title: COPY.modalities.images.trainerTitle,
+    loadingText: COPY.modalities.images.loadingText,
+    missingLabel: COPY.modalities.images.missingLabel,
+    missingHint: COPY.modalities.images.missingHint,
     placeholderIcon: "🖼️",
     thumbnailSource: "video",
     storageKey: "images",
@@ -78,50 +80,13 @@ export default function TrainerPage() {
   const publishToken = getToken() || "";
   const [selectedModel, setSelectedModel] = useState<ModelId | null>(getModelFromQuery);
 
-  const models = [
-    {
-      id: "hands",
-      title: "Manos",
-      description: "Gestos y señas con tus manos.",
-      enabled: true,
-      cover: coverUrl("hands"),
-    },
-    {
-      id: "face",
-      title: "Rostros",
-      description: "Sonrisas, guiños y expresiones.",
-      enabled: true,
-      cover: coverUrl("face"),
-    },
-    {
-      id: "pose",
-      title: "Cuerpo",
-      description: "Posturas y movimientos enteros.",
-      enabled: true,
-      cover: coverUrl("pose"),
-    },
-    {
-      id: "images",
-      title: "Imágenes",
-      description: "Objetos y dibujos frente a la cámara.",
-      enabled: true,
-      cover: coverUrl("images"),
-    },
-    {
-      id: "text",
-      title: "Entrenamiento de Textos",
-      description: "Frases y palabras escritas.",
-      enabled: true,
-      cover: coverUrl("text"),
-    },
-    {
-      id: "audio",
-      title: "Entrenamiento de Sonidos",
-      description: "Palabras y sonidos con el micrófono.",
-      enabled: true,
-      cover: coverUrl("audio"),
-    },
-  ] as const;
+  const models = (["hands", "face", "pose", "images", "text", "audio"] as const).map((id) => ({
+    id,
+    title: COPY.modalities[id].cardTitle,
+    description: COPY.modalities[id].cardDescription,
+    enabled: true,
+    cover: coverUrl(id),
+  }));
 
   if (selectedModel === "text") {
     return <TextTrainer onBack={() => setSelectedModel(null)} room={room} publishToken={publishToken} />;
@@ -142,18 +107,18 @@ export default function TrainerPage() {
               src={`${import.meta.env.BASE_URL ?? "/"}brand/smartteam-logo.svg`}
               alt="SmartTEAM"
             />
-            <h1 className="trainer-select-title">Entrena tu modelo de IA</h1>
-            <p className="trainer-select-subtitle">Elige un modelo para entrenar.</p>
+            <h1 className="trainer-select-title">{COPY.selectTitle}</h1>
+            <p className="trainer-select-subtitle">{COPY.selectSubtitle}</p>
           </div>
-          {TURBOWARP_ENABLED && room && (
-            <div className="trainer-select-room">Room: {room}</div>
-          )}
+          <div className="trainer-select-header-right">
+            <LangSwitch />
+            {TURBOWARP_ENABLED && room && (
+              <div className="trainer-select-room">Room: {room}</div>
+            )}
+          </div>
         </header>
         {TURBOWARP_ENABLED && !room && (
-          <div className="trainer-select-warning">
-            Sin sesión de TurboWarp: podés entrenar y usar micro:bit igual. Para publicar a
-            TurboWarp, crea una sesión en el lobby.
-          </div>
+          <div className="trainer-select-warning">{COPY.selectNoSession}</div>
         )}
         <section className="trainer-select-grid">
           {models.map((model) => {
@@ -192,7 +157,7 @@ export default function TrainerPage() {
         {TURBOWARP_ENABLED && (
           <div className="trainer-select-actions">
             <button type="button" onClick={() => window.location.assign(baseUrl)}>
-              Volver al Lobby
+              {COPY.backToLobby}
             </button>
           </div>
         )}

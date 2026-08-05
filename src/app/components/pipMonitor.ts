@@ -11,6 +11,8 @@
 // La PiP es un documento aparte: NO hereda las CSS variables del :root, por eso
 // los colores van como hex fijos que igualan los tokens de src/theme.css.
 
+import { COPY } from "../copy";
+
 export function isPipSupported(): boolean {
   return typeof window !== "undefined" && "documentPictureInPicture" in window;
 }
@@ -148,7 +150,7 @@ export async function openPipMonitor(opts: PipMonitorOptions): Promise<() => voi
       `padding:10px;text-align:center;`,
     doc.body
   );
-  emptyEl.textContent = "Cuando entrenes tu modelo, aquí vas a ver qué detecta en vivo.";
+  emptyEl.textContent = COPY.liveEmpty;
 
   type BarRow = { name: HTMLElement; fill: HTMLElement; value: HTMLElement; root: HTMLElement };
   let barRows: BarRow[] = [];

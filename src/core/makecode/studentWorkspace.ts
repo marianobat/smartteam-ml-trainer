@@ -52,19 +52,29 @@ export function saveStudentWorkspace(
   }
 }
 
+/** XML sin ningún `<block>`: el alumno no tiene programa propio guardado. */
+function hasBlocks(blocksXml: string | undefined): blocksXml is string {
+  return typeof blocksXml === "string" && blocksXml.includes("<block");
+}
+
 /**
  * Plantilla actual (deps/extensiones/clases) + bloques del alumno.
  * Nunca reutiliza el pxt.json viejo del backup: las extensiones vienen siempre
- * de la plantilla fresca.
+ * de la plantilla fresca. Un `main.blocks` sin bloques no cuenta como programa:
+ * se prefiere el canvas starter de la plantilla ("al iniciar" + "para siempre").
  */
 export function mergeStudentFiles(
   templateText: Record<string, string>,
   studentText: Record<string, string> | undefined
 ): Record<string, string> {
   if (!studentText) return { ...templateText };
+  const studentBlocks = studentText["main.blocks"];
+  // Sin bloques propios → plantilla entera (main.ts del alumno quedaría
+  // desincronizado con el canvas starter).
+  if (!hasBlocks(studentBlocks)) return { ...templateText };
   return {
     ...templateText,
-    "main.blocks": studentText["main.blocks"] ?? templateText["main.blocks"],
+    "main.blocks": studentBlocks,
     "main.ts": studentText["main.ts"] ?? templateText["main.ts"],
   };
 }

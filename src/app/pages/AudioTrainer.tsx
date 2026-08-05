@@ -41,7 +41,6 @@ import "./Trainer.css";
 import "./AudioTrainer.css";
 
 const BACKGROUND_LABEL = "_background_noise_";
-const BACKGROUND_NAME = "Ruido de fondo";
 const TRAIN_EPOCHS = 40;
 const ACCEPT_THRESHOLD = DEFAULT_CONFIDENCE_THRESHOLD;
 const PLACEHOLDER_ICON = "🔊";
@@ -65,9 +64,9 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
   const transferCounterRef = useRef(0);
   const listeningRef = useRef(false);
 
-  const [status, setStatus] = useState("Descargando el modelo de audio...");
+  const [status, setStatus] = useState(COPY.statusAudioDownload);
   const [ready, setReady] = useState(false);
-  const [classes, setClasses] = useState<AudioClass[]>([{ id: uid(), name: "Clase 1" }]);
+  const [classes, setClasses] = useState<AudioClass[]>([{ id: uid(), name: COPY.defaultClassName(1) }]);
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [recordingId, setRecordingId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -258,7 +257,7 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
   };
 
   const labelToName = (raw: string) => {
-    if (raw === BACKGROUND_LABEL) return BACKGROUND_NAME;
+    if (raw === BACKGROUND_LABEL) return COPY.audioBackgroundName;
     return classesRef.current.find((c) => c.id === raw)?.name ?? raw;
   };
 
@@ -369,7 +368,7 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
       transferCounterRef.current += 1;
       transferRef.current = base.createTransfer(`smartteam-${transferCounterRef.current}`);
     }
-    setClasses([{ id: uid(), name: "Clase 1" }]);
+    setClasses([{ id: uid(), name: COPY.defaultClassName(1) }]);
     setCounts({});
     setTrainComplete(false);
     setTriedIt(false);
@@ -383,7 +382,7 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
 
   const selectedIsNoise = selectedId === BACKGROUND_LABEL;
   const selectedClass = selectedIsNoise
-    ? { id: BACKGROUND_LABEL, name: BACKGROUND_NAME }
+    ? { id: BACKGROUND_LABEL, name: COPY.audioBackgroundName }
     : classes.find((c) => c.id === selectedId) ?? null;
   const selectedCount = selectedClass ? counts[selectedClass.id] ?? 0 : 0;
   const isRecordingSelected = recordingId === selectedClass?.id;
@@ -402,7 +401,7 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
       : !everyClassNamed
       ? COPY.needClassNames
       : noiseCount < MIN_SAMPLES_PER_CLASS
-      ? `Graba ${MIN_SAMPLES_PER_CLASS} muestras de "${BACKGROUND_NAME}" (el ruido normal del salón): así el modelo sabe cuándo nadie habla.`
+      ? COPY.audioNeedNoise(MIN_SAMPLES_PER_CLASS, COPY.audioBackgroundName)
       : COPY.needSamples(MIN_SAMPLES_PER_CLASS)
     : null;
 
@@ -452,7 +451,7 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
           type="button"
           className="trainer-logo-btn"
           onClick={onBack}
-          aria-label="Volver al inicio"
+          aria-label={COPY.ariaBackHome}
         >
           <img
             className="trainer-logo"
@@ -475,7 +474,7 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
               {
                 id: "teach",
                 title: COPY.stepTeachTitle,
-                subtitle: "Grábale ejemplos de cada sonido",
+                subtitle: COPY.audioTeachSubtitle,
                 state: samplesReady ? "done" : "active",
                 summary: teachSummary,
                 actionLabel: COPY.stepEdit,
@@ -485,7 +484,7 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
                       items={[
                         {
                           id: BACKGROUND_LABEL,
-                          name: BACKGROUND_NAME,
+                          name: COPY.audioBackgroundName,
                           count: noiseCount,
                         },
                         ...classes.map((c) => ({
@@ -562,7 +561,7 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
               {
                 id: "test",
                 title: COPY.stepTestTitle,
-                subtitle: "Habla o haz sonidos y mira qué detecta",
+                subtitle: COPY.audioTestSubtitle,
                 state: canTest ? "active" : "locked",
                 body: (
                   <>
@@ -607,12 +606,12 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
                       <Mic size={18} aria-hidden="true" />
                     )}{" "}
                     {selectedClass.name.trim()
-                      ? `Graba ejemplos para "${selectedClass.name.trim()}"`
+                      ? COPY.audioRecordFor(selectedClass.name.trim())
                       : COPY.nameClassToCapture}
                   </h3>
                   {selectedIsNoise && (
                     <p className="audio-stage-note">
-                      Quédate en silencio (o deja el ruido normal del salón) mientras graba.
+                      {COPY.audioNoiseHint}
                     </p>
                   )}
                   <button
@@ -629,18 +628,19 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
                   >
                     {isRecordingSelected ? (
                       <>
-                        <Circle size={16} fill="currentColor" aria-hidden="true" /> Grabando...
+                        <Circle size={16} fill="currentColor" aria-hidden="true" />{" "}
+                        {COPY.audioRecording}
                       </>
                     ) : (
                       <>
                         <Mic size={16} aria-hidden="true" />{" "}
-                        {selectedIsNoise ? "Grabar 2 segundos" : COPY.recordAudio}
+                        {selectedIsNoise ? COPY.audioRecordNoise : COPY.recordAudio}
                       </>
                     )}
                   </button>
                   {isListening && (
                     <p className="audio-stage-note">
-                      Para grabar más ejemplos, primero pausa la escucha en "Pruébalo".
+                      {COPY.audioListeningHint}
                     </p>
                   )}
                   <SampleGrid
@@ -661,7 +661,7 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
                 data={trainCurve}
                 isTraining={isTraining}
                 trainComplete={trainComplete}
-                xLabel="Épocas de entrenamiento"
+                xLabel={COPY.advEpochsXLabel}
               />
             </div>
           )}
@@ -679,11 +679,11 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
                     >
                       {isListening ? (
                         <>
-                          <Pause size={14} aria-hidden="true" /> Pausar escucha
+                          <Pause size={14} aria-hidden="true" /> {COPY.audioPause}
                         </>
                       ) : (
                         <>
-                          <Play size={14} aria-hidden="true" /> Escuchar
+                          <Play size={14} aria-hidden="true" /> {COPY.audioListen}
                         </>
                       )}
                     </button>

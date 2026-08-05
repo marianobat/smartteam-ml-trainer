@@ -17,6 +17,7 @@ import { deserializeMlModel, loadProject, type SavedModality } from "../../core/
 import { DEFAULT_CONFIDENCE_THRESHOLD } from "../../core/microbit/protocol";
 import { microbitApi } from "./useMicrobit";
 import type { PredictionRow } from "../components/trainer/LivePredictionBars";
+import { COPY } from "../copy";
 
 const PREDICT_INTERVAL_MS = 80;
 const ACCEPT_THRESHOLD = DEFAULT_CONFIDENCE_THRESHOLD;
@@ -117,21 +118,21 @@ export function useLiveEvaluation(
 
     async function setup() {
       if (!videoEl || !canvasEl) {
-        setStatus("No se encontró el video.");
+        setStatus(COPY.statusNoVideo);
         return;
       }
-      setStatus("Preparando el detector...");
+      setStatus(COPY.statusPreparing);
       await extractor.load();
-      setStatus("Activando cámara...");
+      setStatus(COPY.statusCamera);
       await startCamera(videoEl);
       canvasEl.width = videoEl.videoWidth || 640;
       canvasEl.height = videoEl.videoHeight || 480;
       const ctx = canvasEl.getContext("2d");
       if (!ctx) {
-        setStatus("No se pudo iniciar el canvas.");
+        setStatus(COPY.statusCanvasError);
         return;
       }
-      setStatus("Detectando...");
+      setStatus(COPY.statusDetecting);
 
       const loop = () => {
         if (!running) return;

@@ -10,6 +10,7 @@
 
 import type { ReactNode } from "react";
 import { ChevronDown, ChevronUp, Lock } from "lucide-react";
+import { COPY } from "../../copy";
 import "./StepAccordion.css";
 
 export type StepState = "active" | "done" | "locked";
@@ -36,7 +37,7 @@ type StepAccordionProps = {
 
 export default function StepAccordion({ steps, openId, onOpen }: StepAccordionProps) {
   return (
-    <ol className="step-accordion" aria-label="Pasos">
+    <ol className="step-accordion" aria-label={COPY.ariaSteps}>
       {steps.map((step, idx) => {
         const open = openId === step.id && step.state !== "locked";
         const number = idx + 1;

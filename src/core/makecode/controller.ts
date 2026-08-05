@@ -2,7 +2,7 @@
 //
 // MakeCode embebido en modo controller (`?controller=1`).
 //
-// - Idioma: siempre `lang=es`.
+// - Idioma: `lang` + `forcelang` = idioma elegido en el trainer (app/i18n.ts).
 // - Workspace: SIN `ws=browser`. El padre responde `workspacesync` /
 //   `workspacesave` (como webapp/public/controller.html de pxt) para persistir
 //   los bloques del alumno en localStorage del trainer.
@@ -44,15 +44,22 @@ let messageSeq = 0;
 const nextId = () => `st-${Date.now()}-${messageSeq++}`;
 
 /**
- * URL del iframe: controller + español. Sin ws=browser (workspace lo hostea el padre).
+ * URL del iframe: controller + idioma del trainer. Sin ws=browser (workspace
+ * lo hostea el padre).
  */
-export function resolveControllerUrl(baseUrl: string): { src: string; origin: string } | null {
+export function resolveControllerUrl(
+  baseUrl: string,
+  lang: string = "es"
+): { src: string; origin: string } | null {
   const trimmed = baseUrl.trim();
   if (!trimmed) return null;
   try {
     const url = new URL(trimmed, window.location.href);
     url.searchParams.set("controller", "1");
-    url.searchParams.set("lang", "es");
+    // forcelang pisa la preferencia guardada del editor (cookie PXT_LANG);
+    // lang solo aplica si el usuario no tiene idioma elegido.
+    url.searchParams.set("lang", lang);
+    url.searchParams.set("forcelang", lang);
     url.searchParams.delete("ws");
     return { src: url.toString(), origin: url.origin };
   } catch {
@@ -117,11 +124,9 @@ export function useMakeCodeController(
       project: toImport,
     });
 
-    const persistId = guardRef.current?.persistId;
-    const contentSig = guardRef.current?.contentSig ?? "";
-    if (persistId) {
-      saveStudentWorkspace(persistId, contentSig, { text: toImport.text });
-    }
+    // El backup se escribe SOLO desde workspacesave (lo que el alumno edita).
+    // Guardar acá pisaba el slot con la plantilla (canvas starter) en la
+    // primera visita, y ese backup "vacío" ganaba en merges posteriores.
     setState("imported");
     collapseSimulator();
   };
