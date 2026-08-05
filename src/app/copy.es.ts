@@ -262,6 +262,26 @@ export const COPY_ES = {
   fileReadError: "No se pudo leer el archivo.",
   fileNeedClassName: "Ponle nombre a la clase activa antes de cargar el archivo.",
   fileNoSamples: "No hay ejemplos válidos en el archivo.",
+  fileEmpty: "El archivo está vacío.",
+  fileEmptyOrNoPhrases: "El archivo está vacío o no tiene frases.",
+  fileBadHeader:
+    'La primera fila debe ser el encabezado con columnas "clase" y "texto" (ej.: clase,texto).',
+  fileMissingClass: (line: number) => `Fila ${line}: falta el nombre de la clase.`,
+  fileMissingText: (line: number) => `Fila ${line}: falta el texto del ejemplo.`,
+  fileNoRows: "No hay filas de ejemplos debajo del encabezado.",
+  fileRowError: (line: number, detail: string) => `Fila ${line}: ${detail}`,
+  fileImportAdded: (added: number, skipped: number) => {
+    const base = `Se agregaron ${added} ejemplo${added === 1 ? "" : "s"}`;
+    if (skipped <= 0) return `${base}.`;
+    return `${base} · ${skipped} fila${skipped === 1 ? "" : "s"} omitida${skipped === 1 ? "" : "s"}.`;
+  },
+  fileImportNone: (detail: string) =>
+    detail ? `No se pudo importar ningún ejemplo. ${detail}` : "No se pudo importar ningún ejemplo.",
+
+  statusTextDownloadProgress: (pct: number) => `Descargando el modelo de texto... ${pct}%`,
+  statusModelLoadError: (detail: string) => `Error al cargar el modelo: ${detail}`,
+  statusError: (detail: string) => `Error: ${detail}`,
+  statusErrorShort: "Error",
 
   // --- Entrenador de sonidos ---
   audioBackgroundName: "Ruido de fondo",

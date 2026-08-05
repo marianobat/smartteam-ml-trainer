@@ -859,7 +859,7 @@ export default function Trainer({ config, onBack, room, publishToken }: TrainerP
     setup().catch((err) => {
       console.error(err);
       const message = err instanceof Error ? err.message : String(err);
-      setStatus(`Error: ${message}`);
+      setStatus(COPY.statusError(message));
     });
 
     return () => {

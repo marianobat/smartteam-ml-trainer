@@ -161,7 +161,7 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
     load().catch((err) => {
       if (cancelled) return;
       console.error(err);
-      setStatus(`Error al cargar el modelo: ${err instanceof Error ? err.message : String(err)}`);
+      setStatus(COPY.statusModelLoadError(err instanceof Error ? err.message : String(err)));
     });
 
     return () => {

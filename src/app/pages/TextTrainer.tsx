@@ -43,8 +43,8 @@ import {
   MIN_SAMPLES_PER_CLASS,
   type DatasetState,
 } from "../../core/dataset/datasetStore";
-import { parseTextSamplesCsv } from "../../core/text/parseTextSamplesCsv";
-import { parseTextSamplesTxt } from "../../core/text/parseTextSamplesTxt";
+import { parseTextSamplesCsv, type TextCsvParseError } from "../../core/text/parseTextSamplesCsv";
+import { parseTextSamplesTxt, type TextTxtParseError } from "../../core/text/parseTextSamplesTxt";
 import {
   clearProject,
   deserializeMlModel,
@@ -77,6 +77,27 @@ type TrainHistory = {
   valAcc: number[];
   steps?: number[];
 };
+
+function formatTextParseError(err: TextCsvParseError | TextTxtParseError): string {
+  switch (err.kind) {
+    case "empty":
+      return COPY.fileEmpty;
+    case "emptyOrNoPhrases":
+      return COPY.fileEmptyOrNoPhrases;
+    case "badHeader":
+      return COPY.fileBadHeader;
+    case "missingClass":
+      return COPY.fileMissingClass(err.line);
+    case "missingText":
+      return COPY.fileMissingText(err.line);
+    case "noRows":
+      return COPY.fileNoRows;
+    default: {
+      const _exhaustive: never = err;
+      return _exhaustive;
+    }
+  }
+}
 
 type TrainProgress = {
   epoch: number;
@@ -186,7 +207,7 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
     initTextEmbedder((p) => {
       if (cancelled) return;
       if (p.status === "progress" && typeof p.progress === "number") {
-        setStatus(`Descargando el modelo de texto... ${p.progress.toFixed(0)}%`);
+        setStatus(COPY.statusTextDownloadProgress(Math.round(p.progress)));
       }
     })
       .then(() => {
@@ -196,7 +217,7 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
       })
       .catch((err) => {
         if (cancelled) return;
-        setStatus(`Error al cargar el modelo: ${err instanceof Error ? err.message : String(err)}`);
+        setStatus(COPY.statusModelLoadError(err instanceof Error ? err.message : String(err)));
       });
     return () => {
       cancelled = true;
@@ -415,7 +436,7 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
       setProjectError(null);
     } catch (err) {
       console.error(err);
-      setProjectError("No se pudo exportar el proyecto.");
+      setProjectError(COPY.projectExportError);
     }
   };
 
@@ -452,7 +473,7 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
       await clearProject(STORAGE_KEY);
     } catch (err) {
       console.error(err);
-      setProjectError("No se pudo borrar el proyecto guardado.");
+      setProjectError(COPY.projectClearError);
     }
   };
 
@@ -487,7 +508,7 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
     try {
       raw = await file.text();
     } catch {
-      setFileNotice("No se pudo leer el archivo.");
+      setFileNotice(COPY.fileReadError);
       return;
     }
 
@@ -502,15 +523,15 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
         .find((c) => c.id === dataset.activeClassId)
         ?.name.trim();
       if (!activeName || !dataset.activeClassId) {
-        setFileNotice("Ponle nombre a la clase activa antes de cargar el archivo.");
+        setFileNotice(COPY.fileNeedClassName);
         return;
       }
       const parsed = parseTextSamplesTxt(raw);
-      parseErrors = parsed.errors;
+      parseErrors = parsed.errors.map(formatTextParseError);
       rows = parsed.lines.map((l) => ({ clase: activeName, texto: l.texto, line: l.line }));
     } else {
       const parsed = parseTextSamplesCsv(raw);
-      parseErrors = parsed.errors;
+      parseErrors = parsed.errors.map(formatTextParseError);
       rows = parsed.rows;
     }
 
@@ -564,7 +585,7 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
           added += 1;
         } catch (err) {
           rowErrors.push(
-            `Fila ${row.line}: ${err instanceof Error ? err.message : String(err)}`
+            COPY.fileRowError(row.line, err instanceof Error ? err.message : String(err))
           );
         }
         setFileImportProgress({ done: i + 1, total: rows.length });
@@ -574,16 +595,10 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
       setFileImportProgress(null);
     }
 
-    const skipNote =
-      rowErrors.length > 0
-        ? ` · ${rowErrors.length} fila${rowErrors.length === 1 ? "" : "s"} omitida${
-            rowErrors.length === 1 ? "" : "s"
-          }`
-        : "";
     setFileNotice(
       added > 0
-        ? `Se agregaron ${added} ejemplo${added === 1 ? "" : "s"}${skipNote}.`
-        : `No se pudo importar ningún ejemplo.${rowErrors[0] ? ` ${rowErrors[0]}` : ""}`
+        ? COPY.fileImportAdded(added, rowErrors.length)
+        : COPY.fileImportNone(rowErrors[0] ?? "")
     );
   };
 

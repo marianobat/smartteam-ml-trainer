@@ -58,7 +58,7 @@ export function useLiveEvaluation(
   const extractor = extractorRef.current;
   const missingLabel = config.missingLabel;
 
-  const [status, setStatus] = useState("Inicializando...");
+  const [status, setStatus] = useState(COPY.statusInit);
   const [hasModel, setHasModel] = useState(false);
   const [hasSubject, setHasSubject] = useState(false);
   const [rows, setRows] = useState<PredictionRow[]>([]);
@@ -231,7 +231,7 @@ export function useLiveEvaluation(
 
     setup().catch((err) => {
       console.error(err);
-      setStatus(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      setStatus(COPY.statusError(err instanceof Error ? err.message : String(err)));
     });
 
     return () => {

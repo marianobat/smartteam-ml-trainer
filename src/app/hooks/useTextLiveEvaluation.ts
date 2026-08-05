@@ -81,7 +81,7 @@ export function useTextLiveEvaluation(threshold: number): TextLiveEvaluation {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : String(err));
           setLoading(false);
-          setStatus("Error");
+          setStatus(COPY.statusErrorShort);
         }
       }
     })();

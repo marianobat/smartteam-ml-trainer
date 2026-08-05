@@ -2,6 +2,7 @@
 //
 // Importa ejemplos de texto desde CSV con columnas `clase,texto`
 // (también acepta `;` como separador, típico de Excel en ES-LATAM).
+// Los errores son códigos tipados: la UI los traduce con i18n.
 
 export type TextSampleCsvRow = {
   /** Nombre de clase (ya trim). */
@@ -12,9 +13,16 @@ export type TextSampleCsvRow = {
   line: number;
 };
 
+export type TextCsvParseError =
+  | { kind: "empty" }
+  | { kind: "badHeader" }
+  | { kind: "missingClass"; line: number }
+  | { kind: "missingText"; line: number }
+  | { kind: "noRows" };
+
 export type ParseTextSamplesCsvResult = {
   rows: TextSampleCsvRow[];
-  errors: string[];
+  errors: TextCsvParseError[];
 };
 
 /** Parte una línea CSV respetando comillas dobles. */
@@ -80,16 +88,16 @@ function normalizeHeader(cell: string): string {
  * (orden flexible). Filas vacías se ignoran.
  */
 export function parseTextSamplesCsv(raw: string): ParseTextSamplesCsvResult {
-  const errors: string[] = [];
+  const errors: TextCsvParseError[] = [];
   const text = raw.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
   const lines = text.split("\n");
   if (!lines.some((l) => l.trim())) {
-    return { rows: [], errors: ["El archivo está vacío."] };
+    return { rows: [], errors: [{ kind: "empty" }] };
   }
 
   let headerIdx = lines.findIndex((l) => l.trim().length > 0);
   if (headerIdx < 0) {
-    return { rows: [], errors: ["El archivo está vacío."] };
+    return { rows: [], errors: [{ kind: "empty" }] };
   }
 
   const delimiter = detectDelimiter(lines[headerIdx]);
@@ -98,12 +106,7 @@ export function parseTextSamplesCsv(raw: string): ParseTextSamplesCsvResult {
   const textoIdx = headerCells.findIndex((h) => h === "texto" || h === "text" || h === "frase");
 
   if (claseIdx < 0 || textoIdx < 0) {
-    return {
-      rows: [],
-      errors: [
-        'La primera fila debe ser el encabezado con columnas "clase" y "texto" (ej.: clase,texto).',
-      ],
-    };
+    return { rows: [], errors: [{ kind: "badHeader" }] };
   }
 
   const rows: TextSampleCsvRow[] = [];
@@ -118,18 +121,18 @@ export function parseTextSamplesCsv(raw: string): ParseTextSamplesCsvResult {
 
     if (!clase && !texto) continue;
     if (!clase) {
-      errors.push(`Fila ${lineNo}: falta el nombre de la clase.`);
+      errors.push({ kind: "missingClass", line: lineNo });
       continue;
     }
     if (!texto) {
-      errors.push(`Fila ${lineNo}: falta el texto del ejemplo.`);
+      errors.push({ kind: "missingText", line: lineNo });
       continue;
     }
     rows.push({ clase, texto, line: lineNo });
   }
 
   if (rows.length === 0 && errors.length === 0) {
-    errors.push("No hay filas de ejemplos debajo del encabezado.");
+    errors.push({ kind: "noRows" });
   }
 
   return { rows, errors };

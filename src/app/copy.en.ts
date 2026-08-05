@@ -259,6 +259,26 @@ export const COPY_EN: AppCopy = {
   fileReadError: "Couldn't read the file.",
   fileNeedClassName: "Name the active class before loading the file.",
   fileNoSamples: "There are no valid examples in the file.",
+  fileEmpty: "The file is empty.",
+  fileEmptyOrNoPhrases: "The file is empty or has no phrases.",
+  fileBadHeader:
+    'The first row must be the header with columns "clase" and "texto" (e.g. clase,texto).',
+  fileMissingClass: (line: number) => `Row ${line}: class name is missing.`,
+  fileMissingText: (line: number) => `Row ${line}: example text is missing.`,
+  fileNoRows: "There are no example rows under the header.",
+  fileRowError: (line: number, detail: string) => `Row ${line}: ${detail}`,
+  fileImportAdded: (added: number, skipped: number) => {
+    const base = `Added ${added} example${added === 1 ? "" : "s"}`;
+    if (skipped <= 0) return `${base}.`;
+    return `${base} · ${skipped} row${skipped === 1 ? "" : "s"} skipped.`;
+  },
+  fileImportNone: (detail: string) =>
+    detail ? `Couldn't import any examples. ${detail}` : "Couldn't import any examples.",
+
+  statusTextDownloadProgress: (pct: number) => `Downloading the text model... ${pct}%`,
+  statusModelLoadError: (detail: string) => `Error loading the model: ${detail}`,
+  statusError: (detail: string) => `Error: ${detail}`,
+  statusErrorShort: "Error",
 
   // --- Sound trainer ---
   audioBackgroundName: "Background noise",
