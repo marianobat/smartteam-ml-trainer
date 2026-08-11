@@ -970,8 +970,8 @@ export default function TextTrainer({ onBack, room, publishToken }: TextTrainerP
               {!ready && <div className="text-stage-loading">{status}</div>}
               <div className="text-stage-block">
                 <h3 className="text-stage-title">
-                  <Pencil size={18} aria-hidden="true" /> Cargar frases{" "}
-                  {activeClass?.name.trim() ? `a "${activeClass.name.trim()}"` : ""}
+                  <Pencil size={18} aria-hidden="true" />{" "}
+                  {COPY.textLoadTitle(activeClass?.name.trim() ?? "")}
                 </h3>
                 <textarea
                   value={inputText}

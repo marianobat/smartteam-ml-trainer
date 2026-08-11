@@ -65,7 +65,7 @@ export default function ClassCardStrip({
             <span className="class-strip-name">{item.name || COPY.classUnnamed}</span>
             <span
               className={`class-strip-progress ${complete ? "is-complete" : ""}`}
-              aria-label={`${item.count} de ${min} ejemplos`}
+              aria-label={COPY.examplesProgressAria(item.count, min)}
             >
               {complete ? (
                 <>

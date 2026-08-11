@@ -99,12 +99,12 @@ const GHOST_BTN =
 export async function openPipMonitor(opts: PipMonitorOptions): Promise<() => void> {
   const api = window.documentPictureInPicture;
   if (!api) {
-    throw new Error("Este navegador no soporta la ventana de monitoreo (Chrome 116+).");
+    throw new Error(COPY.pipUnsupported);
   }
 
   const pip = await api.requestWindow({ width: 360, height: 540 });
   const doc = pip.document;
-  doc.title = `Monitoreo — ${opts.title}`;
+  doc.title = COPY.pipMonitorTitle(opts.title);
   doc.body.style.cssText =
     `margin:0;padding:12px;background:${C.bg};color:${C.ink};box-sizing:border-box;` +
     `font-family:"Nunito",system-ui,sans-serif;display:grid;gap:10px;align-content:start;`;
@@ -218,7 +218,7 @@ export async function openPipMonitor(opts: PipMonitorOptions): Promise<() => voi
     bleBtn.addEventListener("click", () => void opts.microbit.connectBle());
   }
   const mbDisconnectBtn = el(doc, "button", `${GHOST_BTN}width:100%;`, mbWrap) as HTMLButtonElement;
-  mbDisconnectBtn.textContent = "Desconectar micro:bit";
+  mbDisconnectBtn.textContent = COPY.mbDisconnect;
   mbDisconnectBtn.addEventListener("click", () => void opts.microbit.disconnect());
   const mbStatus = el(doc, "div", `font-size:12px;color:${C.inkSoft};`, mbWrap);
 
@@ -262,10 +262,10 @@ export async function openPipMonitor(opts: PipMonitorOptions): Promise<() => voi
     // Headline "Veo: X 99%"
     if (seeing) {
       seeingEl.innerHTML =
-        `<span>Veo:</span><strong style="color:${C.primary}">${escapeHtml(label)}</strong>` +
+        `<span>${escapeHtml(COPY.see)}</span><strong style="color:${C.primary}">${escapeHtml(label)}</strong>` +
         `<span style="font-size:15px;color:${C.inkSoft}">${Math.round(confidence * 100)}%</span>`;
     } else {
-      seeingEl.innerHTML = `<span style="font-size:15px;color:${C.inkSoft}">No estoy seguro todavía...</span>`;
+      seeingEl.innerHTML = `<span style="font-size:15px;color:${C.inkSoft}">${escapeHtml(COPY.seeUnsure)}</span>`;
     }
 
     // Barras por clase
@@ -291,18 +291,18 @@ export async function openPipMonitor(opts: PipMonitorOptions): Promise<() => voi
     mbConnectRow.style.display = open || busy ? "none" : "flex";
     mbDisconnectBtn.style.display = open || busy ? "block" : "none";
     mbDisconnectBtn.disabled = busy;
-    mbDisconnectBtn.textContent = busy ? "Desconectando..." : "Desconectar micro:bit";
+    mbDisconnectBtn.textContent = busy ? COPY.mbDisconnecting : COPY.mbDisconnect;
     if (usbBtn) usbBtn.disabled = connecting;
     if (bleBtn) bleBtn.disabled = connecting;
     const transportLabel =
       st.transport === "bluetooth" ? "Bluetooth" : st.transport === "serial" ? "USB" : "";
     mbStatus.innerHTML = open
-      ? `<b style="color:${C.success}">●</b> micro:bit conectado (${transportLabel})`
+      ? `<b style="color:${C.success}">●</b> ${escapeHtml(COPY.mbConnected(transportLabel))}`
       : connecting
-      ? "Conectando..."
+      ? escapeHtml(COPY.mbConnecting)
       : st.status === "error"
-      ? `<b style="color:#ff5a5a">●</b> error de conexión`
-      : "○ micro:bit desconectado";
+      ? `<b style="color:#ff5a5a">●</b> ${escapeHtml(COPY.mbConnectionError)}`
+      : `○ ${escapeHtml(COPY.mbDisconnected)}`;
 
     raf = pip.requestAnimationFrame(tick);
   };

@@ -499,7 +499,7 @@ export default function AudioTrainer({ onBack, room, publishToken }: AudioTraine
                       onSelect={(id) => setSelectedId(id)}
                       onAdd={() => {
                         const id = uid();
-                        setClasses((prev) => [...prev, { id, name: `Clase ${prev.length + 1}` }]);
+                        setClasses((prev) => [...prev, { id, name: COPY.defaultClassName(prev.length + 1) }]);
                         setSelectedId(id);
                       }}
                       addDisabled={isTraining || Boolean(recordingId)}
